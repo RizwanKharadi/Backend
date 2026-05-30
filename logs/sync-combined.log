@@ -1,0 +1,598 @@
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-16T09:20:03.462Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T05:46:18.533Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:47:00.390Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:47:30.499Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:48:00.559Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:48:30.662Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:49:00.739Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:49:30.831Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:50:00.880Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-17T05:50:00.883Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:50:30.982Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:51:00.026Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T05:51:05.012Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:51:30.230Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:52:00.267Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:52:30.375Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:53:00.462Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:53:30.582Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:54:00.667Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:54:30.716Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:55:00.789Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-17T05:55:00.792Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:55:30.869Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:56:00.950Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:56:30.994Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:57:00.083Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:57:30.179Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T05:57:58.051Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:58:00.232Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:58:30.253Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:59:00.337Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T05:59:30.386Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T06:00:15.108Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T06:02:36.101Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T06:02:36.223Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T06:03:00.170Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-17T06:03:27.998Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T06:03:30.258Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T06:03:42.120Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T06:04:00.387Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T06:04:30.512Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T06:05:00.629Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-17T06:05:00.631Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-17T06:05:30.718Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T06:05:58.995Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T06:31:47.926Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-17T12:33:29.986Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-18T07:01:32.047Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-20T05:25:10.671Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-20T05:38:51.063Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:39:30.828Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:40:00.011Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-20T05:40:00.017Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:40:30.065Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:41:00.241Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:41:30.293Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:42:00.383Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:42:30.550Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:43:00.706Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:43:30.935Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:44:00.124Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:44:30.334Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:45:00.494Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-20T05:45:00.528Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:45:30.636Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:46:00.667Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:46:30.732Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:47:00.869Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:47:30.018Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:48:00.226Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:48:30.365Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:49:00.428Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:49:30.479Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:50:00.564Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-20T05:50:00.615Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:50:30.622Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:51:00.668Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:51:30.691Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:52:00.727Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:52:30.759Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:53:00.851Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:53:30.936Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:54:00.017Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:54:30.046Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:55:00.102Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-20T05:55:00.104Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:55:30.124Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:56:00.160Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:56:30.229Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:57:00.278Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:57:30.330Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:58:00.385Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:58:30.456Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:59:00.498Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T05:59:30.538Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:00:00.580Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-20T06:00:00.581Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:00:30.603Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:01:00.634Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:01:30.654Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:02:00.696Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:02:30.732Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:03:00.781Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:03:30.798Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:04:00.861Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:04:30.885Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-20T06:05:00.945Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.972Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.984Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.985Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.986Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.987Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.987Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.988Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.989Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.991Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.992Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.993Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:00.999Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.003Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.004Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.005Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.006Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.008Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.016Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.017Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.019Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.022Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.023Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.025Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.027Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.028Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.029Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.029Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.030Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.031Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.032Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.034Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.040Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.041Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.043Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.044Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.045Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.046Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.047Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.048Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.049Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.050Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.050Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.051Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.052Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.053Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.055Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.055Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.055Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.056Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.056Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.057Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.057Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.057Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.058Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.058Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.058Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.059Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.059Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.059Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.060Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.060Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.060Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.061Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.061Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.062Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.062Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.063Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.063Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.064Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.064Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.065Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.066Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.069Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.069Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.070Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.070Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.070Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.071Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.071Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.072Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.072Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.073Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.074Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.074Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.074Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.075Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.075Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.076Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.076Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.077Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.077Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.078Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.078Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.078Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.079Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.079Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.079Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.080Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.080Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.081Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.083Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.084Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.084Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.084Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.085Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.085Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.085Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.086Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.086Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.087Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.087Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.087Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.088Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.088Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.088Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.089Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.089Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.089Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.090Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.090Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.090Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.091Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.091Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.091Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.092Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.092Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.092Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.093Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.094Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.094Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.095Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.095Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-04-20T06:05:01.095Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:15:57.057Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:36:50.141Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:37:37.055Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:38:28.004Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:45:32.091Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:46:36.558Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:50:07.872Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T05:52:07.774Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T07:31:21.197Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T07:36:03.945Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T07:36:17.430Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T07:38:05.160Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T07:58:16.831Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T08:50:23.116Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T12:01:27.634Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T12:10:40.114Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T12:12:48.849Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-22T12:46:18.826Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T05:37:23.048Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T05:39:13.728Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T05:53:09.531Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T06:02:54.182Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T06:10:26.227Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:10:30.281Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:11:00.503Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:11:30.768Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:12:00.030Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:12:30.312Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:13:00.571Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:13:30.900Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:14:00.157Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T06:14:30.476Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T06:14:45.634Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T06:15:04.288Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T06:53:51.491Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T08:51:05.325Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T08:57:46.026Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T08:58:00.143Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T08:58:30.340Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T08:59:00.536Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T08:59:30.699Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:00:00.870Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-24T09:00:00.874Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:00:30.079Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:01:00.280Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:01:30.472Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:02:00.663Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:02:30.845Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:03:00.016Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:03:30.205Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:04:00.369Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:04:30.529Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:05:00.706Z"}
+{"error":"Cannot call `tallysyncs.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-04-24T09:05:00.709Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:05:30.854Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:06:00.012Z"}
+{"error":"Cannot call `companies.find()` before initial connection is complete if `bufferCommands = false`. Make sure you `await mongoose.connect()` if you have `bufferCommands = false`.","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-04-24T09:06:30.176Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T09:07:08.410Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T09:27:34.516Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T11:08:59.870Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T11:27:31.654Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T11:27:44.598Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-24T11:28:50.134Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T06:03:30.060Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T06:10:07.369Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T06:15:26.815Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T06:20:54.298Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T06:35:15.203Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T07:22:09.501Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T07:42:31.169Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T07:50:48.509Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-25T08:38:57.015Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-28T10:32:41.480Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-28T10:34:24.621Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-28T10:35:55.843Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T05:25:29.506Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T06:14:22.715Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T06:31:43.452Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T06:31:49.964Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T07:41:38.009Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T07:41:49.093Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T07:42:05.557Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T07:43:21.977Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T08:29:19.722Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-04-29T11:24:55.930Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-02T07:15:15.163Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-02T11:05:43.552Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-02T18:37:43.799Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-03T14:23:55.776Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-05-03T15:15:10.574Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-03T15:16:55.513Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-03T15:56:01.919Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-03T16:57:38.713Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T04:52:07.785Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T05:21:04.811Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T05:26:38.249Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T07:33:26.655Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T09:10:44.260Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T12:40:22.367Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T13:26:12.640Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T13:46:50.450Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T13:59:57.514Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-04T14:42:31.370Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-05T06:14:29.989Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-05T06:22:06.721Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-05T13:55:24.472Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-06T04:46:23.164Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-06T06:36:00.010Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-06T07:18:11.214Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-06T08:04:27.701Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-06T10:08:57.206Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-06T13:05:25.947Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-07T06:55:01.471Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-05-07T10:48:22.928Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-11T07:34:17.592Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-11T10:48:46.373Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-01.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-11T12:27:04.846Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-05-11T13:46:20.305Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T06:25:55.650Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T09:11:50.333Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T09:12:15.790Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T09:13:12.050Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T09:46:40.641Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T11:24:25.604Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T11:29:27.761Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T11:42:28.020Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T12:17:29.643Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-12T12:52:08.624Z"}
+{"level":"info","message":"All scheduled sync jobs stopped","service":"tally-sync","timestamp":"2026-05-12T13:41:22.480Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-13T04:58:40.013Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-13T09:09:00.123Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T06:49:15.241Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T06:56:12.616Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T06:56:24.974Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T06:56:34.821Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T07:36:25.295Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T07:41:22.335Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-14T10:53:37.473Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-14T10:54:15.154Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-14T10:54:45.364Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T11:09:52.628Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T11:12:32.446Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T11:13:46.595Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T11:15:19.082Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T11:16:04.430Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-14T12:20:05.993Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T05:20:47.379Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T06:26:44.240Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T06:26:52.685Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T09:21:43.069Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T11:00:24.842Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T11:00:36.687Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T11:00:47.876Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T11:01:04.492Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T11:45:31.353Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T12:14:28.540Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T12:54:43.282Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T12:54:55.304Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T12:55:32.427Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:00:04.748Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:00:26.575Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:07:28.163Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:07:34.767Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:07:43.952Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:08:08.420Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:14:31.668Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:14:40.308Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:14:47.744Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:15:16.912Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:15:32.942Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:25:27.716Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-15T13:25:49.635Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-16T04:54:13.502Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T06:21:33.038Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T06:31:41.446Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T06:56:21.508Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T07:21:59.648Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T07:48:03.191Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T08:36:23.663Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T08:46:26.418Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T09:56:11.049Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T10:05:02.492Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T12:39:08.424Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T12:58:06.758Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T12:58:10.869Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:28:20.038Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:28:25.167Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:28:30.119Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:28:38.445Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:28:46.293Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:29:37.555Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:29:50.016Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:32:05.942Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-18T13:37:01.686Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T04:49:18.612Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T06:43:51.104Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T07:00:03.449Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T07:28:37.309Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T07:44:16.038Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T07:44:23.072Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T07:46:34.164Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T08:58:39.972Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T09:14:02.560Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T09:14:35.360Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T11:17:31.552Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T11:28:23.942Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T11:30:29.959Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T11:33:13.363Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T11:37:25.588Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T11:39:39.019Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T12:16:14.744Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T12:28:24.733Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T12:28:34.446Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T12:29:54.527Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T12:30:01.218Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-19T12:31:44.230Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-20T05:09:49.823Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-20T07:16:30.670Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-20T08:00:05.411Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-20T12:59:24.551Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-20T13:56:26.527Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T04:44:46.519Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T06:08:33.981Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T08:59:04.959Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T09:32:10.002Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T09:38:03.225Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T09:52:21.634Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T09:52:57.146Z"}
+{"error":"connection <monitor> to 159.41.196.31:27017 closed","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-21T09:57:05.159Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T11:14:14.256Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:19:55.859Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:20:12.004Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:20:21.542Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:20:32.399Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:20:36.726Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:20:47.011Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:20:52.781Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-21T13:23:04.011Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T04:33:27.106Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T08:45:08.483Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T08:57:33.113Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T09:40:27.146Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T09:56:50.636Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T10:50:34.515Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T10:50:44.537Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T10:50:56.278Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T10:51:19.073Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T10:51:24.445Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T10:51:30.012Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T10:51:42.059Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T11:33:58.491Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T11:34:15.084Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T11:34:20.742Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T11:34:26.508Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T13:40:09.741Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T13:50:03.163Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T13:56:38.921Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T13:56:47.817Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T13:57:05.052Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T13:58:36.600Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T14:01:55.412Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T14:11:45.441Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T14:23:01.930Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T14:23:11.777Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T14:23:27.449Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T14:23:43.486Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-22T14:31:11.451Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T05:44:15.783Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T06:19:35.959Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T07:02:42.916Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T07:02:50.684Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T07:58:33.700Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T08:26:10.927Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T08:26:38.774Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T08:26:44.568Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T08:42:09.086Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:01:52.706Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:02:01.954Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:02:39.782Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:02:52.523Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:03:20.382Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:03:57.701Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:27:06.225Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T09:49:56.875Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T11:22:51.060Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T11:30:53.530Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T11:31:01.642Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T11:31:58.122Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T11:32:53.857Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-23T11:35:44.902Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T07:41:07.286Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T07:45:44.896Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T07:46:57.624Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T08:02:28.444Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T08:02:34.907Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T08:02:44.998Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T08:06:57.310Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T08:08:12.024Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T09:00:02.189Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T09:13:29.623Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T09:54:00.131Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T09:54:04.660Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T09:54:33.664Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T09:54:40.366Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T09:56:01.148Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T10:07:19.660Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T10:09:12.790Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T10:13:42.016Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T10:13:55.229Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T11:18:16.774Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T11:43:54.587Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T11:47:13.166Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T12:27:08.843Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T13:23:18.311Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-25T13:24:55.497Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T04:42:29.698Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T05:07:24.369Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T05:10:49.296Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T05:37:08.536Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T05:51:58.366Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T06:12:15.485Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T06:39:28.891Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T08:49:28.669Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T09:09:07.315Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T09:32:15.899Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T11:13:46.159Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:22:37.671Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:23:15.481Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:29:37.299Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:30:15.946Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing conflict queue","service":"tally-sync","timestamp":"2026-05-26T11:30:15.948Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:30:45.217Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:31:15.581Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:31:46.004Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:32:15.311Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:32:45.798Z"}
+{"error":"getaddrinfo ENOTFOUND ac-wqdqgfu-shard-00-02.w9gspv9.mongodb.net","level":"error","message":"Error processing sync queue","service":"tally-sync","timestamp":"2026-05-26T11:33:15.249Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T11:46:56.232Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-26T11:48:51.515Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T05:29:01.072Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T07:58:23.470Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T08:18:33.489Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T08:59:42.952Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T09:09:29.815Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T09:26:04.146Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T09:26:12.335Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T09:50:58.830Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T09:52:05.418Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T09:55:46.521Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T11:03:10.464Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T12:48:28.386Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T12:49:38.925Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T13:01:26.756Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T13:01:27.766Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T13:01:32.508Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T13:01:35.544Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T13:01:46.235Z"}
+{"level":"info","message":"Background sync processes started","service":"tally-sync","timestamp":"2026-05-27T13:01:47.261Z"}
