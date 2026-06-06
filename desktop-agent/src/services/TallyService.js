@@ -9,7 +9,7 @@ class TallyService extends EventEmitter {
     this.isConnected = false;
     this.client = null;
     this.config = {
-      host: 'localhost',
+      host: '127.0.0.1',
       port: 9000,
       timeout: 30000,
       retryAttempts: 3,
@@ -61,6 +61,11 @@ class TallyService extends EventEmitter {
     const savedConfig = store.get('tallyConfig', {});
     this.config = { ...this.config, ...savedConfig };
     
+    // Windows may resolve "localhost" to IPv6 (::1), while Tally commonly binds only IPv4.
+    if (this.config.host === 'localhost') {
+      this.config.host = '127.0.0.1';
+    }
+    
     this.logger.info('Tally configuration loaded:', {
       host: this.config.host,
       port: this.config.port
@@ -79,57 +84,45 @@ class TallyService extends EventEmitter {
 
   async testConnection() {
     return new Promise((resolve, reject) => {
+      let settled = false;
+      const client = new net.Socket();
+
+      const succeed = () => {
+        if (settled) return;
+        settled = true;
+        this.isConnected = true;
+        this.emit('connectionStatusChanged', true);
+        this.logger.info('Tally connection test successful');
+        client.destroy();
+        resolve(true);
+      };
+
+      const fail = (error) => {
+        if (settled) return;
+        settled = true;
+        this.isConnected = false;
+        this.emit('connectionStatusChanged', false);
+        client.destroy();
+        reject(error);
+      };
+
       const timeout = setTimeout(() => {
-        if (client) {
-          client.destroy();
-        }
-        reject(new Error('Connection timeout'));
+        fail(new Error('Connection timeout'));
       }, this.config.timeout);
 
-      const client = new net.Socket();
-      
       client.connect(this.config.port, this.config.host, () => {
         clearTimeout(timeout);
-        this.logger.info('Tally connection test successful');
-        
-        // Send a simple request to verify Tally is responding
-        const testRequest = this.buildXmlRequest('EXPORT', 'Collection', {
-          'FETCH': 'List of Companies'
-        });
-        
-        client.write(testRequest);
-      });
-
-      client.on('data', (data) => {
-        clearTimeout(timeout);
-        client.destroy();
-        
-        try {
-          const response = this.parseXmlResponse(data.toString());
-          if (response && response.ENVELOPE) {
-            this.isConnected = true;
-            this.emit('connectionStatusChanged', true);
-            resolve(true);
-          } else {
-            reject(new Error('Invalid response from Tally'));
-          }
-        } catch (error) {
-          reject(new Error('Failed to parse Tally response'));
-        }
+        succeed();
       });
 
       client.on('error', (error) => {
         clearTimeout(timeout);
-        this.isConnected = false;
-        this.emit('connectionStatusChanged', false);
         this.logger.error('Tally connection error:', error);
-        reject(error);
+        fail(error);
       });
 
       client.on('close', () => {
         clearTimeout(timeout);
-        this.isConnected = false;
-        this.emit('connectionStatusChanged', false);
       });
     });
   }
@@ -228,9 +221,7 @@ class TallyService extends EventEmitter {
 
   async getCompanies() {
     try {
-      const response = await this.sendRequest('EXPORT', 'Collection', {
-        'FETCH': 'List of Companies'
-      });
+      const response = await this.sendRequest('EXPORT', 'List of Companies');
 
       if (response && response.ENVELOPE && response.ENVELOPE.BODY) {
         const companies = this.extractCompaniesFromResponse(response);
@@ -318,31 +309,49 @@ class TallyService extends EventEmitter {
 
   extractCompaniesFromResponse(response) {
     const companies = [];
-    
-    try {
-      const collection = response.ENVELOPE.BODY.EXPORTDATA?.REQUESTDATA?.TALLYMESSAGE?.COMPANY;
-      
-      if (Array.isArray(collection)) {
-        collection.forEach(company => {
-          if (company['@_NAME']) {
-            companies.push({
-              name: company['@_NAME'],
-              guid: company['@_GUID'] || null,
-              alterid: company['@_ALTERID'] || null
-            });
-          }
-        });
-      } else if (collection && collection['@_NAME']) {
-        companies.push({
-          name: collection['@_NAME'],
-          guid: collection['@_GUID'] || null,
-          alterid: collection['@_ALTERID'] || null
-        });
+    const seenNames = new Set();
+
+    const pushCompany = (companyLike) => {
+      const name = companyLike?.['@_NAME'] || companyLike?.NAME || companyLike?.name;
+      if (!name || seenNames.has(name)) {
+        return;
       }
+      seenNames.add(name);
+      companies.push({
+        name,
+        guid: companyLike?.['@_GUID'] || companyLike?.GUID || null,
+        alterid: companyLike?.['@_ALTERID'] || companyLike?.ALTERID || null
+      });
+    };
+
+    const walk = (node, parentKey = '') => {
+      if (!node) return;
+
+      if (Array.isArray(node)) {
+        node.forEach((item) => walk(item, parentKey));
+        return;
+      }
+
+      if (typeof node !== 'object') {
+        return;
+      }
+
+      if (
+        parentKey.toUpperCase() === 'COMPANY'
+        || Object.prototype.hasOwnProperty.call(node, '@_NAME')
+      ) {
+        pushCompany(node);
+      }
+
+      Object.entries(node).forEach(([key, value]) => walk(value, key));
+    };
+
+    try {
+      walk(response);
     } catch (error) {
       this.logger.error('Failed to extract companies from response:', error);
     }
-    
+
     return companies;
   }
 

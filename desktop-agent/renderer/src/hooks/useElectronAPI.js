@@ -47,6 +47,21 @@ export const useElectronAPI = () => {
       // Set up event listeners
       setupEventListeners()
 
+      // Hydrate current connection state so UI is accurate even if startup events were missed.
+      const connectionState = await window.electronAPI.getConnectionState()
+      if (connectionState?.server) {
+        setConnectionStatus(
+          'server',
+          connectionState.server.isConnected ? ConnectionStatus.CONNECTED : ConnectionStatus.DISCONNECTED
+        )
+      }
+      if (connectionState?.tally) {
+        setConnectionStatus(
+          'tally',
+          connectionState.tally.isConnected ? ConnectionStatus.CONNECTED : ConnectionStatus.DISCONNECTED
+        )
+      }
+
       console.log('Electron API initialized successfully')
     } catch (error) {
       console.error('Failed to initialize Electron API:', error)
@@ -55,7 +70,7 @@ export const useElectronAPI = () => {
         message: `Failed to initialize Electron API: ${error.message}`
       })
     }
-  }, [isElectronAvailable, setConfig, setAgentInfo, addLog])
+  }, [isElectronAvailable, setConfig, setAgentInfo, addLog, setupEventListeners, setConnectionStatus])
 
   // Set up event listeners for Electron events
   const setupEventListeners = useCallback(() => {

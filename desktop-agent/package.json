@@ -7,11 +7,11 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "dev": "concurrently \"npm run react:dev\" \"wait-on http://localhost:3001 && electron .\"",
+    "dev": "npm run electron:dev",
     "react:dev": "cd renderer && npm run dev",
     "react:build": "cd renderer && npm run build",
     "build": "npm run react:build",
-    "electron:dev": "cross-env NODE_ENV=development electron .",
+    "electron:dev": "concurrently \"npm run react:dev\" \"wait-on http://localhost:3001 && cross-env NODE_ENV=development electron .\"",
     "electron:pack": "electron-builder",
     "electron:dist": "npm run build && electron-builder --publish=never",
     "electron:publish": "npm run build && electron-builder --publish=always",

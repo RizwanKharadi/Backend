@@ -17,7 +17,7 @@ class WebSocketClient extends EventEmitter {
     this.heartbeatTimeout = null;
     
     this.config = {
-      serverUrl: 'ws://localhost:5000/tally-agent',
+      serverUrl: 'ws://127.0.0.1:5000/tally-agent',
       apiKey: '',
       agentId: '',
       heartbeatInterval: 30000,
@@ -57,6 +57,11 @@ class WebSocketClient extends EventEmitter {
     const savedConfig = store.get('webSocketConfig', {});
     this.config = { ...this.config, ...savedConfig };
     
+    // Normalize localhost to IPv4 loopback to avoid ::1-only resolution failures.
+    if (typeof this.config.serverUrl === 'string') {
+      this.config.serverUrl = this.config.serverUrl.replace('ws://localhost', 'ws://127.0.0.1');
+    }
+    
     this.logger.info('WebSocket configuration loaded');
   }
 
@@ -86,7 +91,7 @@ class WebSocketClient extends EventEmitter {
   }
 
   async connect() {
-    if (this.isConnected || this.isReconnecting) {
+    if (this.isConnected) {
       return;
     }
 
@@ -165,7 +170,8 @@ class WebSocketClient extends EventEmitter {
 
     this.ws.on('error', (error) => {
       this.logger.error('WebSocket error:', error);
-      this.emit('error', error);
+      // Avoid crashing when no EventEmitter 'error' listener is registered.
+      this.emit('connection-error', error);
     });
 
     this.ws.on('message', (data) => {

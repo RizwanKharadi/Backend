@@ -1,4 +1,4 @@
-import { WebSocketServer } from 'ws';
+import { WebSocketServer, WebSocket } from 'ws';
 import winston from 'winston';
 import jwt from 'jsonwebtoken';
 import TallyConnection from '../models/TallyConnection.js';
@@ -62,24 +62,56 @@ class TallyWebSocketService {
       const url = new URL(info.req.url, `http://${info.req.headers.host}`);
       const token = url.searchParams.get('token');
       const agentId = url.searchParams.get('agentId');
+      const apiKey = url.searchParams.get('apiKey');
 
-      if (!token || !agentId) {
-        this.logger.warn('WebSocket connection rejected: Missing token or agentId');
+      if (!agentId) {
+        this.logger.warn('WebSocket connection rejected: Missing agentId');
         return false;
       }
 
-      // Verify JWT token
-      const decoded = jwt.verify(token, process.env.JWT_SECRET);
-      if (!decoded) {
-        this.logger.warn('WebSocket connection rejected: Invalid token');
-        return false;
+      // Preferred auth path: JWT token
+      if (token) {
+        const decoded = jwt.verify(token, process.env.JWT_SECRET);
+        if (!decoded) {
+          this.logger.warn('WebSocket connection rejected: Invalid token');
+          return false;
+        }
+
+        // Store connection info for later use
+        info.req.user = decoded;
+        info.req.agentId = agentId;
+        info.req.authMethod = 'jwt';
+        return true;
       }
 
-      // Store connection info for later use
-      info.req.user = decoded;
-      info.req.agentId = agentId;
+      // Backward-compatible auth path: API key
+      if (apiKey !== null) {
+        const configuredApiKey = process.env.DESKTOP_AGENT_API_KEY || process.env.AGENT_API_KEY;
 
-      return true;
+        if (configuredApiKey) {
+          if (apiKey !== configuredApiKey) {
+            this.logger.warn('WebSocket connection rejected: Invalid API key', { agentId });
+            return false;
+          }
+        } else if (process.env.NODE_ENV === 'production') {
+          this.logger.warn('WebSocket connection rejected: API key not configured in production', { agentId });
+          return false;
+        } else {
+          this.logger.warn('DESKTOP_AGENT_API_KEY not configured; allowing API-key auth in non-production mode');
+        }
+
+        info.req.user = {
+          id: 'desktop-agent',
+          role: 'system',
+          authType: 'apiKey'
+        };
+        info.req.agentId = agentId;
+        info.req.authMethod = 'apiKey';
+        return true;
+      }
+
+      this.logger.warn('WebSocket connection rejected: Missing token/apiKey');
+      return false;
     } catch (error) {
       this.logger.error('Error verifying WebSocket client', { error: error.message });
       return false;
@@ -96,7 +128,11 @@ class TallyWebSocketService {
     const user = req.user;
 
     try {
-      this.logger.info('New Tally agent connection', { agentId, userId: user.id });
+      this.logger.info('New Tally agent connection', {
+        agentId,
+        userId: user?.id || 'unknown',
+        authMethod: req.authMethod || 'unknown'
+      });
 
       // Store connection
       this.connections.set(agentId, {
@@ -111,6 +147,7 @@ class TallyWebSocketService {
       tallyCommunicationService.registerWebSocketConnection(agentId, ws);
 
       // Set up WebSocket event handlers
+      ws.isAlive = true;
       ws.on('message', (data) => this.handleMessage(agentId, data));
       ws.on('close', (code, reason) => this.handleDisconnection(agentId, code, reason));
       ws.on('error', (error) => this.handleConnectionError(agentId, error));
@@ -382,6 +419,9 @@ class TallyWebSocketService {
    */
   handlePong(agentId) {
     const connection = this.connections.get(agentId);
+    if (connection?.ws) {
+      connection.ws.isAlive = true;
+    }
     if (connection) {
       connection.isAlive = true;
     }

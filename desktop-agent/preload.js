@@ -10,6 +10,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Tally Service API
   tallyTestConnection: () => ipcRenderer.invoke('tally-test-connection'),
   tallyGetCompanies: () => ipcRenderer.invoke('tally-get-companies'),
+  getConnectionState: () => ipcRenderer.invoke('get-connection-state'),
   
   // Sync API
   syncStart: () => ipcRenderer.invoke('sync-start'),

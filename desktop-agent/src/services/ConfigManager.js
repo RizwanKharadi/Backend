@@ -20,9 +20,9 @@ class ConfigManager {
     return {
       // Server Configuration
       server: {
-        url: 'ws://localhost:5000/tally-agent',
-        apiUrl: 'http://localhost:5000/api',
-        apiKey: '',
+        url: 'ws://127.0.0.1:5000/tally-agent',
+        apiUrl: 'http://127.0.0.1:5000/api',
+        apiKey: process.env.DESKTOP_AGENT_API_KEY || process.env.AGENT_API_KEY || '',
         timeout: 30000,
         retryAttempts: 3,
         retryDelay: 5000
@@ -30,7 +30,7 @@ class ConfigManager {
       
       // Tally Configuration
       tally: {
-        host: 'localhost',
+        host: '127.0.0.1',
         port: 9000,
         timeout: 30000,
         retryAttempts: 3,
@@ -180,6 +180,11 @@ class ConfigManager {
     
     if (!config.server.apiUrl) {
       config.server.apiUrl = this.getDefaultConfig().server.apiUrl;
+      hasChanges = true;
+    }
+
+    if (!config.server.apiKey && (process.env.DESKTOP_AGENT_API_KEY || process.env.AGENT_API_KEY)) {
+      config.server.apiKey = process.env.DESKTOP_AGENT_API_KEY || process.env.AGENT_API_KEY;
       hasChanges = true;
     }
     

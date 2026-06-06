@@ -3,6 +3,8 @@ const { autoUpdater } = require('electron-updater');
 const electronLog = require('electron-log');
 const Store = require('electron-store');
 const path = require('path');
+const fs = require('fs');
+const http = require('http');
 const isDev = require('electron-is-dev');
 
 // Import services
@@ -37,6 +39,105 @@ class DesktopAgent {
     this.setupApp();
   }
 
+  getFriendlyFallbackPage(message) {
+    const safeMessage = String(message || 'The app is starting in safe mode. Some features may be temporarily unavailable.')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    return `data:text/html;charset=UTF-8,${encodeURIComponent(`
+      <!doctype html>
+      <html>
+        <head>
+          <meta charset="UTF-8" />
+          <title>FinSync360 Agent</title>
+          <style>
+            body {
+              margin: 0;
+              font-family: "Segoe UI", Arial, sans-serif;
+              background: #f5f7fb;
+              color: #1f2937;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              height: 100vh;
+            }
+            .card {
+              max-width: 560px;
+              padding: 24px;
+              background: #ffffff;
+              border-radius: 12px;
+              box-shadow: 0 10px 30px rgba(0, 0, 0, 0.08);
+            }
+            h1 { margin: 0 0 10px; font-size: 22px; }
+            p { margin: 0 0 10px; line-height: 1.5; }
+            .muted { color: #6b7280; font-size: 13px; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <h1>FinSync360 Agent is running</h1>
+            <p>${safeMessage}</p>
+            <p class="muted">You can keep working. The app will continue trying to reconnect automatically in the background.</p>
+          </div>
+        </body>
+      </html>
+    `)}`;
+  }
+
+  checkUrlLooksLikeRenderer(url) {
+    return new Promise((resolve) => {
+      const viteClientUrl = `${url.replace(/\/$/, '')}/@vite/client`;
+      const req = http.get(viteClientUrl, (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          body += chunk;
+          if (body.length > 4096) {
+            req.destroy();
+            resolve(this.looksLikeViteClient(res.statusCode, body));
+          }
+        });
+        res.on('end', () => resolve(this.looksLikeViteClient(res.statusCode, body)));
+      });
+
+      req.setTimeout(1000, () => {
+        req.destroy();
+        resolve(false);
+      });
+
+      req.on('error', () => resolve(false));
+    });
+  }
+
+  looksLikeViteClient(statusCode, content) {
+    if (statusCode !== 200) return false;
+    if (!content) return false;
+    return content.includes('__vite__') || content.includes('/@react-refresh') || content.includes('import.meta.hot');
+  }
+
+  async resolveDevStartUrl() {
+    const envUrl = process.env.ELECTRON_RENDERER_URL;
+    const candidates = [];
+    if (envUrl) {
+      candidates.push(envUrl);
+    }
+
+    for (let port = 3001; port <= 3010; port += 1) {
+      candidates.push(`http://localhost:${port}`);
+    }
+
+    for (const candidateUrl of candidates) {
+      // eslint-disable-next-line no-await-in-loop
+      const isRenderer = await this.checkUrlLooksLikeRenderer(candidateUrl);
+      if (isRenderer) {
+        electronLog.info('Using renderer URL:', candidateUrl);
+        return candidateUrl;
+      }
+    }
+
+    return envUrl || 'http://localhost:3001';
+  }
+
   setupApp() {
     // Set app user model ID for Windows
     if (process.platform === 'win32') {
@@ -54,6 +155,7 @@ class DesktopAgent {
     
     // IPC handlers
     this.setupIpcHandlers();
+    this.setupServiceEventBridges();
   }
 
   async onReady() {
@@ -68,6 +170,7 @@ class DesktopAgent {
       
       // Initialize services
       await this.initializeServices();
+      this.sendConnectionStatusUpdates();
       
       // Check for updates
       if (!isDev) {
@@ -77,7 +180,10 @@ class DesktopAgent {
       electronLog.info('FinSync360 Desktop Agent started successfully');
     } catch (error) {
       electronLog.error('Failed to start Desktop Agent:', error);
-      this.showErrorDialog('Startup Error', 'Failed to start FinSync360 Desktop Agent');
+      this.showErrorDialog(
+        'FinSync360 Agent',
+        'The app started with limited functionality. Please restart once and contact support if this continues.'
+      );
     }
   }
 
@@ -98,21 +204,35 @@ class DesktopAgent {
       titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default'
     });
 
-    // Load the app
-    const startUrl = isDev
-      ? 'http://localhost:3001'
-      : `file://${path.join(__dirname, 'renderer/dist/index.html')}`;
-
-    await this.mainWindow.loadURL(startUrl);
-
-    // Show window when ready
-    this.mainWindow.once('ready-to-show', () => {
-      this.mainWindow.show();
-      
-      if (isDev) {
+    const ensureWindowVisible = () => {
+      if (this.mainWindow && !this.mainWindow.isDestroyed() && !this.mainWindow.isVisible()) {
+        this.mainWindow.show();
+      }
+      if (isDev && this.mainWindow && !this.mainWindow.isDestroyed()) {
         this.mainWindow.webContents.openDevTools();
       }
-    });
+    };
+
+    // Register visibility handlers before loading URL to avoid race conditions.
+    this.mainWindow.once('ready-to-show', ensureWindowVisible);
+    this.mainWindow.webContents.once('did-finish-load', ensureWindowVisible);
+    setTimeout(ensureWindowVisible, 3000);
+
+    // Load the app
+    const startUrl = isDev
+      ? await this.resolveDevStartUrl()
+      : `file://${path.join(__dirname, 'renderer/dist/index.html')}`;
+
+    try {
+      await this.mainWindow.loadURL(startUrl);
+    } catch (error) {
+      electronLog.error('Failed to load start URL, using fallback page:', error);
+      await this.mainWindow.loadURL(
+        this.getFriendlyFallbackPage(
+          'We could not open the main screen right now. Background services will continue and the app will recover automatically when available.'
+        )
+      );
+    }
 
     // Handle window events
     this.mainWindow.on('close', (event) => {
@@ -135,6 +255,14 @@ class DesktopAgent {
       shell.openExternal(url);
       return { action: 'deny' };
     });
+
+    this.mainWindow.webContents.on('render-process-gone', (event, details) => {
+      electronLog.error('Renderer process gone:', details);
+      this.showErrorDialog(
+        'FinSync360 Agent',
+        'The screen was restarted after an internal issue. Your background sync continues to run.'
+      );
+    });
   }
 
   createTray() {
@@ -153,7 +281,7 @@ class DesktopAgent {
           { label: 'Last Sync: Never', enabled: false },
           { label: 'Status: Disconnected', enabled: false },
           { type: 'separator' },
-          { label: 'Force Sync', click: () => this.forcSync() }
+          { label: 'Force Sync', click: () => this.forceSync() }
         ]
       },
       { type: 'separator' },
@@ -184,15 +312,43 @@ class DesktopAgent {
     try {
       // Initialize configuration
       await this.configManager.initialize();
+      const appConfig = this.configManager.getConfig();
+      if (isDev && !appConfig.server?.apiKey) {
+        const inferredApiKey = this.readBackendDesktopAgentApiKey();
+        if (inferredApiKey) {
+          this.configManager.setConfig('server.apiKey', inferredApiKey);
+          appConfig.server.apiKey = inferredApiKey;
+          electronLog.info('Loaded desktop agent API key from backend .env for local development');
+        }
+      }
+      await this.tallyService.saveConfig(appConfig.tally || {});
+      this.webSocketClient.updateConfig(
+        Object.fromEntries(
+          Object.entries({
+            serverUrl: appConfig.server?.url,
+            apiKey: appConfig.server?.apiKey
+          }).filter(([, value]) => value !== undefined)
+        )
+      );
+      this.syncManager.updateConfig(appConfig.sync || {});
       
       // Initialize Tally service
-      await this.tallyService.initialize();
+      try {
+        await this.tallyService.initialize();
+      } catch (error) {
+        electronLog.warn('Tally service unavailable during startup, continuing in disconnected mode:', error.message);
+      }
       
       // Initialize WebSocket client
-      await this.webSocketClient.initialize();
+      try {
+        await this.webSocketClient.initialize();
+      } catch (error) {
+        electronLog.warn('WebSocket service unavailable during startup, continuing in offline mode:', error.message);
+      }
       
       // Initialize sync manager
       await this.syncManager.initialize();
+      this.syncManager.setServices(this.tallyService, this.webSocketClient, null);
       
       // Start system monitoring
       this.systemMonitor.start();
@@ -204,7 +360,33 @@ class DesktopAgent {
     }
   }
 
+  readBackendDesktopAgentApiKey() {
+    try {
+      const backendEnvPath = path.join(__dirname, '..', 'backend', '.env');
+      if (!fs.existsSync(backendEnvPath)) {
+        return null;
+      }
+
+      const envContent = fs.readFileSync(backendEnvPath, 'utf8');
+      const keyLine = envContent.split(/\r?\n/).find((line) => line.startsWith('DESKTOP_AGENT_API_KEY=') || line.startsWith('AGENT_API_KEY='));
+      if (!keyLine) {
+        return null;
+      }
+
+      const apiKey = keyLine.split('=').slice(1).join('=').trim();
+      return apiKey || null;
+    } catch (error) {
+      electronLog.warn('Unable to read backend desktop agent API key for development:', error.message);
+      return null;
+    }
+  }
+
   setupAutoUpdater() {
+    if (!app.isPackaged) {
+      electronLog.info('Auto-updater disabled in development mode');
+      return;
+    }
+
     autoUpdater.logger = electronLog;
     autoUpdater.checkForUpdatesAndNotify();
 
@@ -240,11 +422,42 @@ class DesktopAgent {
   setupIpcHandlers() {
     // Configuration handlers
     ipcMain.handle('get-config', () => this.configManager.getConfig());
-    ipcMain.handle('set-config', (event, config) => this.configManager.setConfig(config));
+    ipcMain.handle('set-config', async (event, config) => {
+      this.configManager.setConfig(config);
+
+      // Keep runtime services aligned with updated config values.
+      const mergedConfig = this.configManager.getConfig();
+      await this.tallyService.saveConfig(mergedConfig.tally || {});
+      this.webSocketClient.updateConfig(
+        Object.fromEntries(
+          Object.entries({
+            serverUrl: mergedConfig.server?.url,
+            apiKey: mergedConfig.server?.apiKey
+          }).filter(([, value]) => value !== undefined)
+        )
+      );
+      this.syncManager.updateConfig(mergedConfig.sync || {});
+
+      this.sendConnectionStatusUpdates();
+      return true;
+    });
     
     // Tally service handlers
-    ipcMain.handle('tally-test-connection', () => this.tallyService.testConnection());
+    ipcMain.handle('tally-test-connection', async () => {
+      try {
+        const result = await this.tallyService.testConnection();
+        this.sendConnectionStatusUpdates();
+        return result;
+      } catch (error) {
+        this.sendConnectionStatusUpdates();
+        throw error;
+      }
+    });
     ipcMain.handle('tally-get-companies', () => this.tallyService.getCompanies());
+    ipcMain.handle('get-connection-state', () => ({
+      server: this.webSocketClient.getConnectionStatus(),
+      tally: this.tallyService.getConnectionStatus()
+    }));
     
     // Sync handlers
     ipcMain.handle('sync-start', () => this.syncManager.startSync());
@@ -260,6 +473,53 @@ class DesktopAgent {
     // Window handlers
     ipcMain.handle('minimize-to-tray', () => this.mainWindow.hide());
     ipcMain.handle('quit-app', () => this.quit());
+  }
+
+  setupServiceEventBridges() {
+    this.webSocketClient.on('connected', () => this.sendConnectionStatusUpdates());
+    this.webSocketClient.on('disconnected', () => this.sendConnectionStatusUpdates());
+    this.webSocketClient.on('connection-error', () => this.sendConnectionStatusUpdates());
+
+    this.tallyService.on('connectionStatusChanged', () => this.sendConnectionStatusUpdates());
+
+    this.syncManager.on('sync-started', (session) => this.sendSyncStatusUpdate({
+      status: 'running',
+      currentOperation: 'Synchronization started',
+      ...session
+    }));
+    this.syncManager.on('sync-progress', (progress) => this.sendSyncStatusUpdate({
+      status: 'running',
+      ...progress
+    }));
+    this.syncManager.on('sync-completed', (session) => this.sendSyncStatusUpdate({
+      status: 'completed',
+      ...session
+    }));
+    this.syncManager.on('sync-failed', (session) => this.sendSyncStatusUpdate({
+      status: 'failed',
+      ...session
+    }));
+  }
+
+  sendSyncStatusUpdate(payload) {
+    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+      this.mainWindow.webContents.send('sync-status-update', payload);
+    }
+  }
+
+  sendConnectionStatusUpdates() {
+    if (!this.mainWindow || this.mainWindow.isDestroyed()) {
+      return;
+    }
+
+    this.mainWindow.webContents.send('websocket-update', {
+      isConnected: this.webSocketClient.isConnected,
+      isReconnecting: this.webSocketClient.isReconnecting
+    });
+
+    this.mainWindow.webContents.send('tally-connection-update', {
+      isConnected: this.tallyService.isConnected
+    });
   }
 
   showMainWindow() {
@@ -284,7 +544,7 @@ class DesktopAgent {
     }
   }
 
-  async forcSync() {
+  async forceSync() {
     try {
       await this.syncManager.forceSync();
       this.showNotification('Sync Started', 'Manual sync initiated successfully');
