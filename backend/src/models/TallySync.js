@@ -223,7 +223,7 @@ TallySyncSchema.statics.getSyncStats = function(companyId, timeframe = '24h') {
   return this.aggregate([
     {
       $match: {
-        company: mongoose.Types.ObjectId(companyId),
+        company: new mongoose.Types.ObjectId(companyId),
         lastSyncDate: { $gte: since }
       }
     },

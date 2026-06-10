@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import { body } from 'express-validator';
 import {
   getVouchers,
@@ -12,12 +13,25 @@ import {
 const router = express.Router();
 
 // All routes are protected and require company access
-router.use(protect);
+router.use(protect, requireActiveSubscription);
 
 // Validation rules for transaction creation/update
 const transactionValidation = [
   body('voucherType')
-    .isIn(['sales', 'purchase', 'receipt', 'payment', 'contra', 'journal', 'debit_note', 'credit_note'])
+    .isIn([
+      'sales',
+      'purchase',
+      'receipt',
+      'payment',
+      'contra',
+      'journal',
+      'debit_note',
+      'credit_note',
+      'sales_order',
+      'purchase_order',
+      'receipt_note',
+      'delivery_note'
+    ])
     .withMessage('Invalid transaction type'),
   body('date')
     .isISO8601()

@@ -1,11 +1,21 @@
 import express from 'express';
 import bcrypt from 'bcryptjs';
 import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
 import { body, validationResult } from 'express-validator';
 import User from '../models/User.js';
 import Company from '../models/Company.js';
+import Subscription from '../models/Subscription.js';
+import Organization from '../models/Organization.js';
 import { protect, optionalAuth } from '../middleware/auth.js';
+import { createTrialOrganization } from '../services/licenseService.js';
+import {
+  registerTallySerial,
+  mapTallyLicensePayload,
+  checkTallySerialInUse
+} from '../services/tallySerialService.js';
 import logger from '../utils/logger.js';
+import { serializeUser } from '../utils/serializeUser.js';
 
 const router = express.Router();
 
@@ -75,7 +85,11 @@ router.post('/register', [
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('phone').isMobilePhone().withMessage('Please provide a valid phone number'),
   body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
-  body('companyName').trim().isLength({ min: 2, max: 100 }).withMessage('Company name must be between 2 and 100 characters')
+  body('companyName')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Company name must be between 2 and 100 characters when provided')
 ], async (req, res) => {
   try {
     const errors = validationResult(req);
@@ -87,7 +101,29 @@ router.post('/register', [
       });
     }
 
-    const { name, email, phone, password, companyName, companyDetails = {} } = req.body;
+    const {
+      name,
+      email,
+      phone,
+      password,
+      companyName = '',
+      companyDetails = {},
+      tallyLicense
+    } = req.body;
+    const trimmedCompanyName = typeof companyName === 'string' ? companyName.trim() : '';
+    const licensePayload = mapTallyLicensePayload(tallyLicense);
+
+    if (licensePayload?.serialNumber) {
+      const serialConflict = await checkTallySerialInUse(licensePayload.serialNumber, null);
+      if (serialConflict.inUse) {
+        return res.status(409).json({
+          success: false,
+          message: `This Tally serial number is already registered with ${serialConflict.registeredEmail}`,
+          code: 'TALLY_SERIAL_IN_USE',
+          data: serialConflict
+        });
+      }
+    }
 
     // Check if user already exists
     const existingUser = await User.findOne({ 
@@ -101,7 +137,10 @@ router.post('/register', [
       });
     }
 
-    // Create user
+    const orgDisplayName =
+      trimmedCompanyName.length >= 2 ? trimmedCompanyName : `${name}'s Organization`;
+
+    // Create user first, then trial organization (7 days, 1 device seat)
     const user = await User.create({
       name,
       email,
@@ -111,72 +150,137 @@ router.post('/register', [
       isEmailVerified: false
     });
 
-    // Create default company
-    const company = await Company.create({
-      name: companyName,
-      address: {
-        line1: companyDetails.address || 'Not specified',
-        city: companyDetails.city || 'Not specified',
-        state: companyDetails.state || 'Not specified',
-        pincode: companyDetails.pincode || '000000'
-      },
-      contact: {
-        phone: phone,
-        email: email
-      },
-      businessType: companyDetails.businessType || 'other',
-      industry: companyDetails.industry || 'Other',
-      financialYear: {
-        startDate: new Date(new Date().getFullYear(), 3, 1), // April 1st
-        endDate: new Date(new Date().getFullYear() + 1, 2, 31) // March 31st
-      },
-      createdBy: user._id,
-      users: [{
-        user: user._id,
-        role: 'admin',
-        permissions: {
-          vouchers: { create: true, read: true, update: true, delete: true },
-          inventory: { create: true, read: true, update: true, delete: true },
-          reports: { financial: true, inventory: true, gst: true, analytics: true }
-        }
-      }]
+    const { organization, subscription } = await createTrialOrganization({
+      name: orgDisplayName,
+      billingEmail: email,
+      createdBy: user._id
     });
 
-    // Add company to user
-    user.companies.push(company._id);
+    if (companyDetails && typeof companyDetails === 'object' && Object.keys(companyDetails).length > 0) {
+      if (!(organization.metadata instanceof Map)) {
+        organization.metadata = new Map(Object.entries(organization.metadata || {}));
+      }
+      organization.metadata.set('registrationDetails', JSON.stringify(companyDetails));
+      await organization.save();
+    }
+
+    if (licensePayload?.serialNumber) {
+      try {
+        await registerTallySerial({
+          serialNumber: licensePayload.serialNumber,
+          userId: user._id,
+          organizationId: organization._id,
+          email,
+          licenseDetails: licensePayload
+        });
+      } catch (serialErr) {
+        await User.findByIdAndDelete(user._id);
+        await Subscription.deleteOne({ _id: subscription._id });
+        await Organization.deleteOne({ _id: organization._id });
+        const status = serialErr.statusCode || 409;
+        return res.status(status).json({
+          success: false,
+          message: serialErr.message,
+          code: serialErr.code,
+          data: serialErr.conflict
+        });
+      }
+    }
+
+    user.organizationId = organization._id;
     await user.save();
+
+    let createdCompany = null;
+    if (trimmedCompanyName.length >= 2) {
+      createdCompany = await Company.create({
+        name: trimmedCompanyName,
+        organizationId: organization._id,
+        address: {
+          line1: companyDetails.address || 'Not specified',
+          city: companyDetails.city || 'Not specified',
+          state: companyDetails.state || 'Not specified',
+          pincode: companyDetails.pincode || '400001'
+        },
+        contact: {
+          phone: phone,
+          email: email
+        },
+        businessType: companyDetails.businessType || 'other',
+        industry: companyDetails.industry || 'Other',
+        financialYear: {
+          startDate: new Date(new Date().getFullYear(), 3, 1), // April 1st
+          endDate: new Date(new Date().getFullYear() + 1, 2, 31) // March 31st
+        },
+        createdBy: user._id,
+        users: [{
+          user: user._id,
+          role: 'admin',
+          permissions: {
+            vouchers: { create: true, read: true, update: true, delete: true },
+            inventory: { create: true, read: true, update: true, delete: true },
+            reports: { financial: true, inventory: true, gst: true, analytics: true }
+          }
+        }]
+      });
+
+      user.companies.push(createdCompany._id);
+      await user.save();
+    }
 
     // Generate email verification token
     const emailToken = user.getEmailVerificationToken();
     await user.save();
 
-    // Generate JWT token
     const token = user.getSignedJwtToken();
+    const refreshToken = user.getRefreshToken();
 
     logger.info(`New user registered: ${email}`);
+
+    const userOut = await User.findById(user._id)
+      .select('-password')
+      .populate('companies', 'name isActive');
 
     res.status(201).json({
       success: true,
       message: 'User registered successfully',
       data: {
         token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isEmailVerified: user.isEmailVerified
+        refreshToken,
+        user: serializeUser(userOut),
+        company: createdCompany
+          ? {
+              id: createdCompany._id,
+              name: createdCompany.name
+            }
+          : null,
+        organization: {
+          id: organization._id,
+          name: organization.name,
+          status: organization.status
         },
-        company: {
-          id: company._id,
-          name: company.name
-        }
+        subscription: {
+          status: subscription.status,
+          seatLimit: subscription.seatLimit,
+          trialEndsAt: subscription.trialEndsAt,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          mobileIncluded: true
+        },
+        tallySerial: licensePayload?.serialNumber
+          ? { serialNumber: licensePayload.serialNumber, registered: true }
+          : null
       }
     });
 
   } catch (error) {
     logger.error('Registration error:', error);
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors || {}).map((e) => e.message);
+      return res.status(400).json({
+        success: false,
+        message: messages[0] || 'Validation failed',
+        errors: messages
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Server error during registration'
@@ -261,8 +365,8 @@ router.post('/login', [
     user.lastLogin = new Date();
     await user.save();
 
-    // Generate JWT token
     const token = user.getSignedJwtToken();
+    const refreshToken = user.getRefreshToken();
 
     logger.info(`User logged in: ${email}`);
 
@@ -271,16 +375,8 @@ router.post('/login', [
       message: 'Login successful',
       data: {
         token,
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isEmailVerified: user.isEmailVerified,
-          lastLogin: user.lastLogin,
-          companies: user.companies
-        }
+        refreshToken,
+        user: serializeUser(user)
       }
     });
 
@@ -289,6 +385,79 @@ router.post('/login', [
     res.status(500).json({
       success: false,
       message: 'Server error during login'
+    });
+  }
+});
+
+// @desc    Refresh access token (desktop/mobile — no password needed)
+// @route   POST /api/auth/refresh
+// @access  Public (requires valid refresh token)
+router.post('/refresh', [
+  body('refreshToken').notEmpty().withMessage('refreshToken is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { refreshToken } = req.body;
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    } catch (error) {
+      const expired = error?.name === 'TokenExpiredError';
+      return res.status(401).json({
+        success: false,
+        message: expired
+          ? 'Your session has expired. Please sign in again.'
+          : 'Invalid session. Please sign in again.',
+        code: expired ? 'REFRESH_TOKEN_EXPIRED' : 'REFRESH_TOKEN_INVALID'
+      });
+    }
+
+    if (decoded.type !== 'refresh' || !decoded.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid session. Please sign in again.',
+        code: 'REFRESH_TOKEN_INVALID'
+      });
+    }
+
+    const user = await User.findById(decoded.id)
+      .select('-password')
+      .populate('companies', 'name isActive');
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account not found or deactivated. Please sign in again.',
+        code: 'USER_INACTIVE'
+      });
+    }
+
+    const token = user.getSignedJwtToken();
+    const newRefreshToken = user.getRefreshToken();
+
+    res.status(200).json({
+      success: true,
+      message: 'Session renewed',
+      data: {
+        token,
+        refreshToken: newRefreshToken,
+        user: serializeUser(user)
+      }
+    });
+  } catch (error) {
+    logger.error('Token refresh error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during session refresh'
     });
   }
 });
@@ -304,17 +473,7 @@ router.get('/me', protect, async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isEmailVerified: user.isEmailVerified,
-          lastLogin: user.lastLogin,
-          companies: user.companies,
-          preferences: user.preferences
-        }
+        user: serializeUser(user)
       }
     });
   } catch (error) {
@@ -337,17 +496,7 @@ router.get('/profile', protect, async (req, res) => {
     res.status(200).json({
       success: true,
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isEmailVerified: user.isEmailVerified,
-          lastLogin: user.lastLogin,
-          companies: user.companies,
-          preferences: user.preferences
-        }
+        user: serializeUser(user)
       }
     });
   } catch (error) {
@@ -405,21 +554,57 @@ router.put('/profile', [
       success: true,
       message: 'Profile updated successfully',
       data: {
-        user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          phone: user.phone,
-          role: user.role,
-          isEmailVerified: user.isEmailVerified,
-          lastLogin: user.lastLogin,
-          companies: user.companies,
-          preferences: user.preferences
-        }
+        user: serializeUser(user)
       }
     });
   } catch (error) {
     logger.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Resend email verification link
+// @route   POST /api/auth/resend-verification
+// @access  Private
+router.post('/resend-verification', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(200).json({
+        success: true,
+        message: 'Email is already verified'
+      });
+    }
+
+    const verificationToken = user.getEmailVerificationToken();
+    await user.save();
+
+    logger.info(`Verification email resent for: ${user.email}`);
+
+    const payload = {
+      success: true,
+      message:
+        'Verification link generated. Check your email inbox (and spam folder).'
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+      payload.verificationToken = verificationToken;
+    }
+
+    res.status(200).json(payload);
+  } catch (error) {
+    logger.error('Resend verification error:', error);
     res.status(500).json({
       success: false,
       message: 'Server error'

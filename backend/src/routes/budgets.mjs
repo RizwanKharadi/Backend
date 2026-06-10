@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import { body } from 'express-validator';
 import {
   getBudgets,
@@ -14,7 +15,7 @@ import {
 const router = express.Router();
 
 // All routes are protected and require company access
-router.use(protect);
+router.use(protect, requireActiveSubscription);
 
 // Validation rules for budget creation/update
 const budgetValidation = [

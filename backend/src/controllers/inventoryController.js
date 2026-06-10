@@ -1,4 +1,8 @@
+import mongoose from 'mongoose';
 import Item from '../models/Item.js';
+import tallyWebSocketService from '../services/tallyWebSocketService.js';
+import { buildStockItemImportPayload } from '../utils/tallyMasterImportPayload.js';
+import { normalizeItemInput } from '../utils/normalizeItemInput.js';
 import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
 import logger from '../utils/logger.js';
@@ -42,6 +46,80 @@ const upload = multer({
     }
   }
 });
+
+// @desc    Get inventory statistics
+// @route   GET /api/inventory/stats
+// @access  Private
+export const getInventoryStats = async (req, res) => {
+  try {
+    const companyId = req.company._id;
+    const match = { company: companyId, isActive: true };
+
+    const total = await Item.countDocuments(match);
+
+    const [agg] = await Item.aggregate([
+      { $match: match },
+      {
+        $addFields: {
+          totalStock: {
+            $cond: [
+              { $eq: ['$inventory.trackInventory', true] },
+              { $sum: '$inventory.currentStock.quantity' },
+              0,
+            ],
+          },
+          reorderLevel: { $ifNull: ['$inventory.stockLevels.reorderLevel', 0] },
+          sellingPrice: { $ifNull: ['$pricing.sellingPrice', 0] },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          lowStock: {
+            $sum: {
+              $cond: [
+                {
+                  $and: [
+                    { $gt: ['$totalStock', 0] },
+                    { $lte: ['$totalStock', '$reorderLevel'] },
+                  ],
+                },
+                1,
+                0,
+              ],
+            },
+          },
+          outOfStock: {
+            $sum: {
+              $cond: [{ $lte: ['$totalStock', 0] }, 1, 0],
+            },
+          },
+          totalValue: {
+            $sum: { $multiply: ['$totalStock', '$sellingPrice'] },
+          },
+        },
+      },
+    ]);
+
+    res.status(200).json({
+      success: true,
+      data: {
+        total,
+        lowStock: agg?.lowStock ?? 0,
+        outOfStock: agg?.outOfStock ?? 0,
+        totalValue: agg?.totalValue ?? 0,
+        categories: {},
+        topItems: [],
+      },
+    });
+  } catch (error) {
+    logger.error('Get inventory stats error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error',
+    });
+  }
+};
 
 // @desc    Get all items
 // @route   GET /api/inventory/items
@@ -111,13 +189,60 @@ export const getItems = async (req, res) => {
   }
 };
 
+// @desc    Get single item by barcode (exact match, company-scoped)
+// @route   GET /api/inventory/items/by-barcode?barcode=...
+// @access  Private
+export const getItemByBarcode = async (req, res) => {
+  try {
+    const raw = String(req.params?.barcode || req.query?.barcode || '').trim();
+    if (!raw) {
+      return res.status(400).json({ success: false, message: 'barcode is required' });
+    }
+
+    // Case-insensitive exact match on barcode, item code, or Tally Part No. (stored in description).
+    const escaped = raw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const exactRegex = new RegExp(`^${escaped}$`, 'i');
+
+    const item = await Item.findOne({
+      company: req.company._id,
+      isActive: true,
+      $or: [
+        { barcode: { $regex: exactRegex } },
+        { code: { $regex: exactRegex } },
+        { description: { $regex: exactRegex } }
+      ]
+    })
+      .populate('category', 'name description')
+      .populate('suppliers.party', 'name displayName contact')
+      .populate('createdBy', 'name email')
+      .populate('updatedBy', 'name email');
+
+    if (!item) {
+      return res.status(404).json({ success: false, message: 'Item not found' });
+    }
+
+    return res.status(200).json({ success: true, data: item });
+  } catch (error) {
+    logger.error('Get item by barcode error:', error);
+    return res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
 // @desc    Get single item
 // @route   GET /api/inventory/items/:id
 // @access  Private
 export const getItem = async (req, res) => {
   try {
+    const id = String(req.params.id || '').trim();
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid item id'
+      });
+    }
+
     const item = await Item.findOne({
-      _id: req.params.id,
+      _id: id,
       company: req.company._id
     })
     .populate('category', 'name description')
@@ -160,7 +285,7 @@ export const createItem = async (req, res) => {
     }
 
     const itemData = {
-      ...req.body,
+      ...normalizeItemInput(req.body),
       company: req.company._id,
       createdBy: req.user.id
     };
@@ -202,12 +327,60 @@ export const createItem = async (req, res) => {
       .populate('category', 'name')
       .populate('createdBy', 'name email');
 
+    let tallyPush = { status: 'skipped', message: 'Tally push not requested' };
+
+    if (req.body.pushToTally !== false) {
+      try {
+        const importPayload = buildStockItemImportPayload(populatedItem, req.company, {
+          companyName: req.body.tallyCompanyName,
+          baseUnits: req.body.unit || req.body.baseUnits
+        });
+        const importResult = await tallyWebSocketService.pushStockItemToTally(
+          req.company,
+          importPayload,
+          { itemId: populatedItem._id.toString() }
+        );
+        await Item.findByIdAndUpdate(populatedItem._id, {
+          'tallySync.synced': true,
+          'tallySync.tallyId': importResult.tallyGuid || populatedItem.tallySync?.tallyId,
+          'tallySync.lastSyncDate': new Date(),
+          'tallySync.syncError': ''
+        });
+        tallyPush = {
+          status: importResult.alreadyExisted ? 'already_synced' : 'completed',
+          tallyGuid: importResult.tallyGuid,
+          masterName: importResult.masterName || populatedItem.name
+        };
+      } catch (pushError) {
+        logger.warn('Item saved but Tally stock import failed', {
+          itemId: populatedItem._id,
+          error: pushError.message
+        });
+        await Item.findByIdAndUpdate(populatedItem._id, {
+          'tallySync.synced': false,
+          'tallySync.syncError': pushError.message
+        });
+        tallyPush = { status: 'failed', message: pushError.message };
+      }
+    }
+
     res.status(201).json({
       success: true,
-      data: populatedItem
+      data: populatedItem,
+      tallyPush
     });
   } catch (error) {
     logger.error('Create item error:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+        errors: Object.values(error.errors || {}).map((e) => ({
+          field: e.path,
+          message: e.message
+        }))
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Server error'
@@ -275,7 +448,7 @@ export const updateItem = async (req, res) => {
     }
 
     const updateData = {
-      ...req.body,
+      ...normalizeItemInput(req.body),
       updatedBy: req.user.id
     };
 
@@ -293,6 +466,16 @@ export const updateItem = async (req, res) => {
     });
   } catch (error) {
     logger.error('Update item error:', error);
+    if (error.name === 'ValidationError') {
+      return res.status(400).json({
+        success: false,
+        message: error.message,
+        errors: Object.values(error.errors || {}).map((e) => ({
+          field: e.path,
+          message: e.message
+        }))
+      });
+    }
     res.status(500).json({
       success: false,
       message: 'Server error'

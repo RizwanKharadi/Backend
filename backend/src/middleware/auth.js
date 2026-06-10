@@ -1,6 +1,7 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
+import Company from '../models/Company.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -50,10 +51,18 @@ export const protect = async (req, res, next) => {
       req.user = user;
       next();
     } catch (error) {
-      logger.error('Token verification failed:', error);
+      const expired = error?.name === 'TokenExpiredError';
+      if (expired) {
+        logger.debug('Access token expired', { path: req.path });
+      } else {
+        logger.error('Token verification failed:', error);
+      }
       return res.status(401).json({
         success: false,
-        message: 'Not authorized to access this route'
+        message: expired
+          ? 'Session expired'
+          : 'Not authorized to access this route',
+        code: expired ? 'ACCESS_TOKEN_EXPIRED' : 'ACCESS_TOKEN_INVALID'
       });
     }
   } catch (error) {
@@ -98,10 +107,20 @@ export const checkCompanyAccess = async (req, res, next) => {
       });
     }
 
-    // Check if user has access to this company
-    const hasAccess = req.user.companies.some(
+    const hasAccessViaUserDoc = req.user.companies.some(
       company => company._id.toString() === companyId && company.isActive
     );
+
+    let hasAccess = hasAccessViaUserDoc;
+
+    if (!hasAccess && req.user.role !== 'superadmin') {
+      const membership = await Company.findOne({
+        _id: companyId,
+        isActive: true,
+        'users.user': req.user._id
+      }).select('_id');
+      hasAccess = !!membership;
+    }
 
     if (!hasAccess && req.user.role !== 'superadmin') {
       return res.status(403).json({
@@ -110,7 +129,16 @@ export const checkCompanyAccess = async (req, res, next) => {
       });
     }
 
+    const company = await Company.findById(companyId);
+    if (!company || !company.isActive) {
+      return res.status(404).json({
+        success: false,
+        message: 'Company not found'
+      });
+    }
+
     req.companyId = companyId;
+    req.company = company;
     next();
   } catch (error) {
     logger.error('Company access check error:', error);

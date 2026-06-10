@@ -38,6 +38,9 @@ class TallySyncService {
     }
 
     // Start background processes only in non-test environment
+  }
+
+  initialize() {
     if (process.env.NODE_ENV !== 'test') {
       this.startBackgroundProcesses();
     }

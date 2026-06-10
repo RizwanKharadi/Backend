@@ -6,7 +6,7 @@ export const connectDB = async () => {
     // Check if we're in development mode without MongoDB
     if (process.env.NODE_ENV === 'development' && process.env.SKIP_MONGODB === 'true') {
       logger.info('Skipping MongoDB connection in development mode');
-      return { connection: { host: 'localhost (skipped)' } };
+      return { connected: false, connection: { host: 'localhost (skipped)' } };
     }
 
     const mongoURI = process.env.NODE_ENV === 'test'
@@ -19,7 +19,7 @@ export const connectDB = async () => {
 
     const options = {
       maxPoolSize: 10, // Maintain up to 10 socket connections
-      serverSelectionTimeoutMS: 5000, // Keep trying to send operations for 5 seconds
+      serverSelectionTimeoutMS: 15000, // Allow more time for Atlas server selection
       socketTimeoutMS: 45000, // Close sockets after 45 seconds of inactivity
       bufferCommands: false, // Disable mongoose buffering
     };
@@ -48,14 +48,14 @@ export const connectDB = async () => {
       process.exit(0);
     });
 
-    return conn;
+    return { connected: true, connection: conn.connection };
   } catch (error) {
     logger.error('Database connection failed:', error);
 
     // In development mode, continue without database
     if (process.env.NODE_ENV === 'development') {
       logger.warn('Continuing in development mode without database...');
-      return { connection: { host: 'localhost (failed)' } };
+      return { connected: false, connection: { host: 'localhost (failed)' } };
     }
 
     process.exit(1);

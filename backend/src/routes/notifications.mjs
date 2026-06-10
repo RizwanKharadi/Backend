@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import { body } from 'express-validator';
 import {
   getNotifications,
@@ -14,7 +15,7 @@ import {
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, requireActiveSubscription);
 
 // @desc    Get unread count
 // @route   GET /api/notifications/unread-count

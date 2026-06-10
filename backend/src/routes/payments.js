@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import { body } from 'express-validator';
 import {
   createOrder,
@@ -16,7 +17,7 @@ const router = express.Router();
 router.post('/webhook', handleWebhook);
 
 // Protected routes
-router.use(protect);
+router.use(protect, requireActiveSubscription);
 
 // Validation rules
 const orderValidation = [

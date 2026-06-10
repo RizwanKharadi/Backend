@@ -1,18 +1,21 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import { body } from 'express-validator';
 import {
   getItems,
+  getItemByBarcode,
   getItem,
   createItem,
   updateItem,
   deleteItem,
-  uploadFiles
+  uploadFiles,
+  getInventoryStats,
 } from '../controllers/inventoryController.js';
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, requireActiveSubscription);
 
 // Validation rules for item creation/update
 const itemValidation = [
@@ -50,10 +53,23 @@ const itemValidation = [
     .withMessage('SAC code must be 6 digits')
 ];
 
+// @desc    Get inventory statistics
+// @route   GET /api/inventory/stats
+// @access  Private
+router.get('/stats', checkCompanyAccess, getInventoryStats);
+
 // @desc    Get all items
 // @route   GET /api/inventory/items
 // @access  Private
 router.get('/items', checkCompanyAccess, getItems);
+
+// @desc    Get single item by barcode (exact match) — must be before /items/:id
+// @route   GET /api/inventory/items/barcode/:barcode
+// @access  Private
+router.get('/items/barcode/:barcode', checkCompanyAccess, getItemByBarcode);
+
+// Legacy query route (some clients)
+router.get('/items/by-barcode', checkCompanyAccess, getItemByBarcode);
 
 // @desc    Create item
 // @route   POST /api/inventory/items

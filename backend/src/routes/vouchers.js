@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import { body } from 'express-validator';
 import {
   getVouchers,
@@ -7,18 +8,36 @@ import {
   createVoucher,
   updateVoucher,
   deleteVoucher,
-  generateVoucherPDF
+  generateVoucherPDF,
+  getVoucherTypes,
+  getNextVoucherNumber,
+  getVoucherStats,
+  hydrateVoucherFromTally,
+  pushVoucherToTally,
 } from '../controllers/voucherController.js';
 
 const router = express.Router();
 
-// All routes are protected and require company access
-router.use(protect);
+// All routes are protected and require an active org subscription
+router.use(protect, requireActiveSubscription);
 
 // Validation rules for voucher creation/update
 const voucherValidation = [
   body('voucherType')
-    .isIn(['sales', 'purchase', 'receipt', 'payment', 'contra', 'journal', 'debit_note', 'credit_note'])
+    .isIn([
+      'sales',
+      'purchase',
+      'receipt',
+      'payment',
+      'contra',
+      'journal',
+      'debit_note',
+      'credit_note',
+      'sales_order',
+      'purchase_order',
+      'receipt_note',
+      'delivery_note'
+    ])
     .withMessage('Invalid voucher type'),
   body('date')
     .isISO8601()
@@ -49,6 +68,11 @@ const voucherValidation = [
     .withMessage('Narration cannot exceed 500 characters')
 ];
 
+// @desc    Get voucher statistics
+// @route   GET /api/vouchers/stats
+// @access  Private
+router.get('/stats', checkCompanyAccess, getVoucherStats);
+
 // @desc    Get all vouchers
 // @route   GET /api/vouchers
 // @access  Private
@@ -58,6 +82,26 @@ router.get('/', checkCompanyAccess, getVouchers);
 // @route   POST /api/vouchers
 // @access  Private
 router.post('/', checkCompanyAccess, voucherValidation, createVoucher);
+
+// @desc    Get voucher types
+// @route   GET /api/vouchers/types
+// @access  Private
+router.get('/types', checkCompanyAccess, getVoucherTypes);
+
+// @desc    Get next voucher number
+// @route   GET /api/vouchers/next-number
+// @access  Private
+router.get('/next-number', checkCompanyAccess, getNextVoucherNumber);
+
+// @desc    Push sales voucher to TallyPrime via desktop agent
+// @route   POST /api/vouchers/:id/push-to-tally
+// @access  Private
+router.post('/:id/push-to-tally', checkCompanyAccess, pushVoucherToTally);
+
+// @desc    Hydrate voucher detail from Tally (lazy load)
+// @route   POST /api/vouchers/:id/hydrate
+// @access  Private
+router.post('/:id/hydrate', checkCompanyAccess, hydrateVoucherFromTally);
 
 // @desc    Get single voucher
 // @route   GET /api/vouchers/:id

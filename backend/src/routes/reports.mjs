@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import {
   getProfitLossReport,
   getBalanceSheet,
@@ -7,12 +8,22 @@ import {
   getSalesReport,
   getPurchaseReport,
   getBudgetVsActualReport,
-  getDashboardSummary
+  getDashboardSummary,
+  getDayBook,
+  getOutstandingReceivable,
+  getOutstandingReceivableLedger,
+  getTop10Report,
+  getInactiveCustomersReport,
+  getInactiveItemsReport,
+  getProfitLossGroupLedgers,
+  getProfitLossVouchers,
+  getBalanceSheetGroupLedgers,
+  getBalanceSheetVouchers
 } from '../controllers/reportController.mjs';
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, requireActiveSubscription);
 
 // @desc    Get Dashboard Summary
 // @route   GET /api/reports/dashboard
@@ -23,11 +34,16 @@ router.get('/dashboard', checkCompanyAccess, getDashboardSummary);
 // @route   GET /api/reports/profit-loss
 // @access  Private
 router.get('/profit-loss', checkCompanyAccess, getProfitLossReport);
+router.post('/profit-loss', checkCompanyAccess, getProfitLossReport);
+router.get('/profit-loss/group-ledgers', checkCompanyAccess, getProfitLossGroupLedgers);
+router.get('/profit-loss/vouchers', checkCompanyAccess, getProfitLossVouchers);
 
 // @desc    Get Balance Sheet
 // @route   GET /api/reports/balance-sheet
 // @access  Private
 router.get('/balance-sheet', checkCompanyAccess, getBalanceSheet);
+router.get('/balance-sheet/group-ledgers', checkCompanyAccess, getBalanceSheetGroupLedgers);
+router.get('/balance-sheet/vouchers', checkCompanyAccess, getBalanceSheetVouchers);
 
 // @desc    Get Cash Flow Statement
 // @route   GET /api/reports/cash-flow
@@ -48,6 +64,27 @@ router.get('/purchase', checkCompanyAccess, getPurchaseReport);
 // @route   GET /api/reports/budget-vs-actual
 // @access  Private
 router.get('/budget-vs-actual', checkCompanyAccess, getBudgetVsActualReport);
+
+// @desc    Get DayBook Report
+// @route   GET /api/reports/daybook
+// @access  Private
+router.get('/daybook', checkCompanyAccess, getDayBook);
+
+// @desc    Top 10 rankings report
+// @route   GET /api/reports/top-10
+router.get('/top-10', checkCompanyAccess, getTop10Report);
+
+// @desc    Inactive customers / items (days since last sale)
+router.get('/inactive-customers', checkCompanyAccess, getInactiveCustomersReport);
+router.get('/inactive-items', checkCompanyAccess, getInactiveItemsReport);
+
+// @desc    Outstanding receivable — ledger list
+// @route   GET /api/reports/outstanding-receivable
+router.get('/outstanding-receivable', checkCompanyAccess, getOutstandingReceivable);
+
+// @desc    Outstanding receivable — single ledger bills
+// @route   GET /api/reports/outstanding-receivable/ledger
+router.get('/outstanding-receivable/ledger', checkCompanyAccess, getOutstandingReceivableLedger);
 
 // Legacy endpoint
 router.get('/', checkCompanyAccess, async (req, res) => {

@@ -2,6 +2,8 @@ import Party from '../models/Party.js';
 import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
 import logger from '../utils/logger.js';
+import tallyWebSocketService from '../services/tallyWebSocketService.js';
+import { buildLedgerImportPayload } from '../utils/tallyMasterImportPayload.js';
 
 // @desc    Get all parties
 // @route   GET /api/parties
@@ -17,7 +19,11 @@ export const getParties = async (req, res) => {
       hasBalance
     } = req.query;
 
-    const query = { company: req.company._id, isActive: true };
+    const query = {
+      company: req.company._id,
+      isActive: true,
+      recordType: { $in: ['party', null] }
+    };
 
     // Add filters
     if (type) query.type = type;
@@ -151,9 +157,48 @@ export const createParty = async (req, res) => {
     const populatedParty = await Party.findById(party._id)
       .populate('createdBy', 'name email');
 
+    let tallyPush = { status: 'skipped', message: 'Tally push not requested' };
+
+    if (req.body.pushToTally !== false) {
+      try {
+        const importPayload = buildLedgerImportPayload(populatedParty, req.company, {
+          parent: req.body.tallyParent || req.body.parent,
+          companyName: req.body.tallyCompanyName,
+          mobile: req.body.mobile || partyData.contact?.phone
+        });
+        const importResult = await tallyWebSocketService.pushLedgerToTally(
+          req.company,
+          importPayload,
+          { partyId: populatedParty._id.toString() }
+        );
+        await Party.findByIdAndUpdate(populatedParty._id, {
+          'tallySync.synced': true,
+          'tallySync.tallyId': importResult.tallyGuid || populatedParty.tallySync?.tallyId,
+          'tallySync.lastSyncDate': new Date(),
+          'tallySync.syncError': ''
+        });
+        tallyPush = {
+          status: importResult.alreadyExisted ? 'already_synced' : 'completed',
+          tallyGuid: importResult.tallyGuid,
+          masterName: importResult.masterName || populatedParty.name
+        };
+      } catch (pushError) {
+        logger.warn('Party saved but Tally ledger import failed', {
+          partyId: populatedParty._id,
+          error: pushError.message
+        });
+        await Party.findByIdAndUpdate(populatedParty._id, {
+          'tallySync.synced': false,
+          'tallySync.syncError': pushError.message
+        });
+        tallyPush = { status: 'failed', message: pushError.message };
+      }
+    }
+
     res.status(201).json({
       success: true,
-      data: populatedParty
+      data: populatedParty,
+      tallyPush
     });
   } catch (error) {
     logger.error('Create party error:', error);
@@ -339,6 +384,7 @@ export const getOutstandingParties = async (req, res) => {
     const query = {
       company: req.company._id,
       isActive: true,
+      recordType: { $in: ['party', null] },
       'balances.current.amount': { $gt: 0 }
     };
 

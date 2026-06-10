@@ -1,5 +1,6 @@
 import express from 'express';
 import { protect, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import { body } from 'express-validator';
 import {
   getGSTReturns,
@@ -13,7 +14,7 @@ import {
 
 const router = express.Router();
 
-router.use(protect);
+router.use(protect, requireActiveSubscription);
 const gstGenerationValidation = [
   body('companyId').notEmpty().withMessage('Company ID is required'),
   body('month').isInt({ min: 1, max: 12 }).withMessage('Valid month is required'),

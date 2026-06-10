@@ -3,12 +3,16 @@ import { body, validationResult } from 'express-validator';
 import Company from '../models/Company.js';
 import User from '../models/User.js';
 import { protect, authorize, checkCompanyAccess } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
+import tallyWebSocketService from '../services/tallyWebSocketService.js';
+import { ensureOrganizationForUser } from '../services/licenseService.js';
+import { registerTallySerial, mapTallyLicensePayload } from '../services/tallySerialService.js';
 import logger from '../utils/logger.js';
 
 const router = express.Router();
 
-// All routes are protected
-router.use(protect);
+// All routes are protected and require active org subscription
+router.use(protect, requireActiveSubscription);
 
 // @desc    Get all companies for user
 // @route   GET /api/companies
@@ -23,10 +27,16 @@ router.get('/', async (req, res) => {
         .populate('createdBy', 'name email')
         .sort({ createdAt: -1 });
     } else {
-      // Regular users can only see their companies
+      const userCompanyIds = (req.user.companies || []).map((c) =>
+        c._id ? c._id : c
+      );
+
       companies = await Company.find({
-        _id: { $in: req.user.companies },
-        isActive: true
+        isActive: true,
+        $or: [
+          { _id: { $in: userCompanyIds } },
+          { 'users.user': req.user._id }
+        ]
       })
       .populate('createdBy', 'name email')
       .sort({ createdAt: -1 });
@@ -70,6 +80,81 @@ router.get('/:id', checkCompanyAccess, async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Server error'
+    });
+  }
+});
+
+// @desc    Link a Tally company to the logged-in user (desktop agent)
+// @route   POST /api/companies/link-tally
+// @access  Private
+router.post('/link-tally', [
+  body('name').trim().isLength({ min: 2, max: 200 }).withMessage('Tally company name is required'),
+  body('guid').optional().trim()
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const {
+      name,
+      guid,
+      booksFrom,
+      startingFrom,
+      state,
+      pincode,
+      country,
+      phone,
+      email,
+      tallyLicense
+    } = req.body;
+
+    const company = await tallyWebSocketService.upsertCompany(
+      {
+        name,
+        guid: guid || undefined,
+        booksFrom,
+        startingFrom,
+        state,
+        pincode,
+        country,
+        phone,
+        email
+      },
+      req.user.id
+    );
+
+    let tallySerial = null;
+    const licensePayload = mapTallyLicensePayload(tallyLicense);
+    if (licensePayload?.serialNumber) {
+      const organizationId = await ensureOrganizationForUser(req.user);
+      await registerTallySerial({
+        serialNumber: licensePayload.serialNumber,
+        userId: req.user._id,
+        organizationId,
+        email: req.user.email,
+        licenseDetails: licensePayload
+      });
+      tallySerial = { serialNumber: licensePayload.serialNumber, registered: true };
+    }
+
+    logger.info(`Tally company linked: ${company.name} for user ${req.user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Tally company linked successfully',
+      data: { company, tallySerial }
+    });
+  } catch (error) {
+    logger.error('Link Tally company error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Server error'
     });
   }
 });

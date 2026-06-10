@@ -25,6 +25,7 @@
     "demo:all": "npm run demo:users && npm run demo:data",
     "create:admin": "node scripts/create-admin-users.js",
     "create:single-admin": "node scripts/create-single-admin.js",
+    "clear:tally-data": "node scripts/clear-tally-data.js",
     "setup:production": "npm run create:admin"
   },
   "dependencies": {
@@ -66,7 +67,8 @@
     "ws": "^8.14.2",
     "xml2js": "^0.6.2",
     "xmlbuilder2": "^3.1.1",
-    "xss": "^1.0.14"
+    "xss": "^1.0.14",
+    "openai": "^4.59.0"
   },
   "devDependencies": {
     "@types/jest": "^29.5.8",

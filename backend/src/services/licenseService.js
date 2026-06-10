@@ -273,7 +273,9 @@ export async function activateDevice({
 
   if (deviceLicense) {
     if (deviceLicense.organization.toString() !== organizationId.toString()) {
-      const err = new Error('This device is registered to another organization');
+      const err = new Error(
+        'This device is registered to another organization. Ask your administrator to transfer the device or remove it from the previous organization.'
+      );
       err.statusCode = 403;
       throw err;
     }
@@ -360,6 +362,111 @@ export async function revokeDevice({ user, agentId, reason }) {
   await deviceLicense.save();
 
   return deviceLicense;
+}
+
+/**
+ * Move a licensed desktop agent from one organization to another (superadmin only).
+ */
+export async function transferDevice({ user, agentId, targetOrganizationId, reason }) {
+  if (user.role !== 'superadmin') {
+    const err = new Error('Not authorized to transfer devices');
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const normalizedAgentId = String(agentId || '').trim();
+  if (!normalizedAgentId) {
+    const err = new Error('agentId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const targetOrgId = String(targetOrganizationId || '').trim();
+  if (!targetOrgId) {
+    const err = new Error('targetOrganizationId is required');
+    err.statusCode = 400;
+    throw err;
+  }
+
+  const deviceLicense = await DeviceLicense.findOne({ agentId: normalizedAgentId });
+  if (!deviceLicense) {
+    const err = new Error('Device not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const targetOrg = await Organization.findById(targetOrgId);
+  if (!targetOrg) {
+    const err = new Error('Target organization not found');
+    err.statusCode = 404;
+    throw err;
+  }
+
+  const previousOrganizationId = deviceLicense.organization;
+
+  if (previousOrganizationId.toString() === targetOrgId) {
+    if (deviceLicense.status === 'revoked') {
+      deviceLicense.status = 'active';
+      deviceLicense.revokedAt = undefined;
+      deviceLicense.revokedBy = undefined;
+      deviceLicense.revokeReason = undefined;
+      await deviceLicense.save();
+    }
+    return {
+      deviceLicense,
+      previousOrganizationId,
+      organizationId: targetOrgId,
+      seatLimit: (await getOrganizationSubscription(targetOrgId))?.seatLimit ?? TRIAL_SEAT_LIMIT,
+      seatsUsed: await countActiveDevices(targetOrgId)
+    };
+  }
+
+  const enforcementEnabled = isLicenseEnforcementEnabled();
+  const subscription = await getOrganizationSubscription(targetOrgId);
+  const access = evaluateSubscription(subscription);
+  const seatLimit = subscription?.seatLimit ?? TRIAL_SEAT_LIMIT;
+
+  if (enforcementEnabled && !access.allowed) {
+    const err = new Error(access.reason || 'Target organization subscription is not active');
+    err.statusCode = 402;
+    throw err;
+  }
+
+  if (enforcementEnabled) {
+    const activeCount = await countActiveDevices(targetOrgId);
+    if (activeCount >= seatLimit) {
+      const err = new Error(
+        `Target organization seat limit reached (${seatLimit}). Increase seats or revoke another device first.`
+      );
+      err.statusCode = 402;
+      throw err;
+    }
+  }
+
+  deviceLicense.organization = targetOrgId;
+  deviceLicense.status = 'active';
+  deviceLicense.revokedAt = undefined;
+  deviceLicense.revokedBy = undefined;
+  deviceLicense.revokeReason = undefined;
+  deviceLicense.linkedCompanies = [];
+  deviceLicense.lastSeenAt = new Date();
+  await deviceLicense.save();
+
+  logger.info('Device transferred between organizations', {
+    agentId: normalizedAgentId,
+    fromOrganizationId: previousOrganizationId,
+    toOrganizationId: targetOrgId,
+    transferredBy: user._id,
+    reason: reason || undefined
+  });
+
+  return {
+    deviceLicense,
+    previousOrganizationId,
+    organizationId: targetOrgId,
+    seatLimit,
+    seatsUsed: await countActiveDevices(targetOrgId)
+  };
 }
 
 export async function listOrganizationDevices(user) {

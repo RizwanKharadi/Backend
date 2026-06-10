@@ -13,13 +13,14 @@ import {
 } from '../controllers/tallyController.js';
 
 import { protect, authorize } from '../middleware/auth.js';
+import { requireActiveSubscription } from '../middleware/license.js';
 import validateRequest from '../middleware/validation.js';
 import { body, param, query } from 'express-validator';
 
 const router = express.Router();
 
-// Apply authentication to all routes
-router.use(protect);
+// Apply authentication and subscription check to all routes
+router.use(protect, requireActiveSubscription);
 
 // @desc    Get Tally sync status for company
 // @route   GET /api/tally/sync-status/:companyId
