@@ -31,10 +31,17 @@ const TallyConnectionSchema = new mongoose.Schema({
     companyName: String,
     companyGuid: String,
     licenseInfo: {
-      type: String,
-      educational: Boolean,
-      multiUser: Boolean,
-      expiryDate: Date
+      licenseType: { type: String, default: '' },
+      educational: { type: Boolean, default: false },
+      multiUser: { type: Boolean, default: false },
+      expiryDate: Date,
+      serialNumber: { type: String, default: '' },
+      remoteSerialNumber: { type: String, default: '' },
+      isGold: { type: Boolean, default: false },
+      isSilver: { type: Boolean, default: false },
+      isTallyPrime: { type: Boolean, default: false },
+      accountId: { type: String, default: '' },
+      userName: { type: String, default: '' }
     }
   },
   systemInfo: {
@@ -120,8 +127,7 @@ const TallyConnectionSchema = new mongoose.Schema({
   },
   createdBy: {
     type: mongoose.Schema.ObjectId,
-    ref: 'User',
-    required: true
+    ref: 'User'
   },
   updatedBy: {
     type: mongoose.Schema.ObjectId,

@@ -167,6 +167,10 @@ const CompanySchema = new mongoose.Schema({
       whatsappIntegration: { type: Boolean, default: false }
     }
   },
+  organizationId: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'Organization'
+  },
   logo: String,
   isActive: {
     type: Boolean,
@@ -217,6 +221,7 @@ const CompanySchema = new mongoose.Schema({
 
 // Indexes
 CompanySchema.index({ gstin: 1 }, { unique: true, sparse: true });
+CompanySchema.index({ organizationId: 1 });
 CompanySchema.index({ createdBy: 1 });
 CompanySchema.index({ isActive: 1 });
 CompanySchema.index({ 'users.user': 1 });

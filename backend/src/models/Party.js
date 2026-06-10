@@ -17,6 +17,13 @@ const PartySchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  /** party = Sundry customer/supplier; ledger = other Tally account ledgers (sales, tax, bank, etc.) */
+  recordType: {
+    type: String,
+    enum: ['party', 'ledger'],
+    default: 'party',
+    index: true
+  },
   type: {
     type: String,
     enum: ['customer', 'supplier', 'both'],
@@ -31,6 +38,18 @@ const PartySchema = new mongoose.Schema({
     type: String,
     sparse: true,
     match: [/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/, 'Please add a valid GSTIN']
+  },
+  gstRegistrationType: {
+    type: String,
+    trim: true
+  },
+  placeOfSupply: {
+    type: String,
+    trim: true
+  },
+  tallyParent: {
+    type: String,
+    trim: true
   },
   pan: {
     type: String,
@@ -136,6 +155,8 @@ const PartySchema = new mongoose.Schema({
   tallySync: {
     synced: { type: Boolean, default: false },
     tallyId: String,
+    masterId: String,
+    alterId: String,
     lastSyncDate: Date,
     syncError: String
   },
@@ -162,6 +183,9 @@ const PartySchema = new mongoose.Schema({
 
 // Indexes
 PartySchema.index({ company: 1, name: 1 });
+PartySchema.index({ company: 1, recordType: 1, name: 1 });
+PartySchema.index({ company: 1, 'tallySync.tallyId': 1 });
+PartySchema.index({ company: 1, recordType: 1, tallyParent: 1 });
 PartySchema.index({ company: 1, type: 1 });
 PartySchema.index({ company: 1, gstin: 1 });
 PartySchema.index({ company: 1, isActive: 1 });
@@ -175,6 +199,7 @@ PartySchema.virtual('fullName').get(function() {
 
 // Virtual for default billing address
 PartySchema.virtual('defaultBillingAddress').get(function() {
+  if (!this.addresses || !Array.isArray(this.addresses)) return null;
   return this.addresses.find(addr => 
     (addr.type === 'billing' || addr.type === 'both') && addr.isDefault
   ) || this.addresses.find(addr => addr.type === 'billing' || addr.type === 'both');
@@ -182,6 +207,7 @@ PartySchema.virtual('defaultBillingAddress').get(function() {
 
 // Virtual for default shipping address
 PartySchema.virtual('defaultShippingAddress').get(function() {
+  if (!this.addresses || !Array.isArray(this.addresses)) return null;
   return this.addresses.find(addr => 
     (addr.type === 'shipping' || addr.type === 'both') && addr.isDefault
   ) || this.addresses.find(addr => addr.type === 'shipping' || addr.type === 'both');

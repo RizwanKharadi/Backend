@@ -26,9 +26,16 @@ const ItemSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  /** Display category label from app (e.g. General); optional ObjectId for future ItemCategory */
+  categoryName: {
+    type: String,
+    trim: true,
+    default: 'General'
+  },
   category: {
     type: mongoose.Schema.ObjectId,
-    ref: 'ItemCategory'
+    ref: 'ItemCategory',
+    required: false
   },
   type: {
     type: String,
@@ -147,6 +154,17 @@ const ItemSchema = new mongoose.Schema({
       }]
     }
   },
+  /**
+   * Stock balances as exported from Tally stock item native methods.
+   * These help the mobile app show Opening/Inward/Outward/Closing quantities.
+   */
+  tallyStock: {
+    unit: { type: String, default: '' },
+    openingBalance: { type: Number, default: 0 },
+    inwardQuantity: { type: Number, default: 0 },
+    outwardQuantity: { type: Number, default: 0 },
+    closingBalance: { type: Number, default: 0 }
+  },
   images: [{
     filename: String,
     originalName: String,
@@ -223,14 +241,16 @@ ItemSchema.virtual('fullName').get(function() {
 
 // Virtual for total stock across all godowns
 ItemSchema.virtual('totalStock').get(function() {
-  if (!this.inventory.trackInventory) return null;
-  return this.inventory.currentStock.reduce((total, stock) => total + stock.quantity, 0);
+  if (!this.inventory?.trackInventory) return null;
+  const stocks = this.inventory.currentStock || [];
+  return stocks.reduce((total, stock) => total + stock.quantity, 0);
 });
 
 // Virtual for available stock across all godowns
 ItemSchema.virtual('availableStock').get(function() {
-  if (!this.inventory.trackInventory) return null;
-  return this.inventory.currentStock.reduce((total, stock) => total + stock.availableQuantity, 0);
+  if (!this.inventory?.trackInventory) return null;
+  const stocks = this.inventory.currentStock || [];
+  return stocks.reduce((total, stock) => total + stock.availableQuantity, 0);
 });
 
 // Virtual for low stock status
@@ -247,7 +267,9 @@ ItemSchema.virtual('isOutOfStock').get(function() {
 
 // Virtual for primary image
 ItemSchema.virtual('primaryImage').get(function() {
-  return this.images.find(img => img.isPrimary) || this.images[0];
+  const images = this.images || [];
+  if (!images.length) return undefined;
+  return images.find((img) => img.isPrimary) || images[0];
 });
 
 // Pre-save middleware
@@ -257,32 +279,38 @@ ItemSchema.pre('save', function(next) {
     this.displayName = this.name;
   }
   
-  // Generate code if not provided
-  if (!this.code) {
+  // Prefer scanned barcode as item code; otherwise generate a short code
+  if (this.barcode && !this.code) {
+    this.code = String(this.barcode).trim().toUpperCase();
+  } else if (!this.code) {
     this.code = this.name.substring(0, 3).toUpperCase() + Date.now().toString().slice(-4);
   }
   
   // Ensure only one primary image
-  let primaryImageSet = false;
-  this.images.forEach(img => {
-    if (img.isPrimary) {
-      if (primaryImageSet) {
-        img.isPrimary = false;
-      } else {
-        primaryImageSet = true;
+  if (Array.isArray(this.images) && this.images.length > 0) {
+    let primaryImageSet = false;
+    this.images.forEach((img) => {
+      if (img.isPrimary) {
+        if (primaryImageSet) {
+          img.isPrimary = false;
+        } else {
+          primaryImageSet = true;
+        }
       }
+    });
+
+    if (!primaryImageSet) {
+      this.images[0].isPrimary = true;
     }
-  });
-  
-  // If no primary image set and images exist, set first as primary
-  if (!primaryImageSet && this.images.length > 0) {
-    this.images[0].isPrimary = true;
   }
-  
+
   // Update available quantity for each godown
-  this.inventory.currentStock.forEach(stock => {
-    stock.availableQuantity = stock.quantity - stock.reservedQuantity;
-  });
+  const stocks = this.inventory?.currentStock;
+  if (Array.isArray(stocks)) {
+    stocks.forEach((stock) => {
+      stock.availableQuantity = stock.quantity - stock.reservedQuantity;
+    });
+  }
   
   next();
 });

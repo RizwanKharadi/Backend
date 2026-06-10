@@ -35,6 +35,10 @@ const UserSchema = new mongoose.Schema({
     enum: ['superadmin', 'admin', 'accountant', 'sales', 'viewer'],
     default: 'admin'
   },
+  organizationId: {
+    type: mongoose.Schema.ObjectId,
+    ref: 'Organization'
+  },
   companies: [{
     type: mongoose.Schema.ObjectId,
     ref: 'Company'
@@ -126,6 +130,7 @@ const UserSchema = new mongoose.Schema({
 // Indexes
 UserSchema.index({ email: 1 }, { unique: true });
 UserSchema.index({ phone: 1 }, { unique: true });
+UserSchema.index({ organizationId: 1 });
 UserSchema.index({ companies: 1 });
 UserSchema.index({ isActive: 1 });
 
@@ -137,7 +142,7 @@ UserSchema.virtual('isLocked').get(function() {
 // Pre-save middleware to hash password
 UserSchema.pre('save', async function(next) {
   if (!this.isModified('password')) {
-    next();
+    return next();
   }
 
   const salt = await bcrypt.genSalt(parseInt(process.env.BCRYPT_ROUNDS) || 12);
