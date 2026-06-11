@@ -39,7 +39,10 @@ import { requireActiveSubscription } from './middleware/license.js';
 import {
   getProfitLossReport,
   getOutstandingReceivable,
-  getOutstandingReceivableLedger
+  getOutstandingReceivableLedger,
+  getCashBankBook,
+  getCashBankBookLedgers,
+  getCashBankBookVouchers
 } from './controllers/reportController.mjs';
 
 // ES6 module routes will be loaded dynamically
@@ -259,6 +262,27 @@ const startServer = async () => {
       requireActiveSubscription,
       checkCompanyAccess,
       getOutstandingReceivableLedger
+    );
+    app.get(
+      '/api/reports/cash-bank-book',
+      protect,
+      requireActiveSubscription,
+      checkCompanyAccess,
+      getCashBankBook
+    );
+    app.get(
+      '/api/reports/cash-bank-book/ledgers',
+      protect,
+      requireActiveSubscription,
+      checkCompanyAccess,
+      getCashBankBookLedgers
+    );
+    app.get(
+      '/api/reports/cash-bank-book/vouchers',
+      protect,
+      requireActiveSubscription,
+      checkCompanyAccess,
+      getCashBankBookVouchers
     );
 
     // 404 handler

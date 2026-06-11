@@ -18,7 +18,10 @@ import {
   getProfitLossGroupLedgers,
   getProfitLossVouchers,
   getBalanceSheetGroupLedgers,
-  getBalanceSheetVouchers
+  getBalanceSheetVouchers,
+  getCashBankBook,
+  getCashBankBookLedgers,
+  getCashBankBookVouchers
 } from '../controllers/reportController.mjs';
 
 const router = express.Router();
@@ -44,6 +47,11 @@ router.get('/profit-loss/vouchers', checkCompanyAccess, getProfitLossVouchers);
 router.get('/balance-sheet', checkCompanyAccess, getBalanceSheet);
 router.get('/balance-sheet/group-ledgers', checkCompanyAccess, getBalanceSheetGroupLedgers);
 router.get('/balance-sheet/vouchers', checkCompanyAccess, getBalanceSheetVouchers);
+
+// @desc    Cash/Bank Book (Tally-style cash and bank summary)
+router.get('/cash-bank-book', checkCompanyAccess, getCashBankBook);
+router.get('/cash-bank-book/ledgers', checkCompanyAccess, getCashBankBookLedgers);
+router.get('/cash-bank-book/vouchers', checkCompanyAccess, getCashBankBookVouchers);
 
 // @desc    Get Cash Flow Statement
 // @route   GET /api/reports/cash-flow

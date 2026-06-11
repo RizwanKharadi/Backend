@@ -16,6 +16,10 @@ import {
   resolveBalanceSheetVoucherRange,
   PERIOD_LABELS
 } from '../utils/reportPeriods.js';
+import {
+  matchesAccountLedgerParent,
+  normalizeTallyParentName
+} from '../utils/tallyLedgerFilter.js';
 import logger from '../utils/logger.js';
 import moment from 'moment';
 
@@ -23,6 +27,12 @@ const TOP_LIMIT = 10;
 
 /** Orders do not post to P&L / Balance Sheet — exclude from report voucher drill-down. */
 const REPORT_DRILLDOWN_EXCLUDED_VOUCHER_TYPES = ['sales_order', 'purchase_order'];
+
+/** Cash/Bank Book parent groups (Tally chart of accounts). */
+const CASH_BANK_PARENT_GROUPS = ['Cash-in-hand', 'Bank Accounts', 'Bank OD A/c'];
+
+/** Voucher types shown in Cash/Bank Book ledger drill-down. */
+const CASH_BANK_VOUCHER_TYPES = ['receipt', 'payment', 'contra'];
 
 /**
  * Group Summary display amount: credit − debit (matches Tally Group Summary).
@@ -604,7 +614,13 @@ export const getProfitLossGroupLedgers = async (req, res) => {
 /**
  * Vouchers that actually post to a ledger (not every name in ledgerNames index).
  */
-const queryVouchersForLedger = async (companyOid, ledgerName, fromDate, toDate) => {
+const queryVouchersForLedger = async (
+  companyOid,
+  ledgerName,
+  fromDate,
+  toDate,
+  voucherTypes = null
+) => {
   const ledgerRegex = new RegExp(`^${ledgerName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`, 'i');
   const dateFilter = {
     company: companyOid,
@@ -614,10 +630,15 @@ const queryVouchersForLedger = async (companyOid, ledgerName, fromDate, toDate) 
     ledgerEntries: { $elemMatch: { ledger: ledgerRegex } }
   };
 
+  const voucherTypeFilter =
+    Array.isArray(voucherTypes) && voucherTypes.length > 0
+      ? { voucherType: { $in: voucherTypes } }
+      : { voucherType: { $nin: REPORT_DRILLDOWN_EXCLUDED_VOUCHER_TYPES } };
+
   let vouchers = await Voucher.find({
     ...dateFilter,
     ...ledgerMatch,
-    voucherType: { $nin: REPORT_DRILLDOWN_EXCLUDED_VOUCHER_TYPES }
+    ...voucherTypeFilter
   })
     .select('voucherNumber voucherType date partyName totals.grandTotal narration')
     .sort({ date: -1 })
@@ -640,7 +661,7 @@ const queryVouchersForLedger = async (companyOid, ledgerName, fromDate, toDate) 
     const extra = await Voucher.find({
       ...dateFilter,
       _id: { $in: extraIds },
-      voucherType: { $nin: REPORT_DRILLDOWN_EXCLUDED_VOUCHER_TYPES }
+      ...voucherTypeFilter
     })
       .select('voucherNumber voucherType date partyName totals.grandTotal narration')
       .lean();
@@ -1986,6 +2007,284 @@ export const getInactiveItemsReport = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: 'Server error while generating inactive items report'
+    });
+  }
+};
+
+const sumLedgerDebitCredit = (ledgers = []) => {
+  let debit = 0;
+  let credit = 0;
+  for (const row of ledgers) {
+    if (row.isGroup) continue;
+    debit += Math.abs(Number(row.debit || 0));
+    credit += Math.abs(Number(row.credit || 0));
+  }
+  return { debit, credit };
+};
+
+const findCashBankGroupSummary = (groupSummaries, parentGroup) =>
+  (groupSummaries || []).find((g) =>
+    matchesAccountLedgerParent(g.groupName, parentGroup)
+  );
+
+const loadBalanceSheetReportForPeriod = async (companyId, periodKey) => {
+  const storedReport = await BalanceSheetReport.findOne({
+    company: companyId,
+    reportName: 'Balance Sheet',
+    periodKey
+  }).lean();
+  return storedReport;
+};
+
+const buildCashBankLedgersFromParty = async (companyId, parentGroup) => {
+  const rows = await Party.find({
+    company: companyId,
+    isActive: true,
+    recordType: 'ledger'
+  })
+    .sort({ name: 1 })
+    .lean();
+
+  return rows
+    .filter((r) => matchesAccountLedgerParent(r.tallyParent, parentGroup))
+    .map((r) => {
+      const amt = Math.abs(Number(r.balances?.opening?.amount || 0));
+      const side = r.balances?.opening?.type === 'credit' ? 'credit' : 'debit';
+      return {
+        name: r.name,
+        displayName: r.displayName || r.name,
+        debit: side === 'debit' ? amt : 0,
+        credit: side === 'credit' ? amt : 0,
+        amount: side === 'debit' ? -amt : amt,
+        isGroup: false
+      };
+    });
+};
+
+const resolveCashBankLedgers = async (storedReport, companyId, parentGroup, groupNameSet) => {
+  const group = findCashBankGroupSummary(storedReport?.groupSummaries, parentGroup);
+  if (group?.ledgers?.length) {
+    return {
+      groupName: group.groupName,
+      parentGroup: group.parentGroup || '',
+      groupAmount: group.groupAmount,
+      ledgers: group.ledgers.map((l) => mapGroupSummaryLedgerRow(l, groupNameSet))
+    };
+  }
+
+  const ledgers = await buildCashBankLedgersFromParty(companyId, parentGroup);
+  const totals = sumLedgerDebitCredit(ledgers);
+  return {
+    groupName: parentGroup,
+    parentGroup: '',
+    groupAmount: totals.debit - totals.credit,
+    ledgers
+  };
+};
+
+// @desc    Cash/Bank Book — parent group summary (Cash-in-hand, Bank Accounts, Bank OD A/c)
+// @route   GET /api/reports/cash-bank-book
+export const getCashBankBook = async (req, res) => {
+  try {
+    const companyId = req.query?.companyId;
+    const periodKey = normalizePeriodKey(req.query?.periodKey || 'this_month');
+
+    if (!companyId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID is required'
+      });
+    }
+
+    const company = await Company.findById(companyId).lean();
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+
+    const storedReport = await loadBalanceSheetReportForPeriod(companyId, periodKey);
+    const range = resolveBalanceSheetVoucherRange(periodKey, company);
+    const tallyGroups = await TallyAccount.find({
+      company: companyId,
+      accountType: 'group'
+    })
+      .select('name')
+      .lean();
+    const groupNameSet = new Set(
+      tallyGroups.map((g) => String(g.name || '').trim().toLowerCase()).filter(Boolean)
+    );
+
+    const sections = [];
+    for (const parentGroup of CASH_BANK_PARENT_GROUPS) {
+      const resolved = await resolveCashBankLedgers(
+        storedReport,
+        companyId,
+        parentGroup,
+        groupNameSet
+      );
+      const leafLedgers = (resolved.ledgers || []).filter((l) => !l.isGroup);
+      if (!leafLedgers.length) {
+        continue;
+      }
+      const totals = sumLedgerDebitCredit(resolved.ledgers);
+      sections.push({
+        name: resolved.groupName || parentGroup,
+        parentGroup,
+        debit: totals.debit,
+        credit: totals.credit,
+        ledgerCount: leafLedgers.length,
+        drillable: leafLedgers.length > 0
+      });
+    }
+
+    if (!sections.length) {
+      return res.status(404).json({
+        success: false,
+        code: storedReport ? 'NO_CASH_BANK_GROUPS' : 'REPORT_NOT_SYNCED',
+        message: storedReport
+          ? 'No cash or bank groups found. Re-run desktop-agent sync after opening Tally.'
+          : 'Balance Sheet for this period is not synced yet. Run desktop-agent sync.'
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        reportName: 'Cash/Bank Book',
+        period: {
+          periodKey: range.periodKey,
+          label: range.label,
+          startDate: range.fromDate.toISOString(),
+          endDate: range.toDate.toISOString(),
+          asOfDate: range.asOfDate.toISOString()
+        },
+        lastSyncDate: storedReport?.tallySync?.lastSyncDate?.toISOString?.() || null,
+        sections
+      }
+    });
+  } catch (error) {
+    logger.error('Cash/Bank Book summary error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while loading Cash/Bank Book'
+    });
+  }
+};
+
+// @desc    Cash/Bank Book — ledgers under a parent group
+// @route   GET /api/reports/cash-bank-book/ledgers
+export const getCashBankBookLedgers = async (req, res) => {
+  try {
+    const companyId = req.query?.companyId;
+    const periodKey = normalizePeriodKey(req.query?.periodKey || 'this_month');
+    const parentGroup = String(req.query?.parentGroup || '').trim();
+
+    if (!companyId || !parentGroup) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID and parentGroup are required'
+      });
+    }
+
+    const storedReport = await loadBalanceSheetReportForPeriod(companyId, periodKey);
+    const tallyGroups = await TallyAccount.find({
+      company: companyId,
+      accountType: 'group'
+    })
+      .select('name')
+      .lean();
+    const groupNameSet = new Set(
+      tallyGroups.map((g) => String(g.name || '').trim().toLowerCase()).filter(Boolean)
+    );
+
+    const resolved = await resolveCashBankLedgers(
+      storedReport,
+      companyId,
+      parentGroup,
+      groupNameSet
+    );
+    const leafLedgers = (resolved.ledgers || []).filter((l) => !l.isGroup);
+
+    if (!leafLedgers.length) {
+      return res.status(404).json({
+        success: false,
+        message: `No ledgers found under "${normalizeTallyParentName(parentGroup)}". Run desktop-agent sync.`
+      });
+    }
+
+    const totals = sumLedgerDebitCredit(resolved.ledgers);
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        parentGroup: resolved.groupName || parentGroup,
+        debit: totals.debit,
+        credit: totals.credit,
+        ledgers: resolved.ledgers
+      }
+    });
+  } catch (error) {
+    logger.error('Cash/Bank Book ledgers error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while loading Cash/Bank Book ledgers'
+    });
+  }
+};
+
+// @desc    Cash/Bank Book — receipt/payment/contra vouchers for a ledger
+// @route   GET /api/reports/cash-bank-book/vouchers
+export const getCashBankBookVouchers = async (req, res) => {
+  try {
+    const companyId = req.query?.companyId;
+    const periodKey = normalizePeriodKey(req.query?.periodKey || 'this_month');
+    const ledgerName = String(req.query?.ledgerName || '').trim();
+
+    if (!companyId || !ledgerName) {
+      return res.status(400).json({
+        success: false,
+        message: 'Company ID and ledgerName are required'
+      });
+    }
+
+    const companyOid = toObjectId(companyId);
+    if (!companyOid) {
+      return res.status(400).json({ success: false, message: 'Invalid company ID' });
+    }
+
+    const company = await Company.findById(companyId).lean();
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+
+    const range = resolveBalanceSheetVoucherRange(periodKey, company);
+    const vouchers = await queryVouchersForLedger(
+      companyOid,
+      ledgerName,
+      range.fromDate,
+      range.toDate,
+      CASH_BANK_VOUCHER_TYPES
+    );
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        ledgerName,
+        period: {
+          periodKey: range.periodKey,
+          label: range.label,
+          startDate: range.fromDate.toISOString(),
+          endDate: range.toDate.toISOString(),
+          asOfDate: range.asOfDate.toISOString()
+        },
+        count: vouchers.length,
+        vouchers: mapVoucherRowsForApi(vouchers)
+      }
+    });
+  } catch (error) {
+    logger.error('Cash/Bank Book vouchers error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while loading Cash/Bank Book vouchers'
     });
   }
 };
