@@ -163,7 +163,10 @@ const ItemSchema = new mongoose.Schema({
     openingBalance: { type: Number, default: 0 },
     inwardQuantity: { type: Number, default: 0 },
     outwardQuantity: { type: Number, default: 0 },
-    closingBalance: { type: Number, default: 0 }
+    closingBalance: { type: Number, default: 0 },
+    /** Closing stock value / rate from Tally (drives Stock Value tiles). */
+    closingValue: { type: Number, default: 0 },
+    closingRate: { type: Number, default: 0 }
   },
   images: [{
     filename: String,

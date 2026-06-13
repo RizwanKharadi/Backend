@@ -1,7 +1,17 @@
 import { apiClient } from './apiClient';
 
+export type ReportPeriodKey =
+  | 'this_month'
+  | 'last_month'
+  | 'this_quarter'
+  | 'this_year'
+  | 'last_year';
+
 export interface ReportParams {
   companyId: string;
+  periodKey?: ReportPeriodKey;
+  startDate?: string;
+  endDate?: string;
   dateFrom?: string;
   dateTo?: string;
   format?: 'json' | 'pdf' | 'excel' | 'csv';
@@ -55,6 +65,212 @@ export interface InventoryReport {
   }>;
 }
 
+export interface OutstandingLedgerSummary {
+  partyName: string;
+  totalOutstanding: number;
+  billCount: number;
+  oldestBillDue?: string;
+  oldestOverdueDays?: number;
+}
+
+export interface OutstandingBill {
+  billRef: string;
+  billDate?: string;
+  billDue?: string;
+  billOverdue?: number;
+  closingBalance: number;
+  vchType?: string;
+  vchNumber?: string;
+  vchDate?: string;
+  vchAmount?: number;
+  voucherId?: string | null;
+  inventoryLines?: Array<{ item?: string; quantity?: string; rate?: string }>;
+}
+
+export interface OutstandingReceivableSummary {
+  asOfDate?: string;
+  fromDate?: string;
+  toDate?: string;
+  totalOutstanding: number;
+  lastSyncedAt?: string;
+  ledgers: OutstandingLedgerSummary[];
+}
+
+export interface OutstandingLedgerDetail {
+  asOfDate?: string;
+  partyName: string;
+  totalOutstanding: number;
+  billCount: number;
+  oldestBillDue?: string;
+  oldestOverdueDays?: number;
+  bills: OutstandingBill[];
+}
+
+export interface TopTenRow {
+  rank: number;
+  name: string;
+  totalAmount: number;
+  quantity?: number;
+  transactionCount?: number;
+  sharePercent: number;
+  partyId?: string;
+  itemId?: string;
+}
+
+export interface TopTenReportData {
+  period: { startDate: string; endDate: string };
+  summary: {
+    totalCustomerSales: number;
+    totalSupplierPurchases: number;
+    totalItemsSoldValue: number;
+    totalItemsPurchasedValue: number;
+    totalItemsSoldQty: number;
+    totalItemsPurchasedQty: number;
+  };
+  topCustomers: TopTenRow[];
+  topSuppliers: TopTenRow[];
+  itemsSoldByValue: TopTenRow[];
+  itemsPurchasedByValue: TopTenRow[];
+  itemsSoldByQty: TopTenRow[];
+  itemsPurchasedByQty: TopTenRow[];
+}
+
+export type TopTenCategory =
+  | 'customers'
+  | 'suppliers'
+  | 'items_sold_value'
+  | 'items_purchased_value'
+  | 'items_sold_qty'
+  | 'items_purchased_qty';
+
+export interface InactiveCustomerRow {
+  name: string;
+  lastSaleDate: string | null;
+  lastSaleDateDisplay?: string | null;
+  billCount: number;
+}
+
+export interface InactiveItemRow {
+  name: string;
+  quantity: number;
+  unit: string;
+  amount: number;
+  lastSaleDate: string | null;
+  lastSaleDateDisplay?: string | null;
+  billCount: number;
+}
+
+export interface ProfitLossGroup {
+  name: string;
+  amount: number;
+  side: 'revenue' | 'expense';
+  drillable: boolean;
+  ledgerCount?: number;
+}
+
+export interface BalanceSheetGroup {
+  name: string;
+  amount: number;
+  section: 'assets' | 'liabilities' | 'equity';
+  drillable: boolean;
+  ledgerCount?: number;
+}
+
+export type FinancialReportKind = 'profit_loss' | 'balance_sheet';
+
+export interface ProfitLossGroupLedger {
+  name: string;
+  displayName: string;
+  debit: number;
+  credit: number;
+  amount: number;
+  /** Tally subgroup (bold in Group Summary) — drill to nested group, not vouchers */
+  isGroup?: boolean;
+}
+
+export interface ProfitLossVoucherRow {
+  id: string;
+  voucherNumber: string;
+  voucherType: string;
+  date: string;
+  dateDisplay?: string;
+  partyName: string;
+  amount: number;
+  narration?: string;
+}
+
+export interface CashBankBookSection {
+  name: string;
+  parentGroup: string;
+  debit: number;
+  credit: number;
+  ledgerCount: number;
+  drillable: boolean;
+}
+
+export interface CashBankBookSummary {
+  reportName: string;
+  period: {
+    periodKey: string;
+    label: string;
+    startDate: string;
+    endDate: string;
+    asOfDate: string;
+  };
+  lastSyncDate?: string | null;
+  sections: CashBankBookSection[];
+}
+
+export interface CashBankBookLedgersData {
+  parentGroup: string;
+  debit: number;
+  credit: number;
+  ledgers: ProfitLossGroupLedger[];
+}
+
+export interface InactiveCustomersData {
+  filter: { mode: string; days: number | null; label: string };
+  summary: {
+    inactiveCount: number;
+    totalCustomers: number;
+    percentOfTotal: number;
+  };
+  customers: InactiveCustomerRow[];
+}
+
+export interface InactiveItemsData {
+  filter: { mode: string; days: number | null; label: string };
+  summary: {
+    inactiveCount: number;
+    totalItems: number;
+    percentOfTotal: number;
+    totalValue: number;
+  };
+  items: InactiveItemRow[];
+}
+
+export interface DashboardSummaryData {
+  asOf?: { date: string; timezone: string };
+  lastSyncedAt?: string | null;
+  todaySales: { amount: number; count: number };
+  monthlyRevenue: { amount: number; count: number; fromDate: string; toDate: string };
+  outstanding: { receivables: number; overdueParties: number; parties: number };
+  bankBalance: { amount: number; bankAccounts: number; cashInHand: number };
+  profitThisMonth: number;
+  topCustomer: { name: string; amount: number } | null;
+  salesTrend: Array<{ date: string; amount: number; count: number }>;
+  recentVouchers: Array<{
+    id: string;
+    voucherNumber: string;
+    voucherType: string;
+    tallyVoucherTypeParent?: string;
+    date: string;
+    partyName: string;
+    amount: number;
+    narration?: string;
+  }>;
+}
+
 export interface TaxReport {
   totalTaxCollected: number;
   totalTaxPaid: number;
@@ -74,6 +290,19 @@ export interface TaxReport {
 
 class ReportService {
   private readonly baseURL = '/reports';
+
+  /**
+   * Single round-trip dashboard summary (IST day/month boundaries on the server).
+   */
+  async getDashboardSummary(companyId: string): Promise<{
+    success: boolean;
+    data: DashboardSummaryData;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/dashboard`, {
+      params: { companyId },
+    });
+    return response.data;
+  }
 
   /**
    * Get financial report
@@ -125,29 +354,172 @@ class ReportService {
   async getProfitLossReport(params: ReportParams): Promise<{
     success: boolean;
     data: {
-      income: Array<{
-        account: string;
-        amount: number;
-      }>;
-      expenses: Array<{
-        account: string;
-        amount: number;
-      }>;
-      totalIncome: number;
-      totalExpenses: number;
-      netProfit: number;
+      period: {
+        startDate: string;
+        endDate: string;
+        periodKey?: string;
+        label?: string;
+      };
+      lastSyncDate?: string | null;
+      summary: {
+        totalRevenue: number;
+        totalExpenses: number;
+        netProfit: number;
+        profitMargin: number | string;
+      };
+      revenue: {
+        total: number;
+        byCategory: Record<string, number>;
+        transactions: number;
+      };
+      expenses: {
+        total: number;
+        byCategory: Record<string, number>;
+        transactions: number;
+      };
     };
   }> {
-    const response = await apiClient.get(`${this.baseURL}/profit-loss`, { params });
+    const query: Record<string, string> = {
+      companyId: params.companyId,
+    };
+    if (params.periodKey) {
+      query.periodKey = params.periodKey;
+    } else {
+      query.startDate = params.startDate || params.dateFrom || '';
+      query.endDate = params.endDate || params.dateTo || '';
+    }
+    const response = await apiClient.get(`${this.baseURL}/profit-loss`, { params: query });
+    return response.data;
+  }
+
+  async getProfitLossGroupLedgers(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+    groupName: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      groupName: string;
+      groupAmount: number;
+      ledgers: ProfitLossGroupLedger[];
+    };
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/profit-loss/group-ledgers`, {
+      params,
+    });
+    return response.data;
+  }
+
+  async getProfitLossVouchers(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+    ledgerName: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      ledgerName: string;
+      count: number;
+      vouchers: ProfitLossVoucherRow[];
+    };
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/profit-loss/vouchers`, {
+      params,
+    });
     return response.data;
   }
 
   /**
    * Get balance sheet report
    */
+  async getBalanceSheetGroupLedgers(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+    groupName: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      groupName: string;
+      groupAmount: number;
+      ledgers: ProfitLossGroupLedger[];
+    };
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/balance-sheet/group-ledgers`, {
+      params,
+    });
+    return response.data;
+  }
+
+  async getBalanceSheetVouchers(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+    ledgerName: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      ledgerName: string;
+      count: number;
+      vouchers: ProfitLossVoucherRow[];
+    };
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/balance-sheet/vouchers`, {
+      params,
+    });
+    return response.data;
+  }
+
+  async getCashBankBookSummary(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+  }): Promise<{
+    success: boolean;
+    data: CashBankBookSummary;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/cash-bank-book`, { params });
+    return response.data;
+  }
+
+  async getCashBankBookLedgers(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+    parentGroup: string;
+  }): Promise<{
+    success: boolean;
+    data: CashBankBookLedgersData;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/cash-bank-book/ledgers`, {
+      params,
+    });
+    return response.data;
+  }
+
+  async getCashBankBookVouchers(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+    ledgerName: string;
+  }): Promise<{
+    success: boolean;
+    data: {
+      ledgerName: string;
+      count: number;
+      vouchers: ProfitLossVoucherRow[];
+    };
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/cash-bank-book/vouchers`, {
+      params,
+    });
+    return response.data;
+  }
+
   async getBalanceSheetReport(params: ReportParams): Promise<{
     success: boolean;
     data: {
+      period?: {
+        periodKey?: string;
+        label?: string;
+        asOfDate?: string;
+      };
+      lastSyncDate?: string | null;
+      groups?: BalanceSheetGroup[];
       assets: {
         current: Array<{ account: string; amount: number }>;
         fixed: Array<{ account: string; amount: number }>;
@@ -163,9 +535,18 @@ class ReportService {
         retainedEarnings: number;
         total: number;
       };
+      balanceCheck?: {
+        assetsTotal: number;
+        liabilitiesAndEquityTotal: number;
+        balanced: boolean;
+      };
     };
   }> {
-    const response = await apiClient.get(`${this.baseURL}/balance-sheet`, { params });
+    const query: Record<string, string> = {
+      companyId: params.companyId,
+      periodKey: params.periodKey || 'this_month',
+    };
+    const response = await apiClient.get(`${this.baseURL}/balance-sheet`, { params: query });
     return response.data;
   }
 
@@ -293,6 +674,96 @@ class ReportService {
   /**
    * Schedule report
    */
+  async getTop10Report(params: ReportParams): Promise<{
+    success: boolean;
+    data: TopTenReportData;
+  }> {
+    // Prefer periodKey — the server resolves boundaries in IST against voucher storage.
+    if (params.periodKey) {
+      const response = await apiClient.get(`${this.baseURL}/top-10`, {
+        params: { companyId: params.companyId, periodKey: params.periodKey },
+      });
+      return response.data;
+    }
+
+    let startDate = params.startDate || params.dateFrom;
+    let endDate = params.endDate || params.dateTo;
+
+    if (!startDate || !endDate) {
+      const response = await apiClient.get(`${this.baseURL}/top-10`, {
+        params: { companyId: params.companyId, periodKey: 'this_month' },
+      });
+      return response.data;
+    }
+
+    const query = {
+      companyId: params.companyId,
+      startDate,
+      endDate,
+    };
+    const response = await apiClient.get(`${this.baseURL}/top-10`, { params: query });
+    return response.data;
+  }
+
+  async getOutstandingReceivable(companyId: string): Promise<{
+    success: boolean;
+    data: OutstandingReceivableSummary;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/outstanding-receivable`, {
+      params: { companyId },
+    });
+    return response.data;
+  }
+
+  async getOutstandingReceivableLedger(
+    companyId: string,
+    partyName: string
+  ): Promise<{
+    success: boolean;
+    data: OutstandingLedgerDetail;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/outstanding-receivable/ledger`, {
+      params: { companyId, partyName },
+    });
+    return response.data;
+  }
+
+  async getInactiveCustomers(params: {
+    companyId: string;
+    inactiveDays: string;
+    customDays?: number;
+  }): Promise<{ success: boolean; data: InactiveCustomersData }> {
+    const query: Record<string, string> = {
+      companyId: params.companyId,
+      inactiveDays: params.inactiveDays,
+    };
+    if (params.customDays != null) {
+      query.customDays = String(params.customDays);
+    }
+    const response = await apiClient.get(`${this.baseURL}/inactive-customers`, {
+      params: query,
+    });
+    return response.data;
+  }
+
+  async getInactiveItems(params: {
+    companyId: string;
+    inactiveDays: string;
+    customDays?: number;
+  }): Promise<{ success: boolean; data: InactiveItemsData }> {
+    const query: Record<string, string> = {
+      companyId: params.companyId,
+      inactiveDays: params.inactiveDays,
+    };
+    if (params.customDays != null) {
+      query.customDays = String(params.customDays);
+    }
+    const response = await apiClient.get(`${this.baseURL}/inactive-items`, {
+      params: query,
+    });
+    return response.data;
+  }
+
   async scheduleReport(scheduleData: {
     reportType: string;
     frequency: 'daily' | 'weekly' | 'monthly';

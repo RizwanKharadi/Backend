@@ -102,26 +102,40 @@ export const getVouchers = async (req, res) => {
     } = req.query;
 
     const query = { company: req.company._id };
+    const andClauses = [];
 
-    // Add filters
-    if (voucherType) query.voucherType = voucherType;
+    // Type filter matches the Tally parent type too — synced vouchers often carry
+    // custom voucher type names (e.g. "GST Sales") whose parent is "Sales".
+    if (voucherType) {
+      const parentLabel = String(voucherType).trim().replace(/_/g, ' ');
+      const parentRegex = new RegExp(
+        `^${parentLabel.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}$`,
+        'i'
+      );
+      andClauses.push({
+        $or: [
+          { voucherType },
+          { tallyVoucherTypeParent: { $regex: parentRegex } }
+        ]
+      });
+    }
     if (status) query.status = status;
     if (party) query.party = party;
-    
+
     if (fromDate || toDate) {
       query.date = {};
+      // Voucher dates are stored at UTC midnight of the Tally calendar date.
       const parseRangeDate = (value, endOfDay = false) => {
         const raw = String(value).trim();
         const ymd = raw.match(/^(\d{4})-(\d{2})-(\d{2})/);
         if (ymd) {
-          const dt = new Date(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]));
-          if (endOfDay) dt.setHours(23, 59, 59, 999);
-          else dt.setHours(0, 0, 0, 0);
-          return dt;
+          return endOfDay
+            ? new Date(Date.UTC(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3]), 23, 59, 59, 999))
+            : new Date(Date.UTC(Number(ymd[1]), Number(ymd[2]) - 1, Number(ymd[3])));
         }
         const dt = new Date(raw);
         if (!Number.isNaN(dt.getTime()) && endOfDay) {
-          dt.setHours(23, 59, 59, 999);
+          dt.setUTCHours(23, 59, 59, 999);
         }
         return dt;
       };
@@ -130,10 +144,17 @@ export const getVouchers = async (req, res) => {
     }
 
     if (search) {
-      query.$or = [
-        { voucherNumber: { $regex: search, $options: 'i' } },
-        { narration: { $regex: search, $options: 'i' } }
-      ];
+      andClauses.push({
+        $or: [
+          { voucherNumber: { $regex: search, $options: 'i' } },
+          { partyName: { $regex: search, $options: 'i' } },
+          { narration: { $regex: search, $options: 'i' } }
+        ]
+      });
+    }
+
+    if (andClauses.length) {
+      query.$and = andClauses;
     }
 
     const options = {

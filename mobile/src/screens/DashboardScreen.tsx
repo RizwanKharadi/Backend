@@ -32,77 +32,31 @@ import { fetchVoucherStats } from '../store/slices/voucherSlice';
 import { fetchInventoryStats } from '../store/slices/inventorySlice';
 import { fetchUnreadCount } from '../store/slices/notificationSlice';
 
-import { reportService } from '../services/reportService';
-import { voucherService } from '../services/voucherService';
+import { reportService, DashboardSummaryData } from '../services/reportService';
 import { billingService } from '../services/billingService';
 import { offlineCacheService } from '../services/offlineCacheService';
 import { Voucher } from '../types';
 import { MainTabScreenProps } from '../types/navigation';
 import { navigateToReportTab } from '../navigation/reportNavigation';
-import { formatIndianCompact, formatCurrency, toLocalDateString } from '../utils/formatters';
-import {
-  isSalesVoucher,
-  getVoucherTotalAmount,
-  monthSalesRevenue,
-  monthStartToToday,
-  topCustomerFromVouchers,
-} from '../utils/voucherHelpers';
+import { formatIndianCompact, formatCurrency, parseLocalDateString } from '../utils/formatters';
 
 type Props = MainTabScreenProps<'Dashboard'>;
 
 const MIN_AUTO_RELOAD_MS = 45_000;
-const TREND_DAYS = 7;
 
-function sumByTypes(vouchers: Voucher[], types: string[]): number {
-  const normalized = types.map((t) => t.toLowerCase());
-  let amount = 0;
-  for (const v of vouchers) {
-    const t = (v.voucherType || '').toLowerCase();
-    if (normalized.some((n) => t.includes(n))) {
-      amount += getVoucherTotalAmount(v);
-    }
-  }
-  return amount;
-}
-
-function extractBankBalance(data: {
-  assets?: { current?: Array<{ account: string; amount: number }> };
-  groups?: Array<{ name: string; amount: number; section?: string }>;
-} | null): number {
-  if (!data) return 0;
-  const current = data.assets?.current || [];
-  const fromAccounts = current
-    .filter((a) => /bank|cash|current account|savings/i.test(a.account || ''))
-    .reduce((s, a) => s + (a.amount || 0), 0);
-  if (fromAccounts > 0) return fromAccounts;
-
-  const groups = data.groups || [];
-  const bankGroup = groups.find(
-    (g) =>
-      g.section === 'assets' &&
-      /bank|cash/i.test(g.name || '')
-  );
-  return bankGroup?.amount ?? 0;
-}
-
-function buildSalesTrend(vouchers: Voucher[]): { labels: string[]; values: number[] } {
+function trendFromSummary(
+  rows: Array<{ date: string; amount: number }> | undefined
+): { labels: string[]; values: number[] } {
   const labels: string[] = [];
   const values: number[] = [];
-
-  for (let i = TREND_DAYS - 1; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const iso = toLocalDateString(d);
+  for (const row of rows || []) {
     labels.push(
-      d.toLocaleDateString(undefined, { weekday: 'short' }).slice(0, 3)
+      parseLocalDateString(row.date)
+        .toLocaleDateString(undefined, { weekday: 'short' })
+        .slice(0, 3)
     );
-    const dayTotal = vouchers
-      .filter((v) => (v.date || v.createdAt || '').slice(0, 10) === iso)
-      .filter((v) => /sales|invoice/i.test((v.voucherType || '').toLowerCase()))
-      .reduce((s, v) => s + getVoucherTotalAmount(v), 0);
-    values.push(dayTotal);
+    values.push(row.amount || 0);
   }
-
   return { labels, values };
 }
 
@@ -119,23 +73,12 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
 
   const [refreshing, setRefreshing] = useState(false);
   const [loadingExtra, setLoadingExtra] = useState(true);
-  const [recentVouchers, setRecentVouchers] = useState<Voucher[]>([]);
-  const [trendVouchers, setTrendVouchers] = useState<Voucher[]>([]);
-  const [todayVouchers, setTodayVouchers] = useState<Voucher[]>([]);
-  const [receivablesTotal, setReceivablesTotal] = useState(0);
-  const [overdueParties, setOverdueParties] = useState(0);
-  const [bankBalance, setBankBalance] = useState(0);
-  const [profitThisMonth, setProfitThisMonth] = useState(0);
-  const [topCustomerName, setTopCustomerName] = useState<string | null>(null);
-  const [topCustomerAmount, setTopCustomerAmount] = useState(0);
-  const [monthlyRevenue, setMonthlyRevenue] = useState(0);
+  const [summary, setSummary] = useState<DashboardSummaryData | null>(null);
   const [trialLabel, setTrialLabel] = useState<string | null>(null);
 
   const lastLoadAtRef = useRef(0);
   const loadInFlightRef = useRef(false);
   const billingLoadedAtRef = useRef(0);
-
-  const todayIso = useMemo(() => toLocalDateString(new Date()), []);
 
   const loadCoreStats = useCallback(() => {
     if (!selectedCompany?.id) return;
@@ -159,168 +102,23 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
         Date.now() - billingLoadedAtRef.current > 5 * 60 * 1000;
 
       try {
-        const { fromDate, toDate, startDateIso, endDateIso } = monthStartToToday();
-
-        const recentPromise = voucherService.getVouchers({
-          companyId,
-          limit: 200,
-          page: 1,
-        });
-        const monthSalesPromise = voucherService.getVouchers({
-          companyId,
-          fromDate,
-          toDate,
-          limit: 500,
-          page: 1,
-        });
-        const outstandingPromise = reportService.getOutstandingReceivable(companyId);
-        const profitPromise = reportService.getProfitLossReport({
-          companyId,
-          periodKey: 'this_month',
-        });
-        const topTenPromise = reportService.getTop10Report({
-          companyId,
-          startDate: startDateIso,
-          endDate: endDateIso,
-        });
-        const balancePromise = reportService.getBalanceSheetReport({
-          companyId,
-          periodKey: 'this_month',
-        });
         const billingPromise = shouldLoadBilling
           ? billingService.getStatus()
           : Promise.resolve(null);
 
-        const [
-          recentRes,
-          monthSalesRes,
-          outstandingRes,
-          profitRes,
-          topTenRes,
-          balanceRes,
-          billingRes,
-        ] = await Promise.allSettled([
-          recentPromise,
-          monthSalesPromise,
-          outstandingPromise,
-          profitPromise,
-          topTenPromise,
-          balancePromise,
+        const [summaryRes, billingRes] = await Promise.allSettled([
+          reportService.getDashboardSummary(companyId),
           billingPromise,
         ]);
 
-        let recvTotal = 0;
-        let overdue = 0;
-        let bank = 0;
-        let profit = 0;
-        let topName: string | null = null;
-        let topAmt = 0;
-        let monthSalesTotal = 0;
-        let recentSlice: Voucher[] = [];
-        let todaySlice: Voucher[] = [];
-        let trendSlice: Voucher[] = [];
-
-        let monthSalesList: Voucher[] = [];
-        if (monthSalesRes.status === 'fulfilled') {
-          monthSalesList = (monthSalesRes.value.data || []).filter(isSalesVoucher);
-          monthSalesTotal = monthSalesRevenue(monthSalesList, fromDate, toDate);
-        }
-
-        if (recentRes.status === 'fulfilled') {
-          const all = recentRes.value.data || [];
-          recentSlice = all.slice(0, 5);
-          todaySlice = all.filter(
-            (v) => (v.date || v.createdAt || '').slice(0, 10) === todayIso
-          );
-          trendSlice = all;
-          setRecentVouchers(recentSlice);
-          setTodayVouchers(todaySlice);
-          setTrendVouchers(trendSlice);
-
-          if (monthSalesTotal === 0) {
-            monthSalesTotal = monthSalesRevenue(all, fromDate, toDate);
-            if (monthSalesList.length === 0) {
-              monthSalesList = all.filter(isSalesVoucher);
-            }
-          }
-        }
-
-        setMonthlyRevenue(monthSalesTotal);
-
-        if (outstandingRes.status === 'fulfilled') {
-          const data = outstandingRes.value.data;
-          recvTotal = data?.totalOutstanding || 0;
-          const ledgers = data?.ledgers || [];
-          overdue = ledgers.filter((l) => (l.oldestOverdueDays || 0) > 0).length;
-          setReceivablesTotal(recvTotal);
-          setOverdueParties(overdue);
-        }
-
-        if (profitRes.status === 'fulfilled') {
-          profit = profitRes.value.data?.summary?.netProfit ?? 0;
-          setProfitThisMonth(profit);
-        }
-
-        if (topTenRes.status === 'fulfilled') {
-          const top = topTenRes.value.data?.topCustomers?.[0];
-          topName = top?.name?.trim() || null;
-          topAmt = top?.totalAmount ?? 0;
-        }
-
-        if (!topName && monthSalesList.length > 0) {
-          const fallback = topCustomerFromVouchers(monthSalesList);
-          if (fallback) {
-            topName = fallback.name;
-            topAmt = fallback.amount;
-          }
-        }
-
-        if (!topName && recentRes.status === 'fulfilled') {
-          const fallback = topCustomerFromVouchers(recentRes.value.data || []);
-          if (fallback) {
-            topName = fallback.name;
-            topAmt = fallback.amount;
-          }
-        }
-
-        setTopCustomerName(topName);
-        setTopCustomerAmount(topAmt);
-
-        if (balanceRes.status === 'fulfilled') {
-          bank = extractBankBalance(balanceRes.value.data);
-          setBankBalance(bank);
-        }
-
-        if (recentRes.status === 'fulfilled') {
-          void offlineCacheService.saveDashboardExtras(companyId, {
-            recentVouchers: recentSlice,
-            todayVouchers: todaySlice,
-            trendVouchers: trendSlice,
-            receivablesTotal: recvTotal,
-            receivableParties: outstandingRes.status === 'fulfilled'
-              ? (outstandingRes.value.data?.ledgers?.length ?? 0)
-              : 0,
-            overdueParties: overdue,
-            bankBalance: bank,
-            profitThisMonth: profit,
-            topCustomerName: topName,
-            topCustomerAmount: topAmt,
-            monthlyRevenue: monthSalesTotal,
-            cachedAt: new Date().toISOString(),
-          });
-        } else if (recentRes.status === 'rejected') {
-          const cached = await offlineCacheService.loadDashboardExtras(companyId);
+        if (summaryRes.status === 'fulfilled' && summaryRes.value?.data) {
+          const data = summaryRes.value.data;
+          setSummary(data);
+          void offlineCacheService.saveDashboardSummary(companyId, data);
+        } else {
+          const cached = await offlineCacheService.loadDashboardSummary(companyId);
           if (cached) {
-            setRecentVouchers(cached.recentVouchers.slice(0, 5));
-            setTodayVouchers(cached.todayVouchers);
-            setTrendVouchers(cached.trendVouchers || []);
-            setReceivablesTotal(cached.receivablesTotal);
-            setOverdueParties(cached.overdueParties);
-            setBankBalance(cached.bankBalance ?? 0);
-            setProfitThisMonth(cached.profitThisMonth ?? 0);
-            setTopCustomerName(cached.topCustomerName ?? null);
-            setTopCustomerAmount(cached.topCustomerAmount ?? 0);
-            setMonthlyRevenue(cached.monthlyRevenue ?? 0);
+            setSummary(cached);
           }
         }
 
@@ -351,7 +149,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
         setLoadingExtra(false);
       }
     },
-    [selectedCompany?.id, todayIso]
+    [selectedCompany?.id]
   );
 
   const loadDashboard = useCallback(
@@ -388,15 +186,33 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
     setRefreshing(false);
   };
 
-  const todaySales = useMemo(
-    () => sumByTypes(todayVouchers, ['sales', 'invoice']),
-    [todayVouchers]
+  const todaySales = summary?.todaySales?.amount ?? 0;
+  const todayInvoiceCount = summary?.todaySales?.count ?? 0;
+  const monthlyRevenue = summary?.monthlyRevenue?.amount ?? 0;
+  const monthFromDate = summary?.monthlyRevenue?.fromDate ?? '';
+  const receivablesTotal = summary?.outstanding?.receivables ?? 0;
+  const overdueParties = summary?.outstanding?.overdueParties ?? 0;
+  const bankBalance = summary?.bankBalance?.amount ?? 0;
+  const profitThisMonth = summary?.profitThisMonth ?? 0;
+  const topCustomerName = summary?.topCustomer?.name ?? null;
+  const topCustomerAmount = summary?.topCustomer?.amount ?? 0;
+
+  const recentVouchers = useMemo(
+    () => (summary?.recentVouchers || []).slice(0, 5) as unknown as Voucher[],
+    [summary?.recentVouchers]
   );
 
   const salesTrend = useMemo(
-    () => buildSalesTrend(trendVouchers),
-    [trendVouchers]
+    () => trendFromSummary(summary?.salesTrend),
+    [summary?.salesTrend]
   );
+
+  // Tally company sync time (from the agent) — not the phone's own offline-sync clock.
+  const tallyLastSync =
+    summary?.lastSyncedAt ||
+    (selectedCompany as { tallyIntegration?: { lastSyncDate?: string } } | null)
+      ?.tallyIntegration?.lastSyncDate ||
+    lastSyncTime;
 
   const lowStockCount = inventoryStats?.lowStock ?? 0;
 
@@ -500,7 +316,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           companyName="Select company"
           isOnline={isOnline}
           isSyncing={isSyncing}
-          lastSyncTime={lastSyncTime}
+          lastSyncTime={tallyLastSync}
           onCompanyPress={() => parentNavigation?.navigate('CompanySelection')}
           onSettingsPress={() => parentNavigation?.navigate('Settings')}
         />
@@ -521,7 +337,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
         companyName={selectedCompany.name}
         isOnline={isOnline}
         isSyncing={isSyncing}
-        lastSyncTime={lastSyncTime}
+        lastSyncTime={tallyLastSync}
         trialLabel={trialLabel}
         unreadNotifications={unreadCount || 0}
         onCompanyPress={() => parentNavigation?.navigate('CompanySelection')}
@@ -563,9 +379,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           variant="hero"
           title="Today's sales"
           value={formatIndianCompact(todaySales)}
-          subtitle={`${todayVouchers.filter((v) =>
-            /sales|invoice/i.test((v.voucherType || '').toLowerCase())
-          ).length} invoice(s) today`}
+          subtitle={`${todayInvoiceCount} invoice(s) today`}
           icon="cash-register"
           accentColor={metricAccentColors.todaySales}
           onPress={goDayBook}
@@ -578,7 +392,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           <DashboardMetricCard
             title="Monthly revenue"
             value={formatIndianCompact(monthlyRevenue)}
-            subtitle={`${monthStartToToday().fromDate} to today`}
+            subtitle={monthFromDate ? `${monthFromDate} to today` : 'Month to date'}
             icon="chart-timeline-variant"
             accentColor={metricAccentColors.monthlyRevenue}
             onPress={goSales}

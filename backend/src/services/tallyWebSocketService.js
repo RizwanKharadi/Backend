@@ -33,6 +33,8 @@ class TallyWebSocketService {
   constructor() {
     this.wss = null;
     this.connections = new Map(); // agentId -> connection info
+    /** Serialize inbound messages per agent — prevents concurrent bulk MongoDB writes. */
+    this.agentMessageQueues = new Map();
     /** @type {Map<string, { resolve: Function, reject: Function, timer: NodeJS.Timeout }>} */
     this.pendingHydrations = new Map();
     /** @type {Map<string, { resolve: Function, reject: Function, timer: NodeJS.Timeout }>} */
@@ -69,7 +71,17 @@ class TallyWebSocketService {
     this.wss = new WebSocketServer({
       server,
       path,
-      verifyClient: this.verifyClient.bind(this)
+      verifyClient: this.verifyClient.bind(this),
+      maxPayload: 64 * 1024 * 1024,
+      /**
+       * Voucher batch JSON compresses ~10x; agents on slow office uplinks spend most of a
+       * batch round-trip on transfer. No context takeover keeps per-connection memory flat.
+       */
+      perMessageDeflate: {
+        threshold: 1024,
+        serverNoContextTakeover: true,
+        clientNoContextTakeover: true
+      }
     });
 
     this.wss.on('connection', this.handleConnection.bind(this));
@@ -252,7 +264,9 @@ class TallyWebSocketService {
 
       // Set up WebSocket event handlers
       ws.isAlive = true;
-      ws.on('message', (data) => this.handleMessage(agentId, data));
+      ws.on('message', (data) => {
+        this.enqueueAgentMessage(agentId, () => this.handleMessage(agentId, data));
+      });
       ws.on('close', (code, reason) => this.handleDisconnection(agentId, code, reason));
       ws.on('error', (error) => this.handleConnectionError(agentId, error));
       ws.on('pong', () => this.handlePong(agentId));
@@ -274,6 +288,25 @@ class TallyWebSocketService {
       });
       ws.close(1011, 'Internal server error');
     }
+  }
+
+  /**
+   * Process agent messages one at a time to avoid overlapping bulk writes on one connection.
+   * @param {string} agentId
+   * @param {() => Promise<void>} task
+   */
+  enqueueAgentMessage(agentId, task) {
+    const prev = this.agentMessageQueues.get(agentId) || Promise.resolve();
+    const next = prev
+      .then(() => task())
+      .catch((error) => {
+        this.logger.error('Agent message task failed', {
+          agentId,
+          error: error.message
+        });
+      });
+    this.agentMessageQueues.set(agentId, next);
+    return next;
   }
 
   /**
@@ -385,6 +418,7 @@ class TallyWebSocketService {
 
       // Remove from connections
       this.connections.delete(agentId);
+      this.agentMessageQueues.delete(agentId);
 
       // Update connection status in database
       await this.updateConnectionStatus(agentId, 'disconnected', reason.toString());
@@ -680,17 +714,34 @@ class TallyWebSocketService {
     const connection = this.connections.get(agentId);
     const userId = connection?.user?.id || null;
 
-    let company;
-    try {
-      company = await this.resolveCompanyForPayload(
-        agentId,
-        companyId,
-        { companyName: payload.companyName, ...(items[0] || {}) },
-        userId
-      );
-    } catch (err) {
-      sendBatchErr(err.message || 'Company resolution failed');
-      return;
+    // Company resolution costs several queries; batches stream in for the same company,
+    // so cache the resolved doc on the connection for the life of the socket.
+    const companyCacheKey =
+      companyId || payload.companyName
+        ? `${companyId || ''}|${payload.companyName || ''}`
+        : null;
+    let company =
+      companyCacheKey && connection?.companyResolveCache
+        ? connection.companyResolveCache.get(companyCacheKey)
+        : null;
+    if (!company) {
+      try {
+        company = await this.resolveCompanyForPayload(
+          agentId,
+          companyId,
+          { companyName: payload.companyName, ...(items[0] || {}) },
+          userId
+        );
+      } catch (err) {
+        sendBatchErr(err.message || 'Company resolution failed');
+        return;
+      }
+      if (company && companyCacheKey && connection) {
+        if (!connection.companyResolveCache) {
+          connection.companyResolveCache = new Map();
+        }
+        connection.companyResolveCache.set(companyCacheKey, company);
+      }
     }
 
     if (!company) {
@@ -774,17 +825,22 @@ class TallyWebSocketService {
       const otherSequentialMs = otherRows.length ? Date.now() - otherSequentialStart : 0;
       const totalBatchMs = Date.now() - voucherBatchStart;
 
+      const timingMeta = {
+        agentId,
+        companyId: company._id?.toString(),
+        entityType: 'voucher',
+        syncRequestId,
+        summaryItems: summaryRows.length,
+        otherItems: otherRows.length,
+        failed: errors.length,
+        totalMs: totalBatchMs
+      };
+      if (totalBatchMs > 10000) {
+        this.logger.warn('Slow voucher sync batch', timingMeta);
+      }
       this.logger.info(
         `Voucher sync batch timing items=${items.length} partyPreloadMs=${bulkTiming?.partyPreloadMs ?? 0} bulkWriteMs=${bulkTiming?.bulkWriteMs ?? 0} preservePrepassMs=${bulkTiming?.preservePrepassMs ?? 0} preserveSequentialMs=${bulkTiming?.preserveSequentialMs ?? 0} otherSequentialMs=${otherSequentialMs} totalMs=${totalBatchMs} processed=${processed}`,
-        {
-          agentId,
-          companyId: company._id?.toString(),
-          entityType: 'voucher',
-          syncRequestId,
-          summaryItems: summaryRows.length,
-          otherItems: otherRows.length,
-          failed: errors.length
-        }
+        timingMeta
       );
     } else {
       for (let i = 0; i < items.length; i++) {
@@ -1507,9 +1563,21 @@ class TallyWebSocketService {
       incomingItem.partNo || incomingItem.barcode || incomingItem.alias || ''
     ).trim();
     const code = partNo || incomingItem.guid || incomingItem.alterid || undefined;
-    const openingStock = Number(incomingItem.openingBalance || 0);
+    const stockBalances = incomingItem.stockBalances || {};
+    const openingStock = Number(stockBalances.openingBalance ?? incomingItem.openingBalance ?? 0);
+    const closingStock =
+      stockBalances.closingBalance != null
+        ? Number(stockBalances.closingBalance || 0)
+        : Number(incomingItem.closingBalance || 0);
+    const currentQty = closingStock || openingStock;
     const openingValue = Number(incomingItem.openingValue || 0);
-    const sellingPrice = openingStock > 0 ? openingValue / openingStock : openingValue;
+    const closingValue = Math.abs(Number(incomingItem.closingValue || 0));
+    const closingRate = Math.abs(Number(incomingItem.closingRate || 0));
+    // Prefer Tally's closing rate/value for per-unit price; fall back to opening value.
+    const unitPrice =
+      closingRate ||
+      (currentQty > 0 && closingValue > 0 ? closingValue / currentQty : 0) ||
+      (openingStock > 0 ? openingValue / openingStock : openingValue);
 
     const update = {
       company: company._id,
@@ -1527,11 +1595,11 @@ class TallyWebSocketService {
         }
       },
       pricing: {
-        costPrice: sellingPrice || 0,
-        sellingPrice: sellingPrice || 0,
-        mrp: sellingPrice || 0,
-        wholesalePrice: sellingPrice || 0,
-        retailPrice: sellingPrice || 0
+        costPrice: unitPrice || 0,
+        sellingPrice: unitPrice || 0,
+        mrp: unitPrice || 0,
+        wholesalePrice: unitPrice || 0,
+        retailPrice: unitPrice || 0
       },
       inventory: {
         trackInventory: true,
@@ -1543,12 +1611,21 @@ class TallyWebSocketService {
         },
         currentStock: [
           {
-            quantity: openingStock,
+            quantity: currentQty,
             reservedQuantity: 0,
-            availableQuantity: openingStock,
+            availableQuantity: currentQty,
             lastUpdated: new Date()
           }
         ]
+      },
+      tallyStock: {
+        unit: stockBalances.unit || incomingItem.baseUnits || '',
+        openingBalance: openingStock,
+        inwardQuantity: Number(stockBalances.inwardQuantity || 0),
+        outwardQuantity: Number(stockBalances.outwardQuantity || 0),
+        closingBalance: closingStock || currentQty,
+        closingValue,
+        closingRate
       },
       tallySync: {
         synced: true,
@@ -1781,8 +1858,10 @@ class TallyWebSocketService {
   /**
    * Build a single bulkWrite op for a summary voucher (no DB calls).
    * Relies on preloaded partyMap passed in from the batch method.
+   * With `preserveLines`, the op leaves existing items/ledgerEntries/totals untouched
+   * (used when the incoming row carries no line detail but the stored voucher does).
    */
-  buildVoucherSummaryBulkOp(company, incomingVoucher, partyMap) {
+  buildVoucherSummaryBulkOp(company, incomingVoucher, partyMap, { preserveLines = false } = {}) {
     const typeResolved = this.resolveIncomingVoucherType(incomingVoucher);
     const voucherType = typeResolved.voucherType;
     const voucherNumber = String(
@@ -1850,6 +1929,14 @@ class TallyWebSocketService {
       updatedBy: company.createdBy
     };
 
+    if (preserveLines) {
+      delete update.hasInventory;
+      delete update.items;
+      delete update.ledgerEntries;
+      delete update.totals;
+      delete update['tallySync.isSummaryOnly'];
+    }
+
     const filter = tallyId
       ? { company: company._id, 'tallySync.tallyId': tallyId }
       : { company: company._id, voucherType, voucherNumber };
@@ -1892,20 +1979,29 @@ class TallyWebSocketService {
       preserveSequentialMs: 0
     };
 
-    const tallyIds = [
+    // Line detail only needs preserving when the incoming row has none. Rows that carry
+    // their own items/ledgerEntries overwrite the stored lines regardless of what exists,
+    // so the prepass query can be limited to line-less rows (usually zero after a bulk
+    // export, which keeps every row on the bulkWrite path).
+    const rowHasLines = (row) =>
+      (Array.isArray(row.items) && row.items.length > 0) ||
+      (Array.isArray(row.ledgerEntries) && row.ledgerEntries.length > 0);
+
+    const linelessTallyIds = [
       ...new Set(
         rows
+          .filter((r) => !rowHasLines(r))
           .map((r) => String(r.tallyId || r.guid || r.GUID || '').trim())
           .filter(Boolean)
       )
     ];
 
     const fullDetailIdSet = new Set();
-    if (tallyIds.length) {
+    if (linelessTallyIds.length) {
       const preservePrepassStart = Date.now();
       const fullDetailVouchers = await Voucher.find({
         company: company._id,
-        'tallySync.tallyId': { $in: tallyIds },
+        'tallySync.tallyId': { $in: linelessTallyIds },
         'tallySync.isSummaryOnly': false
       })
         .select('tallySync.tallyId')
@@ -1916,45 +2012,12 @@ class TallyWebSocketService {
       }
     }
 
-    const bulkRows = [];
-    const preserveRows = [];
-    for (const row of rows) {
-      const tid = String(row.tallyId || row.guid || row.GUID || '').trim();
-      if (tid && fullDetailIdSet.has(tid)) {
-        preserveRows.push(row);
-      } else {
-        bulkRows.push(row);
-      }
-    }
-
     const errors = [];
     let processed = 0;
 
-    if (preserveRows.length) {
-      const preserveSequentialStart = Date.now();
-      for (const row of preserveRows) {
-        try {
-          await this.upsertVoucherSummary(company, row);
-          processed += 1;
-        } catch (err) {
-          errors.push({ voucherNumber: row.voucherNumber, message: err.message });
-        }
-      }
-      timing.preserveSequentialMs = Date.now() - preserveSequentialStart;
-    }
-
-    if (!bulkRows.length) {
-      return {
-        processed,
-        failed: Math.max(0, rows.length - processed),
-        errors: errors.slice(0, 20),
-        timing
-      };
-    }
-
     const partyNames = [
       ...new Set(
-        bulkRows.map((r) => String(r.partyName || '').trim()).filter(Boolean)
+        rows.map((r) => String(r.partyName || '').trim()).filter(Boolean)
       )
     ];
     const partyMap = new Map();
@@ -1970,9 +2033,12 @@ class TallyWebSocketService {
 
     const ops = [];
     let skipped = 0;
-    for (let i = 0; i < bulkRows.length; i++) {
+    for (let i = 0; i < rows.length; i++) {
+      const row = rows[i];
       try {
-        const op = this.buildVoucherSummaryBulkOp(company, bulkRows[i], partyMap);
+        const tid = String(row.tallyId || row.guid || row.GUID || '').trim();
+        const preserveLines = !rowHasLines(row) && tid && fullDetailIdSet.has(tid);
+        const op = this.buildVoucherSummaryBulkOp(company, row, partyMap, { preserveLines });
         if (op) ops.push(op);
         else skipped += 1;
       } catch (err) {
@@ -3075,8 +3141,14 @@ class TallyWebSocketService {
 
     const openingStock = Number(incomingItem.openingBalance || 0);
     const openingValue = Number(incomingItem.openingValue || 0);
+    const closingValue = Math.abs(Number(incomingItem.closingValue || 0));
+    const closingRate = Math.abs(Number(incomingItem.closingRate || 0));
     const valueQtyBase = closingStock > 0 ? closingStock : openingStock;
-    const sellingPrice = valueQtyBase > 0 ? openingValue / valueQtyBase : openingValue;
+    // Prefer Tally's closing rate/value for per-unit price; fall back to opening value.
+    const sellingPrice =
+      closingRate ||
+      (valueQtyBase > 0 && closingValue > 0 ? closingValue / valueQtyBase : 0) ||
+      (valueQtyBase > 0 ? openingValue / valueQtyBase : openingValue);
 
     const filter = {
       company: company._id,
@@ -3126,7 +3198,9 @@ class TallyWebSocketService {
         openingBalance: Number(stockBalances?.openingBalance || openingStock || 0),
         inwardQuantity: Number(stockBalances?.inwardQuantity || 0),
         outwardQuantity: Number(stockBalances?.outwardQuantity || 0),
-        closingBalance: Number(stockBalances?.closingBalance || closingStock || valueQtyBase || 0)
+        closingBalance: Number(stockBalances?.closingBalance || closingStock || valueQtyBase || 0),
+        closingValue,
+        closingRate
       },
       tallySync: {
         synced: true,

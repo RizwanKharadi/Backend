@@ -70,6 +70,7 @@ export const getInventoryStats = async (req, res) => {
           },
           reorderLevel: { $ifNull: ['$inventory.stockLevels.reorderLevel', 0] },
           sellingPrice: { $ifNull: ['$pricing.sellingPrice', 0] },
+          tallyClosingValue: { $abs: { $ifNull: ['$tallyStock.closingValue', 0] } },
         },
       },
       {
@@ -95,7 +96,14 @@ export const getInventoryStats = async (req, res) => {
             },
           },
           totalValue: {
-            $sum: { $multiply: ['$totalStock', '$sellingPrice'] },
+            // Tally's closing stock value when synced; estimated qty × rate otherwise.
+            $sum: {
+              $cond: [
+                { $gt: ['$tallyClosingValue', 0] },
+                '$tallyClosingValue',
+                { $multiply: ['$totalStock', '$sellingPrice'] },
+              ],
+            },
           },
         },
       },
@@ -145,8 +153,10 @@ export const getItems = async (req, res) => {
     if (search) {
       query.$or = [
         { name: { $regex: search, $options: 'i' } },
+        { displayName: { $regex: search, $options: 'i' } },
         { code: { $regex: search, $options: 'i' } },
-        { barcode: { $regex: search, $options: 'i' } }
+        { barcode: { $regex: search, $options: 'i' } },
+        { description: { $regex: search, $options: 'i' } }
       ];
     }
 

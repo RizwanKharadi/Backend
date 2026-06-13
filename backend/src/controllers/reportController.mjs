@@ -14,6 +14,8 @@ import {
   normalizePeriodKey,
   resolveReportPeriod,
   resolveBalanceSheetVoucherRange,
+  todayInReportTz,
+  endOfDay as endOfReportDay,
   PERIOD_LABELS
 } from '../utils/reportPeriods.js';
 import {
@@ -77,6 +79,26 @@ const toObjectId = (id) => {
   }
 };
 
+/**
+ * Tally-synced vouchers often carry custom voucher type names; the reliable signal is
+ * the Tally parent type (tallyVoucherTypeParent). Match both, like the inactive reports.
+ */
+const voucherKindMatch = (kind) => {
+  const parentRegexByKind = {
+    sales: /^sales$/i,
+    purchase: /^purchase$/i,
+    receipt: /^receipt$/i,
+    payment: /^payment$/i,
+    credit_note: /^credit\s*note$/i,
+    debit_note: /^debit\s*note$/i
+  };
+  const regex = parentRegexByKind[kind];
+  if (!regex) return { voucherType: kind };
+  return {
+    $or: [{ voucherType: kind }, { tallyVoucherTypeParent: { $regex: regex } }]
+  };
+};
+
 const withRankAndShare = (rows, total, valueKey = 'totalAmount') =>
   rows.map((row, index) => ({
     rank: index + 1,
@@ -93,7 +115,7 @@ const aggregateTopParties = async (companyOid, voucherType, start, end) => {
     {
       $match: {
         company: companyOid,
-        voucherType,
+        ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end }
       }
     },
@@ -150,7 +172,7 @@ const aggregateTopParties = async (companyOid, voucherType, start, end) => {
     {
       $match: {
         company: companyOid,
-        voucherType,
+        ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end }
       }
     },
@@ -189,7 +211,7 @@ const aggregateTopItems = async (companyOid, voucherType, start, end, sortBy) =>
     {
       $match: {
         company: companyOid,
-        voucherType,
+        ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end },
         'items.0': { $exists: true }
       }
@@ -228,7 +250,7 @@ const aggregateTopItems = async (companyOid, voucherType, start, end, sortBy) =>
     {
       $match: {
         company: companyOid,
-        voucherType,
+        ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end },
         'items.0': { $exists: true }
       }
@@ -671,11 +693,31 @@ const queryVouchersForLedger = async (
         seenIds.add(String(row._id));
       }
     }
-    vouchers.sort((a, b) => new Date(b.date) - new Date(a.date));
-    vouchers = vouchers.slice(0, 500);
   }
 
-  return vouchers;
+  // Summary-synced vouchers may only carry the ledger in the indexed ledgerNames
+  // array (no structured ledgerEntries). Without this fallback, bank/cash ledger
+  // drill-downs come back empty even though the vouchers exist.
+  if (vouchers.length === 0) {
+    const byName = await Voucher.find({
+      ...dateFilter,
+      ledgerNames: ledgerRegex,
+      ...voucherTypeFilter
+    })
+      .select('voucherNumber voucherType date partyName totals.grandTotal narration')
+      .sort({ date: -1 })
+      .limit(500)
+      .lean();
+    for (const row of byName) {
+      if (!seenIds.has(String(row._id))) {
+        vouchers.push(row);
+        seenIds.add(String(row._id));
+      }
+    }
+  }
+
+  vouchers.sort((a, b) => new Date(b.date) - new Date(a.date));
+  return vouchers.slice(0, 500);
 };
 
 const mapVoucherRowsForApi = (vouchers) =>
@@ -1195,6 +1237,51 @@ export const getBudgetVsActualReport = async (req, res) => {
 // @desc    Get Dashboard Summary
 // @route   GET /api/reports/dashboard
 // @access  Private
+/** Sum |grandTotal| (fallback |amount|) of vouchers of a kind within [start, end]. */
+const sumVoucherAmounts = async (companyOid, kind, start, end) => {
+  const [agg] = await Voucher.aggregate([
+    {
+      $match: {
+        company: companyOid,
+        ...voucherKindMatch(kind),
+        date: { $gte: start, $lte: end }
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        total: { $sum: { $abs: { $ifNull: ['$totals.grandTotal', '$amount', 0] } } },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  return { amount: agg?.total || 0, count: agg?.count || 0 };
+};
+
+/** Daily sales totals for the trend strip (last N IST days, inclusive of today). */
+const aggregateDailySales = async (companyOid, fromDate, toDate) => {
+  const rows = await Voucher.aggregate([
+    {
+      $match: {
+        company: companyOid,
+        ...voucherKindMatch('sales'),
+        date: { $gte: fromDate, $lte: toDate }
+      }
+    },
+    {
+      $group: {
+        _id: { $dateToString: { format: '%Y-%m-%d', date: '$date' } },
+        amount: { $sum: { $abs: { $ifNull: ['$totals.grandTotal', '$amount', 0] } } },
+        count: { $sum: 1 }
+      }
+    }
+  ]);
+  return new Map(rows.map((r) => [r._id, { amount: r.amount, count: r.count }]));
+};
+
+// @desc    Get Dashboard Summary (single round-trip for the mobile dashboard)
+// @route   GET /api/reports/dashboard
+// @access  Private
 export const getDashboardSummary = async (req, res) => {
   try {
     const { companyId } = req.query;
@@ -1206,71 +1293,154 @@ export const getDashboardSummary = async (req, res) => {
       });
     }
 
-    const today = new Date();
-    const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
-    const startOfYear = new Date(today.getFullYear(), 0, 1);
+    const companyOid = toObjectId(companyId);
+    if (!companyOid) {
+      return res.status(400).json({ success: false, message: 'Invalid company ID' });
+    }
 
-    // This month's data
-    const thisMonthVouchers = await Voucher.find({
-      company: companyId,
-      date: { $gte: startOfMonth }
-    });
+    const company = await Company.findById(companyId).lean();
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
 
-    const monthSales = thisMonthVouchers
-      .filter(v => v.voucherType === 'sales')
-      .reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
+    // All boundaries are IST calendar days aligned with voucher storage (UTC midnight).
+    const today = todayInReportTz();
+    const todayEnd = endOfReportDay(today);
+    const monthStart = new Date(Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), 1));
+    const fyStart = resolveReportPeriod('this_year', company).fromDate;
+    const trendStart = new Date(today);
+    trendStart.setUTCDate(trendStart.getUTCDate() - 6);
 
-    const monthPurchases = thisMonthVouchers
-      .filter(v => v.voucherType === 'purchase')
-      .reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
+    const [
+      todaySales,
+      monthSales,
+      monthPurchases,
+      ytdSales,
+      ytdPurchases,
+      outstandingDoc,
+      storedPnl,
+      topCustomersMonth,
+      dailySales,
+      recentVouchers
+    ] = await Promise.all([
+      sumVoucherAmounts(companyOid, 'sales', today, todayEnd),
+      sumVoucherAmounts(companyOid, 'sales', monthStart, todayEnd),
+      sumVoucherAmounts(companyOid, 'purchase', monthStart, todayEnd),
+      sumVoucherAmounts(companyOid, 'sales', fyStart, todayEnd),
+      sumVoucherAmounts(companyOid, 'purchase', fyStart, todayEnd),
+      OutstandingReceivable.findOne({ company: companyId, reportName: 'Bills Receivable' })
+        .select('totalOutstanding ledgers.oldestOverdueDays tallySync.lastSyncDate updatedAt')
+        .lean(),
+      ProfitLossReport.findOne({
+        company: companyId,
+        reportName: 'Profit and Loss',
+        periodKey: 'this_month'
+      })
+        .select('totals.grandTotal')
+        .lean(),
+      aggregateTopParties(companyOid, 'sales', monthStart, todayEnd),
+      aggregateDailySales(companyOid, trendStart, todayEnd),
+      Voucher.find({ company: companyOid })
+        .select('voucherNumber voucherType tallyVoucherTypeParent date partyName totals.grandTotal amount narration')
+        .sort({ date: -1, createdAt: -1 })
+        .limit(8)
+        .lean()
+    ]);
 
-    // Year to date
-    const ytdVouchers = await Voucher.find({
-      company: companyId,
-      date: { $gte: startOfYear }
-    });
+    // Bank balance from the Cash/Bank Book sources (Balance Sheet group summary,
+    // falling back to ledger opening balances) — same numbers the report shows.
+    let bankBalance = 0;
+    let cashInHand = 0;
+    try {
+      const storedBs = await loadBalanceSheetReportForPeriod(companyId, 'this_month');
+      const tallyGroups = await TallyAccount.find({ company: companyId, accountType: 'group' })
+        .select('name')
+        .lean();
+      const groupNameSet = new Set(
+        tallyGroups.map((g) => String(g.name || '').trim().toLowerCase()).filter(Boolean)
+      );
+      const bank = await resolveCashBankLedgers(storedBs, companyId, 'Bank Accounts', groupNameSet);
+      const cash = await resolveCashBankLedgers(storedBs, companyId, 'Cash-in-hand', groupNameSet);
+      const bankTotals = sumLedgerDebitCredit(bank.ledgers || []);
+      const cashTotals = sumLedgerDebitCredit(cash.ledgers || []);
+      // Asset ledgers carry debit balances; show debit − credit.
+      bankBalance = bankTotals.debit - bankTotals.credit;
+      cashInHand = cashTotals.debit - cashTotals.credit;
+    } catch (e) {
+      logger.warn('Dashboard bank balance resolution failed:', e.message);
+    }
 
-    const ytdSales = ytdVouchers
-      .filter(v => v.voucherType === 'sales')
-      .reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
+    const overdueParties = (outstandingDoc?.ledgers || []).filter(
+      (l) => Number(l.oldestOverdueDays || 0) > 0
+    ).length;
 
-    const ytdPurchases = ytdVouchers
-      .filter(v => v.voucherType === 'purchase')
-      .reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
+    const trend = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - i);
+      const key = d.toISOString().slice(0, 10);
+      const row = dailySales.get(key);
+      trend.push({ date: key, amount: row?.amount || 0, count: row?.count || 0 });
+    }
 
-    // Outstanding
-    const outstandingReceivables = await Voucher.find({
-      company: companyId,
-      voucherType: 'sales',
-      isPaid: false
-    });
-
-    const outstandingPayables = await Voucher.find({
-      company: companyId,
-      voucherType: 'purchase',
-      isPaid: false
-    });
-
-    const totalReceivables = outstandingReceivables.reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
-    const totalPayables = outstandingPayables.reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
+    const topCustomer = topCustomersMonth.rows?.[0] || null;
 
     res.status(200).json({
       success: true,
       data: {
-        thisMonth: {
-          sales: monthSales,
-          purchases: monthPurchases,
-          profit: monthSales - monthPurchases
+        asOf: {
+          date: today.toISOString().slice(0, 10),
+          timezone: 'Asia/Kolkata'
         },
-        yearToDate: {
-          sales: ytdSales,
-          purchases: ytdPurchases,
-          profit: ytdSales - ytdPurchases
+        lastSyncedAt:
+          company.tallyIntegration?.lastSyncDate ||
+          outstandingDoc?.tallySync?.lastSyncDate ||
+          null,
+        todaySales: { amount: todaySales.amount, count: todaySales.count },
+        monthlyRevenue: {
+          amount: monthSales.amount,
+          count: monthSales.count,
+          fromDate: monthStart.toISOString().slice(0, 10),
+          toDate: today.toISOString().slice(0, 10)
         },
         outstanding: {
-          receivables: totalReceivables,
-          payables: totalPayables,
-          net: totalReceivables - totalPayables
+          receivables: outstandingDoc?.totalOutstanding || 0,
+          overdueParties,
+          parties: outstandingDoc?.ledgers?.length || 0
+        },
+        bankBalance: {
+          amount: bankBalance + cashInHand,
+          bankAccounts: bankBalance,
+          cashInHand
+        },
+        profitThisMonth:
+          storedPnl?.totals?.grandTotal != null
+            ? Number(storedPnl.totals.grandTotal)
+            : monthSales.amount - monthPurchases.amount,
+        topCustomer: topCustomer
+          ? { name: topCustomer.name, amount: topCustomer.totalAmount }
+          : null,
+        salesTrend: trend,
+        recentVouchers: recentVouchers.map((v) => ({
+          id: v._id.toString(),
+          voucherNumber: v.voucherNumber,
+          voucherType: v.voucherType,
+          tallyVoucherTypeParent: v.tallyVoucherTypeParent || '',
+          date: v.date,
+          partyName: v.partyName || '',
+          amount: Math.abs(Number(v.totals?.grandTotal ?? v.amount ?? 0)),
+          narration: v.narration || ''
+        })),
+        // Back-compat for older clients
+        thisMonth: {
+          sales: monthSales.amount,
+          purchases: monthPurchases.amount,
+          profit: monthSales.amount - monthPurchases.amount
+        },
+        yearToDate: {
+          sales: ytdSales.amount,
+          purchases: ytdPurchases.amount,
+          profit: ytdSales.amount - ytdPurchases.amount
         }
       }
     });
@@ -1297,22 +1467,19 @@ export const getDayBook = async (req, res) => {
       });
     }
 
-    const parseYmd = (ymd, endOfDay = false) => {
+    // Voucher dates are stored at UTC midnight of the Tally calendar date; parse
+    // YYYY-MM-DD strings as UTC days and default to "today" in IST.
+    const parseYmd = (ymd, endOfDayFlag = false) => {
       const m = String(ymd || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
-      if (!m) {
-        const d = new Date(ymd);
-        if (endOfDay) d.setHours(23, 59, 59, 999);
-        else d.setHours(0, 0, 0, 0);
-        return d;
-      }
-      const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
-      if (endOfDay) d.setHours(23, 59, 59, 999);
-      else d.setHours(0, 0, 0, 0);
-      return d;
+      const base = m
+        ? new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])))
+        : todayInReportTz(new Date(ymd));
+      return endOfDayFlag ? endOfReportDay(base) : base;
     };
 
-    const startDate = fromDate ? parseYmd(fromDate, false) : parseYmd(new Date(), false);
-    const endDate = toDate ? parseYmd(toDate, true) : parseYmd(new Date(), true);
+    const istToday = todayInReportTz();
+    const startDate = fromDate ? parseYmd(fromDate, false) : istToday;
+    const endDate = toDate ? parseYmd(toDate, true) : endOfReportDay(istToday);
 
     // Get all vouchers for the date range
     const vouchers = await Voucher.find({
@@ -1357,8 +1524,14 @@ export const getDayBook = async (req, res) => {
         voucherId: voucher._id.toString(),
         date: voucher.date.toISOString().split('T')[0],
         voucherType: voucher.voucherType,
+        tallyVoucherTypeParent: voucher.tallyVoucherTypeParent || '',
+        tallyVoucherTypeName: voucher.tallyVoucherTypeName || '',
         voucherNumber: voucher.voucherNumber,
-        partyName: voucher.party?.name || voucher.party?.displayName || 'N/A',
+        partyName:
+          voucher.partyName ||
+          voucher.party?.name ||
+          voucher.party?.displayName ||
+          '',
         amount: Math.abs(amount),
         type,
         narration: voucher.narration || ''
@@ -1508,37 +1681,50 @@ export const getOutstandingReceivableLedger = async (req, res) => {
       .filter((x) => x.vchNumber);
 
     // Batch-resolve voucher IDs for drill-down to VoucherDetailScreen.
+    // Match by voucher number + calendar day; voucher TYPE is only a tie-breaker,
+    // because Tally bill rows carry the display type name (e.g. "GST Sales") which
+    // slugs differently from the stored normalized voucherType.
     const orClauses = voucherLookups.map((x) => {
-      const voucherType = normalizeVoucherTypeSlug('', x.vchType, x.vchType);
       const clause = {
         company: toObjectId(companyId),
-        voucherType,
         voucherNumber: { $regex: new RegExp(`^${escapeRegex(x.vchNumber)}$`, 'i') }
       };
       if (x.vchDate && !Number.isNaN(x.vchDate.getTime())) {
-        // Match within the same calendar day (Tally dates are day-granular).
-        const start = new Date(x.vchDate);
-        start.setHours(0, 0, 0, 0);
-        const end = new Date(x.vchDate);
-        end.setHours(23, 59, 59, 999);
+        // Match within the same calendar day (dates stored at UTC midnight).
+        const d = x.vchDate;
+        const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+        const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
         clause.date = { $gte: start, $lte: end };
       }
       return clause;
     });
 
-    const voucherIdByKey = new Map();
+    const matchesByNumber = new Map();
     if (orClauses.length > 0) {
       const matches = await Voucher.find({ $or: orClauses })
-        .select('_id voucherNumber voucherType date')
+        .select('_id voucherNumber voucherType tallyVoucherTypeName date')
         .lean();
 
       for (const v of matches) {
-        const key = `${String(v.voucherType)}::${String(v.voucherNumber).trim().toLowerCase()}`;
-        if (!voucherIdByKey.has(key)) {
-          voucherIdByKey.set(key, v._id.toString());
-        }
+        const numKey = String(v.voucherNumber).trim().toLowerCase();
+        if (!matchesByNumber.has(numKey)) matchesByNumber.set(numKey, []);
+        matchesByNumber.get(numKey).push(v);
       }
     }
+
+    const resolveVoucherId = (vchNumber, vchType) => {
+      const candidates = matchesByNumber.get(vchNumber.toLowerCase()) || [];
+      if (!candidates.length) return null;
+      if (candidates.length === 1) return candidates[0]._id.toString();
+      const slug = normalizeVoucherTypeSlug('', vchType, vchType);
+      const typeNameLower = String(vchType || '').trim().toLowerCase();
+      const best = candidates.find(
+        (v) =>
+          String(v.voucherType) === slug ||
+          String(v.tallyVoucherTypeName || '').trim().toLowerCase() === typeNameLower
+      );
+      return (best || candidates[0])._id.toString();
+    };
 
     return res.status(200).json({
       success: true,
@@ -1554,11 +1740,9 @@ export const getOutstandingReceivableLedger = async (req, res) => {
         bills: bills.map((b) => {
           const vchNumber = normalizeVoucherNumber(b?.vchNumber);
           const vchType = String(b?.vchType || '').trim();
-          const voucherType = normalizeVoucherTypeSlug('', vchType, vchType);
-          const key = `${voucherType}::${vchNumber.toLowerCase()}`;
           return {
             ...b,
-            voucherId: voucherIdByKey.get(key) || null
+            voucherId: vchNumber ? resolveVoucherId(vchNumber, vchType) : null
           };
         })
       }
@@ -1577,12 +1761,12 @@ export const getOutstandingReceivableLedger = async (req, res) => {
 // @access  Private
 export const getTop10Report = async (req, res) => {
   try {
-    const { companyId, startDate, endDate } = req.query;
+    const { companyId, startDate, endDate, periodKey } = req.query;
 
-    if (!companyId || !startDate || !endDate) {
+    if (!companyId || (!periodKey && (!startDate || !endDate))) {
       return res.status(400).json({
         success: false,
-        message: 'Company ID, start date, and end date are required'
+        message: 'Company ID and either periodKey or start/end dates are required'
       });
     }
 
@@ -1594,9 +1778,17 @@ export const getTop10Report = async (req, res) => {
       });
     }
 
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    end.setHours(23, 59, 59, 999);
+    let start;
+    let end;
+    if (periodKey) {
+      const company = await Company.findById(companyId).lean();
+      const period = resolveReportPeriod(normalizePeriodKey(periodKey), company || {});
+      start = period.fromDate;
+      end = period.toDate;
+    } else {
+      start = new Date(startDate);
+      end = endOfReportDay(new Date(endDate));
+    }
 
     const [
       customers,
@@ -1617,7 +1809,11 @@ export const getTop10Report = async (req, res) => {
     return res.status(200).json({
       success: true,
       data: {
-        period: { startDate, endDate },
+        period: {
+          startDate: start.toISOString(),
+          endDate: end.toISOString(),
+          ...(periodKey ? { periodKey: normalizePeriodKey(periodKey) } : {})
+        },
         summary: {
           totalCustomerSales: customers.total,
           totalSupplierPurchases: suppliers.total,
@@ -1658,10 +1854,10 @@ const parseInactiveDaysQuery = (query = {}) => {
   return { mode: 'days', days, label: `> ${days} days` };
 };
 
+/** UTC-midnight truncation — voucher dates are stored at UTC midnight of the IST calendar date. */
 const startOfDay = (d) => {
   const x = new Date(d);
-  x.setHours(0, 0, 0, 0);
-  return x;
+  return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()));
 };
 
 // Vouchers that represent a "sale" event for inactivity tracking.
@@ -1779,9 +1975,14 @@ const itemClosingQty = (item = {}) => {
 };
 
 const itemClosingValue = (item = {}, qty) => {
+  // Tally's closing stock value is authoritative when synced.
+  const tallyClosing = Math.abs(Number(item?.tallyStock?.closingValue || 0));
+  if (tallyClosing > 0) return tallyClosing;
+
   const q = Number(qty || 0);
   const rate = Number(
-    item?.pricing?.costPrice ||
+    item?.tallyStock?.closingRate ||
+      item?.pricing?.costPrice ||
       item?.pricing?.sellingPrice ||
       item?.openingValue ||
       0
@@ -1808,7 +2009,7 @@ export const getInactiveCustomersReport = async (req, res) => {
     }
 
     const inactive = parseInactiveDaysQuery(req.query);
-    const today = startOfDay(new Date());
+    const today = todayInReportTz();
     const cutoff =
       inactive.mode === 'days'
         ? startOfDay(new Date(today.getTime() - inactive.days * 86400000))
@@ -1913,7 +2114,7 @@ export const getInactiveItemsReport = async (req, res) => {
     }
 
     const inactive = parseInactiveDaysQuery(req.query);
-    const today = startOfDay(new Date());
+    const today = todayInReportTz();
     const cutoff =
       inactive.mode === 'days'
         ? startOfDay(new Date(today.getTime() - inactive.days * 86400000))

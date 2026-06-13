@@ -38,11 +38,24 @@ import { protect, checkCompanyAccess } from './middleware/auth.js';
 import { requireActiveSubscription } from './middleware/license.js';
 import {
   getProfitLossReport,
+  getProfitLossGroupLedgers,
+  getProfitLossVouchers,
+  getBalanceSheet,
+  getBalanceSheetGroupLedgers,
+  getBalanceSheetVouchers,
   getOutstandingReceivable,
   getOutstandingReceivableLedger,
   getCashBankBook,
   getCashBankBookLedgers,
-  getCashBankBookVouchers
+  getCashBankBookVouchers,
+  getDashboardSummary,
+  getDayBook,
+  getTop10Report,
+  getInactiveCustomersReport,
+  getInactiveItemsReport,
+  getSalesReport,
+  getPurchaseReport,
+  getCashFlowReport
 } from './controllers/reportController.mjs';
 
 // ES6 module routes will be loaded dynamically
@@ -222,68 +235,55 @@ const startServer = async () => {
       logger.warn('Skipping Tally sync service because MongoDB is not connected.');
     }
 
-    // Load ES6 module routes dynamically
-    try {
-      const budgetModule = await import('./routes/budgets.mjs');
-      const gstModule = await import('./routes/gst.mjs');
-      const reportModule = await import('./routes/reports.mjs');
-      const notificationModule = await import('./routes/notifications.mjs');
-      
-      budgetRoutes = budgetModule.default;
-      gstRoutes = gstModule.default;
-      reportRoutes = reportModule.default;
-      notificationRoutes = notificationModule.default;
-      
-      // Mount ES6 module routes
-      app.use('/api/budgets', budgetRoutes);
-      app.use('/api/gst', gstRoutes);
-      app.use('/api/reports', reportRoutes);
-      app.use('/api/notifications', notificationRoutes);
-      
-      logger.info('ES6 module routes loaded successfully');
-    } catch (error) {
-      logger.error('Error loading ES6 module routes:', error);
-      logger.warn('Continuing without ES6 module routes');
+    // Load ES6 module routes dynamically — each module in its own try/catch so one
+    // broken module (e.g. budgets) cannot knock out reports for the mobile app.
+    const dynamicRouteModules = [
+      ['/api/budgets', './routes/budgets.mjs'],
+      ['/api/gst', './routes/gst.mjs'],
+      ['/api/reports', './routes/reports.mjs'],
+      ['/api/notifications', './routes/notifications.mjs']
+    ];
+    for (const [mountPath, modulePath] of dynamicRouteModules) {
+      try {
+        const mod = await import(modulePath);
+        app.use(mountPath, mod.default);
+        logger.info(`Mounted routes at ${mountPath}`);
+      } catch (error) {
+        logger.error(`Failed to load routes for ${mountPath} (${modulePath}): ${error.message}`, {
+          stack: error.stack
+        });
+      }
     }
 
-    // Fallback / direct route registration in case dynamic report routing fails
-    app.get('/api/reports/profit-loss', protect, requireActiveSubscription, checkCompanyAccess, getProfitLossReport);
-    app.post('/api/reports/profit-loss', protect, requireActiveSubscription, checkCompanyAccess, getProfitLossReport);
-    app.get(
-      '/api/reports/outstanding-receivable',
-      protect,
-      requireActiveSubscription,
-      checkCompanyAccess,
-      getOutstandingReceivable
-    );
-    app.get(
-      '/api/reports/outstanding-receivable/ledger',
-      protect,
-      requireActiveSubscription,
-      checkCompanyAccess,
-      getOutstandingReceivableLedger
-    );
-    app.get(
-      '/api/reports/cash-bank-book',
-      protect,
-      requireActiveSubscription,
-      checkCompanyAccess,
-      getCashBankBook
-    );
-    app.get(
-      '/api/reports/cash-bank-book/ledgers',
-      protect,
-      requireActiveSubscription,
-      checkCompanyAccess,
-      getCashBankBookLedgers
-    );
-    app.get(
-      '/api/reports/cash-bank-book/vouchers',
-      protect,
-      requireActiveSubscription,
-      checkCompanyAccess,
-      getCashBankBookVouchers
-    );
+    // Fallback / direct route registration in case dynamic report routing fails.
+    // Covers EVERY report endpoint the mobile app uses — if the reports router mounted
+    // above, it handles requests first and these are never reached.
+    const reportFallbackMiddleware = [protect, requireActiveSubscription, checkCompanyAccess];
+    const reportFallbackRoutes = [
+      ['get', '/profit-loss', getProfitLossReport],
+      ['post', '/profit-loss', getProfitLossReport],
+      ['get', '/profit-loss/group-ledgers', getProfitLossGroupLedgers],
+      ['get', '/profit-loss/vouchers', getProfitLossVouchers],
+      ['get', '/balance-sheet', getBalanceSheet],
+      ['get', '/balance-sheet/group-ledgers', getBalanceSheetGroupLedgers],
+      ['get', '/balance-sheet/vouchers', getBalanceSheetVouchers],
+      ['get', '/outstanding-receivable', getOutstandingReceivable],
+      ['get', '/outstanding-receivable/ledger', getOutstandingReceivableLedger],
+      ['get', '/cash-bank-book', getCashBankBook],
+      ['get', '/cash-bank-book/ledgers', getCashBankBookLedgers],
+      ['get', '/cash-bank-book/vouchers', getCashBankBookVouchers],
+      ['get', '/dashboard', getDashboardSummary],
+      ['get', '/daybook', getDayBook],
+      ['get', '/top-10', getTop10Report],
+      ['get', '/inactive-customers', getInactiveCustomersReport],
+      ['get', '/inactive-items', getInactiveItemsReport],
+      ['get', '/sales', getSalesReport],
+      ['get', '/purchase', getPurchaseReport],
+      ['get', '/cash-flow', getCashFlowReport]
+    ];
+    for (const [method, route, handler] of reportFallbackRoutes) {
+      app[method](`/api/reports${route}`, ...reportFallbackMiddleware, handler);
+    }
 
     // 404 handler
     app.use('*', (req, res) => {
