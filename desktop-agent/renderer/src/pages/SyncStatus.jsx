@@ -33,7 +33,7 @@ const SyncStatus = () => {
     stopSync,
     resetSyncState,
     setConfig,
-    getSyncCompaniesPreview
+    getOpenSyncCompaniesPreview
   } = useElectronAPI()
   const syncTypeLabels = {
     masters: 'Masters',
@@ -84,6 +84,7 @@ const SyncStatus = () => {
     syncInterval: config.sync.syncInterval,
     syncTypes: buildSyncTypes(config.sync?.syncTypes)
   })
+  const [isStartingSync, setIsStartingSync] = useState(false)
 
   useEffect(() => {
     const normalized = buildSyncTypes(config.sync?.syncTypes)
@@ -99,19 +100,30 @@ const SyncStatus = () => {
   }, [])
 
   const handleStartSync = async () => {
-    const preview = await getSyncCompaniesPreview()
-    const missing = preview.filter((row) => !row.hasCompletePrefs)
-    if (missing.length > 0) {
-      const names = missing.map((row) => row.tallyName).filter(Boolean).join(', ')
-      toast.error(
-        names
-          ? `Set sync start date in Add Company for: ${names}`
-          : 'Set sync start date in Add Company before starting sync'
-      )
-      setCurrentPage('add-company')
-      return
+    if (isStartingSync || isSyncing()) return
+    setIsStartingSync(true)
+    try {
+      const preview = await getOpenSyncCompaniesPreview()
+      if (preview.length === 0) {
+        toast.error('Open a linked company in Tally before starting sync')
+        setCurrentPage('add-company')
+        return
+      }
+      const missing = preview.filter((row) => !row.hasCompletePrefs)
+      if (missing.length > 0) {
+        const names = missing.map((row) => row.tallyName).filter(Boolean).join(', ')
+        toast.error(
+          names
+            ? `Set sync start date in Add Company for: ${names}`
+            : 'Set sync start date in Add Company before starting sync'
+        )
+        setCurrentPage('add-company')
+        return
+      }
+      await startSync()
+    } finally {
+      setIsStartingSync(false)
     }
-    await startSync()
   }
 
   const handleStopSync = async () => {
@@ -224,6 +236,8 @@ const SyncStatus = () => {
                   variant="primary"
                   icon={PlayIcon}
                   onClick={handleStartSync}
+                  loading={isStartingSync}
+                  disabled={isStartingSync}
                   size="sm"
                 >
                   Start Sync

@@ -82,15 +82,17 @@ const sampleConfig = {
   tally: {
     host: "localhost",
     port: 9000,
-    timeout: 30000
+    "timeout": 900000,
+    "connectTimeoutMs": 20000
   },
   sync: {
-    autoSync: true,
-    syncInterval: "*/5 * * * *",
+    autoSync: false,
+    syncInterval: "0 * * * *",
     syncTypes: {
-      vouchers: true,
-      items: true,
+      masters: true,
       parties: true,
+      vouchers: true,
+      reports: true,
       companies: true
     }
   },

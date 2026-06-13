@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react'
+import { FolderOpenIcon } from '@heroicons/react/24/outline'
 import {
   TrashIcon,
   ArrowPathIcon,
   FunnelIcon,
-  DocumentArrowDownIcon
+  DocumentArrowDownIcon,
+  DocumentTextIcon
 } from '@heroicons/react/24/outline'
 import Card from '../components/common/Card'
 import Button from '../components/common/Button'
@@ -16,8 +18,15 @@ const Logs = () => {
   const { appState, getFilteredLogs, clearLogs, addLog } = useAppStore()
   const [selectedLevel, setSelectedLevel] = useState('all')
   const [autoScroll, setAutoScroll] = useState(true)
+  const [logPaths, setLogPaths] = useState(null)
   const logsEndRef = useRef(null)
   const logsContainerRef = useRef(null)
+
+  useEffect(() => {
+    if (window.electronAPI?.getLogPaths) {
+      window.electronAPI.getLogPaths().then(setLogPaths).catch(() => {})
+    }
+  }, [])
 
   const filteredLogs = getFilteredLogs(selectedLevel)
 
@@ -113,6 +122,23 @@ const Logs = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Application Logs</h1>
         <p className="text-gray-600">View and manage application logs and events</p>
+        {logPaths && (
+          <div className="mt-3 rounded-lg border border-gray-200 bg-gray-50 p-3 text-sm text-gray-700">
+            <p className="font-medium text-gray-900">Log files on disk</p>
+            <p className="mt-1 break-all">Main log: {logPaths.mainLogFile}</p>
+            <p className="mt-1 break-all">Voucher sync log: {logPaths.voucherSyncLogFile}</p>
+            <div className="mt-3">
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => window.electronAPI?.openLogsFolder?.()}
+              >
+                <FolderOpenIcon className="h-4 w-4 mr-2" />
+                Open logs folder
+              </Button>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Log Controls */}

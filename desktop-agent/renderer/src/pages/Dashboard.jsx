@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useState } from 'react'
 import {
   ArrowPathIcon,
   ServerIcon,
@@ -15,12 +15,14 @@ import Badge from '../components/common/Badge'
 import { useAppStore } from '../stores/appStore'
 import { useElectronAPI } from '../hooks/useElectronAPI'
 import { ConnectionStatus, formatRelativeTime } from '../types'
+import toast from 'react-hot-toast'
 
 const Dashboard = () => {
   const {
     connectionStatus,
     syncStatus,
     appState,
+    config,
     getRecentActivity,
     setCurrentPage
   } = useAppStore()
@@ -28,15 +30,54 @@ const Dashboard = () => {
   const {
     startSync,
     testTallyConnection,
-    showNotification
+    showNotification,
+    getOpenSyncCompaniesPreview,
+    getSyncStatus
   } = useElectronAPI()
+  const [offlineQueueSize, setOfflineQueueSize] = useState(0)
+  const [isStartingSync, setIsStartingSync] = useState(false)
 
   const recentActivity = getRecentActivity(5)
 
+  useEffect(() => {
+    const refreshQueue = async () => {
+      const st = await getSyncStatus()
+      if (st && typeof st.offlineQueueSize === 'number') {
+        setOfflineQueueSize(st.offlineQueueSize)
+      }
+    }
+    refreshQueue()
+    const timer = setInterval(refreshQueue, 15000)
+    return () => clearInterval(timer)
+  }, [getSyncStatus])
+
   const handleForceSync = async () => {
-    const success = await startSync()
-    if (success) {
-      showNotification('Sync Started', 'Manual synchronization has been initiated')
+    if (isStartingSync) return
+    setIsStartingSync(true)
+    try {
+      const preview = await getOpenSyncCompaniesPreview()
+      if (preview.length === 0) {
+        toast.error('Open a linked company in Tally before starting sync')
+        setCurrentPage('add-company')
+        return
+      }
+      const missing = preview.filter((row) => !row.hasCompletePrefs)
+      if (missing.length > 0) {
+        const names = missing.map((row) => row.tallyName).filter(Boolean).join(', ')
+        toast.error(
+          names
+            ? `Set sync start date in Add Company for: ${names}`
+            : 'Set sync start date in Add Company before starting sync'
+        )
+        setCurrentPage('add-company')
+        return
+      }
+      const success = await startSync()
+      if (success) {
+        showNotification('Sync Started', 'Manual synchronization has been initiated')
+      }
+    } finally {
+      setIsStartingSync(false)
     }
   }
 
@@ -59,16 +100,30 @@ const Dashboard = () => {
 
   return (
     <div className="space-y-6">
-      {/* Page Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-600">Monitor your FinSync360 desktop agent status and performance</p>
+      <div className="rounded-2xl bg-gradient-to-r from-primary-600 via-primary-600 to-indigo-700 p-6 text-white shadow-lg shadow-primary-500/20">
+        <h1 className="text-2xl font-bold tracking-tight">Dashboard</h1>
+        <p className="text-primary-100/90 text-sm mt-1">
+          Monitor sync health, connections, and recent activity
+        </p>
       </div>
+
+      {config?.server?.token && !(config?.server?.linkedCompanies || []).length && !String(config?.server?.companyId || '').trim() && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <strong>Link a Tally company</strong> to start syncing data to the cloud.
+          <button
+            type="button"
+            className="ml-2 text-primary-700 font-medium underline"
+            onClick={() => setCurrentPage('add-company')}
+          >
+            Add Company
+          </button>
+        </div>
+      )}
 
       {/* Connection Status Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card
-          title="FinSync360 Server"
+          title="TallyFin Server"
           className="hover:shadow-md transition-shadow"
         >
           <div className="flex items-center justify-between">
@@ -79,6 +134,11 @@ const Dashboard = () => {
               <div>
                 <p className="text-sm text-gray-600">Connection Status</p>
                 {getConnectionStatusBadge(connectionStatus.server)}
+                {connectionStatus.server !== ConnectionStatus.CONNECTED && connectionStatus.serverLastError && (
+                  <p className="text-xs text-amber-700 mt-1 max-w-xs">
+                    {connectionStatus.serverLastError}
+                  </p>
+                )}
               </div>
             </div>
             {connectionStatus.lastConnected && (
@@ -144,9 +204,9 @@ const Dashboard = () => {
               <QueueListIcon className="w-6 h-6 text-yellow-600" />
             </div>
             <p className="text-2xl font-bold text-gray-900">
-              {syncStatus.totalItems - syncStatus.processedItems || 0}
+              {offlineQueueSize}
             </p>
-            <p className="text-sm text-gray-600">Queued Items</p>
+            <p className="text-sm text-gray-600">Offline queue (batches)</p>
           </div>
         </div>
       </Card>
@@ -158,7 +218,8 @@ const Dashboard = () => {
             variant="primary"
             icon={PlayIcon}
             onClick={handleForceSync}
-            disabled={syncStatus.status === 'running'}
+            loading={isStartingSync}
+            disabled={syncStatus.status === 'running' || isStartingSync}
             fullWidth
           >
             Force Sync
@@ -225,6 +286,7 @@ const Dashboard = () => {
           )}
         </div>
       </Card>
+
     </div>
   )
 }

@@ -3,6 +3,7 @@ const electronLog = require('electron-log');
 const fs = require('fs-extra');
 const path = require('path');
 const crypto = require('crypto-js');
+const { getServerDefaults, isLocalServerUrl, isPackagedApp } = require('../../config/serverDefaults');
 
 class ConfigManager {
   constructor() {
@@ -17,12 +18,18 @@ class ConfigManager {
   }
 
   getDefaultConfig() {
+    const serverDefaults = getServerDefaults();
     return {
       // Server Configuration
       server: {
-        url: 'ws://127.0.0.1:5000/tally-agent',
-        apiUrl: 'http://127.0.0.1:5000/api',
+        url: serverDefaults.url,
+        apiUrl: serverDefaults.apiUrl,
         apiKey: process.env.DESKTOP_AGENT_API_KEY || process.env.AGENT_API_KEY || '',
+        token: '',
+        refreshToken: '',
+        userEmail: '',
+        companyId: '',
+        linkedCompanies: [],
         timeout: 30000,
         retryAttempts: 3,
         retryDelay: 5000
@@ -32,31 +39,55 @@ class ConfigManager {
       tally: {
         host: '127.0.0.1',
         port: 9000,
-        timeout: 30000,
+        /** HTTP XML export timeout — large ledgers need several minutes; 30s is too low. */
+        timeout: 900000,
+        connectTimeoutMs: 20000,
         retryAttempts: 3,
         retryDelay: 5000,
-        companies: []
+        companies: [],
+        selectedCompanies: []
       },
       
       // Sync Configuration
       sync: {
-        autoSync: true,
-        syncInterval: '*/5 * * * *', // Every 5 minutes
+        autoSync: false,
+        syncInterval: '0 * * * *', // Every hour
         batchSize: 100,
         maxRetries: 3,
         retryDelay: 5000,
         offlineMode: false,
         syncTypes: {
-          vouchers: true,
-          items: true,
+          masters: true,
           parties: true,
-          companies: true
+          vouchers: true,
+          reports: true,
+          companies: false
         },
         dateRange: {
           vouchers: 30, // Last 30 days
           items: 0, // All items
           parties: 0 // All parties
-        }
+        },
+        vouchers: {
+          windowDaysInitial: 7,
+          windowDaysMax: 7,
+          windowDaysMin: 3,
+          voucherSplitThreshold: 400,
+          fullSyncMaxYears: 5,
+          secPerWindowEstimate: 25
+        },
+        voucherUploadBatchSize: 40,
+        voucherBatchTargetBytes: 6291456,
+        voucherUploadConcurrency: 1,
+        /** Financial reports: routine sync uses fewer Tally exports */
+        reports: {
+          fullRefreshIntervalHours: 24,
+          incrementalPeriods: ['this_month'],
+          skipOutstandingOnIncremental: true,
+          outstandingMinIntervalHours: 24
+        },
+        /** Items/parties per WebSocket batch (fewer round-trips than one-by-one) */
+        masterUploadBatchSize: 150
       },
       
       // Agent Configuration
@@ -132,6 +163,7 @@ class ConfigManager {
         // Decrypt sensitive data
         if (fileConfig.encrypted) {
           fileConfig.server.apiKey = this.decrypt(fileConfig.server.apiKey);
+          fileConfig.server.token = this.decrypt(fileConfig.server.token);
           delete fileConfig.encrypted;
         }
         
@@ -154,9 +186,17 @@ class ConfigManager {
       const config = { ...this.store.store };
       
       // Encrypt sensitive data for file storage
-      if (config.security.encryptSensitiveData && config.server.apiKey) {
-        config.server.apiKey = this.encrypt(config.server.apiKey);
-        config.encrypted = true;
+      const hasSensitiveData = config.security.encryptSensitiveData && (config.server.apiKey || config.server.token)
+      if (hasSensitiveData) {
+        if (config.server.apiKey) {
+          config.server.apiKey = this.encrypt(config.server.apiKey)
+        }
+        if (config.server.token) {
+          config.server.token = this.encrypt(config.server.token)
+        }
+        config.encrypted = true
+      } else {
+        delete config.encrypted
       }
       
       // Save to file for backup
@@ -183,6 +223,18 @@ class ConfigManager {
       hasChanges = true;
     }
 
+    if (
+      isPackagedApp()
+      && isLocalServerUrl(config.server.url)
+      && isLocalServerUrl(config.server.apiUrl)
+    ) {
+      const productionDefaults = getServerDefaults(true);
+      config.server.url = productionDefaults.url;
+      config.server.apiUrl = productionDefaults.apiUrl;
+      hasChanges = true;
+      this.logger.info('Using production server URLs for packaged app');
+    }
+
     if (!config.server.apiKey && (process.env.DESKTOP_AGENT_API_KEY || process.env.AGENT_API_KEY)) {
       config.server.apiKey = process.env.DESKTOP_AGENT_API_KEY || process.env.AGENT_API_KEY;
       hasChanges = true;
@@ -194,6 +246,11 @@ class ConfigManager {
       hasChanges = true;
     }
     
+    if (!Array.isArray(config.tally.selectedCompanies)) {
+      config.tally.selectedCompanies = [];
+      hasChanges = true;
+    }
+
     if (!config.tally.port || config.tally.port < 1 || config.tally.port > 65535) {
       config.tally.port = this.getDefaultConfig().tally.port;
       hasChanges = true;
@@ -203,6 +260,19 @@ class ConfigManager {
     if (!config.sync.syncInterval) {
       config.sync.syncInterval = this.getDefaultConfig().sync.syncInterval;
       hasChanges = true;
+    }
+
+    if (!config.sync.syncTypes || typeof config.sync.syncTypes !== 'object') {
+      config.sync.syncTypes = { ...this.getDefaultConfig().sync.syncTypes };
+      hasChanges = true;
+    } else {
+      const defaultSyncTypes = this.getDefaultConfig().sync.syncTypes;
+      for (const type of Object.keys(defaultSyncTypes)) {
+        if (config.sync.syncTypes[type] === undefined) {
+          config.sync.syncTypes[type] = defaultSyncTypes[type];
+          hasChanges = true;
+        }
+      }
     }
     
     // Validate agent ID

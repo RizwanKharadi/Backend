@@ -2,6 +2,24 @@ import { create } from 'zustand'
 import { subscribeWithSelector } from 'zustand/middleware'
 import { ConnectionStatus, SyncStatus, DefaultConfig } from '../types'
 
+const mergeConfigs = (target, source) => {
+  if (typeof source !== 'object' || source === null) {
+    return target
+  }
+
+  const result = { ...target }
+
+  for (const key of Object.keys(source)) {
+    if (Array.isArray(source[key]) || typeof source[key] !== 'object' || source[key] === null) {
+      result[key] = source[key]
+    } else {
+      result[key] = mergeConfigs(result[key] || {}, source[key])
+    }
+  }
+
+  return result
+}
+
 export const useAppStore = create(
   subscribeWithSelector((set, get) => ({
     // Connection State
@@ -9,7 +27,15 @@ export const useAppStore = create(
       server: ConnectionStatus.DISCONNECTED,
       tally: ConnectionStatus.DISCONNECTED,
       lastConnected: null,
-      reconnectAttempts: 0
+      reconnectAttempts: 0,
+      serverLastError: null
+    },
+
+    subscriptionAccess: {
+      allowed: true,
+      status: '',
+      reason: '',
+      displayMessage: null
     },
 
     // Sync State
@@ -39,6 +65,7 @@ export const useAppStore = create(
     // Application State
     appState: {
       isLoading: false,
+      authReady: false,
       currentPage: 'dashboard',
       notifications: [],
       logs: [],
@@ -51,13 +78,25 @@ export const useAppStore = create(
     },
 
     // Actions
-    setConnectionStatus: (type, status) => set((state) => ({
+    setConnectionStatus: (type, status, extra = {}) => set((state) => ({
       connectionStatus: {
         ...state.connectionStatus,
         [type]: status,
-        lastConnected: status === ConnectionStatus.CONNECTED ? new Date() : state.connectionStatus.lastConnected
+        lastConnected: status === ConnectionStatus.CONNECTED ? new Date() : state.connectionStatus.lastConnected,
+        ...(type === 'server' && extra.lastError !== undefined
+          ? { serverLastError: extra.lastError }
+          : {})
       }
     })),
+
+    setSubscriptionAccess: (access) => set({
+      subscriptionAccess: {
+        allowed: access?.allowed !== false,
+        status: access?.status || '',
+        reason: access?.reason || '',
+        displayMessage: access?.displayMessage || null
+      }
+    }),
 
     setSyncStatus: (updates) => set((state) => ({
       syncStatus: {
@@ -89,7 +128,7 @@ export const useAppStore = create(
     }),
 
     setConfig: (config) => set(() => ({
-      config: { ...DefaultConfig, ...config }
+      config: mergeConfigs(DefaultConfig, config)
     })),
 
     addNotification: (notification) => set((state) => ({
@@ -162,6 +201,13 @@ export const useAppStore = create(
       appState: {
         ...state.appState,
         currentPage: page
+      }
+    })),
+
+    setAuthReady: (authReady) => set((state) => ({
+      appState: {
+        ...state.appState,
+        authReady
       }
     })),
 

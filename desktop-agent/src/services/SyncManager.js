@@ -978,6 +978,14 @@ class SyncManager extends EventEmitter {
     return fromIso;
   }
 
+  previewRowMatchesCompany(previewRow, company) {
+    const g = String(company?.guid || '').trim().toLowerCase();
+    const n = String(company?.name || '').trim().toLowerCase();
+    const pg = String(previewRow?.tallyGuid || '').trim().toLowerCase();
+    const pn = String(previewRow?.tallyName || '').trim().toLowerCase();
+    return (g && pg && g === pg) || (n && pn && n === pn);
+  }
+
   /**
    * Linked companies + saved prefs for desktop UI (Add Company, Sync now, etc.).
    */
@@ -1012,6 +1020,30 @@ class SyncManager extends EventEmitter {
         hasCompletePrefs
       };
     });
+  }
+
+  /**
+   * Sync preview scoped to companies currently open in Tally that are also linked.
+   * Used by Start Sync validation so a closed linked company does not block sync.
+   */
+  async getOpenLinkedCompaniesSyncPreview(appConfig) {
+    const fullPreview = this.getLinkedCompaniesSyncPreview(appConfig);
+    let allCompanies = [];
+    try {
+      allCompanies = await this.tallyService.getCompanies();
+    } catch (error) {
+      this.logger.warn('Could not load Tally companies for open sync preview', error);
+      return fullPreview;
+    }
+
+    const openLinked = this.getSelectedCompanies(allCompanies);
+    if (!openLinked.length) {
+      return [];
+    }
+
+    return fullPreview.filter((row) =>
+      openLinked.some((company) => this.previewRowMatchesCompany(row, company))
+    );
   }
 
   getVoucherWindowConfig() {

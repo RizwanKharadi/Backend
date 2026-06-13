@@ -14,13 +14,16 @@ class UpdateManager extends EventEmitter {
     this.downloadProgress = null;
     
     this.config = {
-      autoCheck: true,
+      enabled: false,
+      autoCheck: false,
       autoDownload: true,
       autoInstall: false,
       checkInterval: 3600000, // 1 hour
       allowPrerelease: false,
       allowDowngrade: false
     };
+
+    this.manualCheckInProgress = false;
     
     this.logger = electronLog.scope('UpdateManager');
     this.checkInterval = null;
@@ -73,11 +76,16 @@ class UpdateManager extends EventEmitter {
     autoUpdater.on('error', (error) => {
       this.isChecking = false;
       this.isDownloading = false;
-      
+
+      const wasManualCheck = this.manualCheckInProgress;
+      this.manualCheckInProgress = false;
+
       this.logger.error('Update error:', error);
       this.emit('update-error', error);
-      
-      this.showUpdateErrorDialog(error);
+
+      if (wasManualCheck) {
+        this.showUpdateErrorDialog(error);
+      }
     });
 
     autoUpdater.on('download-progress', (progress) => {
@@ -154,6 +162,11 @@ class UpdateManager extends EventEmitter {
   }
 
   startAutoCheck() {
+    if (!this.config.enabled) {
+      this.logger.info('Auto update check skipped — update server not configured');
+      return;
+    }
+
     if (this.checkInterval) {
       clearInterval(this.checkInterval);
     }
@@ -180,19 +193,39 @@ class UpdateManager extends EventEmitter {
     this.logger.info('Auto update check stopped');
   }
 
-  async checkForUpdates() {
+  async checkForUpdates(manual = false) {
+    if (!this.config.enabled) {
+      this.logger.info('Update check skipped — update server not configured');
+      if (manual) {
+        dialog.showMessageBox({
+          type: 'info',
+          title: 'Check for Updates',
+          message: 'You are running the latest installed version.',
+          detail: 'Automatic updates are not configured yet. When a new version is available, download the latest installer from your provider and reinstall.',
+          buttons: ['OK']
+        });
+      }
+      return false;
+    }
+
     if (this.isChecking) {
       this.logger.warn('Update check already in progress');
       return false;
     }
 
     try {
-      this.logger.info('Manually checking for updates...');
+      this.manualCheckInProgress = manual;
+      this.logger.info(manual ? 'Manually checking for updates...' : 'Checking for updates...');
       const result = await autoUpdater.checkForUpdatesAndNotify();
+      this.manualCheckInProgress = false;
       return result !== null;
     } catch (error) {
+      this.manualCheckInProgress = false;
       this.logger.error('Failed to check for updates:', error);
       this.emit('update-error', error);
+      if (manual) {
+        this.showUpdateErrorDialog(error);
+      }
       return false;
     }
   }
@@ -233,7 +266,7 @@ class UpdateManager extends EventEmitter {
     dialog.showMessageBox({
       type: 'info',
       title: 'Update Available',
-      message: `FinSync360 Desktop Agent ${newVersion} is available`,
+      message: `TallyFin Desktop Agent ${newVersion} is available`,
       detail: `You are currently running version ${currentVersion}.\n\nWould you like to download the update now?`,
       buttons: ['Download Now', 'Download Later', 'Skip This Version'],
       defaultId: 0,
@@ -257,7 +290,7 @@ class UpdateManager extends EventEmitter {
     dialog.showMessageBox({
       type: 'info',
       title: 'Update Ready',
-      message: `FinSync360 Desktop Agent ${info.version} has been downloaded`,
+      message: `TallyFin Desktop Agent ${info.version} has been downloaded`,
       detail: 'The update will be installed when you restart the application.\n\nWould you like to restart now?',
       buttons: ['Restart Now', 'Restart Later'],
       defaultId: 0,
@@ -272,7 +305,7 @@ class UpdateManager extends EventEmitter {
   showUpdateErrorDialog(error) {
     dialog.showErrorBox(
       'Update Error',
-      `Failed to check for updates:\n\n${error.message}\n\nPlease check your internet connection and try again later.`
+      `Could not check for updates:\n\n${error.message}\n\nDownload the latest installer from your provider if you need to update manually.`
     );
   }
 

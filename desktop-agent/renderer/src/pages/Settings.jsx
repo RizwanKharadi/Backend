@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   CogIcon,
   ServerIcon,
@@ -31,8 +31,22 @@ const Settings = () => {
 
   const [serverSettings, setServerSettings] = useState({
     url: config.server.url,
-    apiKey: config.server.apiKey || ''
+    apiUrl: config.server.apiUrl || '',
+    apiKey: config.server.apiKey || '',
+    userEmail: config.server.userEmail || '',
+    companyId: config.server.companyId || ''
   })
+
+  useEffect(() => {
+    setServerSettings((prev) => ({
+      ...prev,
+      url: config.server.url,
+      apiUrl: config.server.apiUrl || '',
+      apiKey: config.server.apiKey || '',
+      userEmail: config.server.userEmail || '',
+      companyId: config.server.companyId || ''
+    }))
+  }, [config.server.url, config.server.apiUrl, config.server.apiKey, config.server.userEmail, config.server.companyId])
 
   const [notificationSettings, setNotificationSettings] = useState({
     ...config.ui.notifications
@@ -98,7 +112,10 @@ const Settings = () => {
       
       await setConfig(newConfig)
       updateConfig('server.url', serverSettings.url)
+      updateConfig('server.apiUrl', serverSettings.apiUrl)
       updateConfig('server.apiKey', serverSettings.apiKey)
+      updateConfig('server.userEmail', serverSettings.userEmail)
+      updateConfig('server.companyId', serverSettings.companyId)
       
       toast.success('Server configuration saved successfully')
     } catch (error) {
@@ -193,7 +210,7 @@ const Settings = () => {
       {/* Page Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-        <p className="text-gray-600">Configure your FinSync360 desktop agent preferences</p>
+        <p className="text-gray-600">Configure your TallyFin desktop agent preferences</p>
       </div>
 
       {/* General Settings */}
@@ -210,14 +227,14 @@ const Settings = () => {
               
               <Checkbox
                 label="Minimize to system tray"
-                description="Hide the window in the system tray when minimized"
+                description="Closing (X) or minimizing (−) the window always hides to the tray so sync keeps running. Use tray → Quit to exit."
                 checked={generalSettings.minimizeToTray}
                 onChange={(e) => handleGeneralSettingsChange('minimizeToTray', e.target.checked)}
               />
               
               <Checkbox
                 label="Start minimized"
-                description="Start the application minimized to the system tray"
+                description="Launch hidden in the system tray (sync still runs in the background)"
                 checked={generalSettings.startMinimized}
                 onChange={(e) => handleGeneralSettingsChange('startMinimized', e.target.checked)}
               />
@@ -247,23 +264,23 @@ const Settings = () => {
         <form onSubmit={handleSaveServerSettings} className="space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <Input
-              label="Server URL"
-              type="url"
-              value={serverSettings.url}
-              onChange={(e) => handleServerSettingsChange('url', e.target.value)}
-              placeholder="ws://localhost:5000/tally-agent"
-              required
-              helperText="WebSocket URL for FinSync360 server connection"
-            />
-            
-            <Input
               label="API Key"
               type="password"
               value={serverSettings.apiKey}
               onChange={(e) => handleServerSettingsChange('apiKey', e.target.value)}
               placeholder="Enter your API key"
-              helperText="Authentication key for server access"
+              helperText="Optional authentication key for server access"
             />
+
+            <div className="md:col-span-2 space-y-2">
+              <p className="text-sm text-gray-600">
+                Signed in as <span className="font-semibold">{serverSettings.userEmail || '—'}</span>.
+                Use Logout in the header to switch accounts.
+              </p>
+              <p className="text-xs text-gray-500">
+                Server connection is managed automatically for your account.
+              </p>
+            </div>
           </div>
           
           <div className="flex justify-end">

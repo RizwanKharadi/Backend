@@ -6,16 +6,42 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Configuration API
   getConfig: () => ipcRenderer.invoke('get-config'),
   setConfig: (config) => ipcRenderer.invoke('set-config', config),
-  
+  serverLogin: (credentials) => ipcRenderer.invoke('server-login', credentials),
+  serverRegister: (payload) => ipcRenderer.invoke('server-register', payload),
+  serverForgotPassword: (email) => ipcRenderer.invoke('server-forgot-password', email),
+  serverResetPassword: (payload) => ipcRenderer.invoke('server-reset-password', payload),
+  serverLogout: () => ipcRenderer.invoke('server-logout'),
+  validateSession: () => ipcRenderer.invoke('server-validate-session'),
+  backendGetCompanies: () => ipcRenderer.invoke('backend-get-companies'),
+  hydrateLinkedCompanies: () => ipcRenderer.invoke('hydrate-linked-companies'),
+  linkTallyCompany: (tallyCompany) => ipcRenderer.invoke('link-tally-company', tallyCompany),
+  unlinkTallyCompany: (entry) => ipcRenderer.invoke('unlink-tally-company', entry),
+  billingGetStatus: () => ipcRenderer.invoke('billing-get-status'),
+  billingSubscribe: (payload) => ipcRenderer.invoke('billing-subscribe', payload),
+  billingSync: () => ipcRenderer.invoke('billing-sync'),
+  billingReconnect: () => ipcRenderer.invoke('billing-reconnect'),
+  billingOpenUrl: (url) => ipcRenderer.invoke('billing-open-url', url),
+  invoke: (channel, ...args) => ipcRenderer.invoke(channel, ...args),
+
   // Tally Service API
   tallyTestConnection: () => ipcRenderer.invoke('tally-test-connection'),
+  tallyGetLicenseInfo: () => ipcRenderer.invoke('tally-get-license-info'),
+  tallyCheckSerial: (serialNumber) => ipcRenderer.invoke('tally-check-serial', serialNumber),
   tallyGetCompanies: () => ipcRenderer.invoke('tally-get-companies'),
   getConnectionState: () => ipcRenderer.invoke('get-connection-state'),
   
   // Sync API
-  syncStart: () => ipcRenderer.invoke('sync-start'),
+  syncSetCompanyPreferences: (payload) =>
+    ipcRenderer.invoke('sync-set-company-preferences', payload),
+  syncGetCompaniesPreview: () => ipcRenderer.invoke('sync-get-companies-preview'),
+  syncGetOpenCompaniesPreview: () => ipcRenderer.invoke('sync-get-open-companies-preview'),
+  syncStart: (options) => ipcRenderer.invoke('sync-start', options || {}),
   syncStop: () => ipcRenderer.invoke('sync-stop'),
   syncStatus: () => ipcRenderer.invoke('sync-status'),
+  syncResetState: () => ipcRenderer.invoke('sync-reset-state'),
+  syncClearOfflineQueue: () => ipcRenderer.invoke('sync-clear-offline-queue'),
+  getLogPaths: () => ipcRenderer.invoke('get-log-paths'),
+  openLogsFolder: () => ipcRenderer.invoke('open-logs-folder'),
   
   // System API
   getSystemInfo: () => ipcRenderer.invoke('get-system-info'),

@@ -610,6 +610,17 @@ export const useElectronAPI = () => {
     }
   }, [isElectronAvailable])
 
+  const getOpenSyncCompaniesPreview = useCallback(async () => {
+    if (!isElectronAvailable) return []
+    try {
+      const rows = await window.electronAPI.syncGetOpenCompaniesPreview()
+      return Array.isArray(rows) ? rows : []
+    } catch (error) {
+      console.error('getOpenSyncCompaniesPreview failed:', error)
+      return []
+    }
+  }, [isElectronAvailable])
+
   // Sync methods
   const startSync = useCallback(
     async (options = {}) => {
@@ -655,7 +666,12 @@ export const useElectronAPI = () => {
     }
 
     try {
+      toast.loading('Sync in progress — the window may be busy while Tally exports data', {
+        id: 'sync-in-progress',
+        duration: 8000
+      })
       const result = await window.electronAPI.syncStart(options)
+      toast.dismiss('sync-in-progress')
       if (result) {
         setSyncStatus({ status: SyncStatus.RUNNING, progress: 0 })
         toast.success('Sync started')
@@ -664,6 +680,7 @@ export const useElectronAPI = () => {
       }
       return result
     } catch (error) {
+      toast.dismiss('sync-in-progress')
       console.error('Failed to start sync:', error)
       toast.error(`Failed to start sync: ${error.message}`)
       return false
@@ -819,6 +836,7 @@ export const useElectronAPI = () => {
     startSync,
     setCompanySyncPreferences,
     getSyncCompaniesPreview,
+    getOpenSyncCompaniesPreview,
     stopSync,
     getSyncStatus,
     resetSyncState,

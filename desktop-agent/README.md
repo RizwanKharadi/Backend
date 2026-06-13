@@ -139,6 +139,7 @@ desktop-agent/
 #### Page Components
 - **Dashboard**: Overview with quick actions and statistics
 - **SyncStatus**: Sync management and progress tracking
+- **AddCompany / MyCompanies**: Per-company linking plus sync start preferences (timezone, month, year)
 - **TallyConnection**: Tally ERP configuration and testing
 - **SystemMonitor**: Performance monitoring and system info
 - **Logs**: Application logs with filtering and export
@@ -187,6 +188,7 @@ desktop-agent/
 ### Available IPC Channels
 - `get-config` / `set-config`: Configuration management
 - `tally-test-connection` / `tally-get-companies`: Tally operations
+- `sync-set-company-preferences` / `sync-get-companies-preview`: Per-company sync start preferences
 - `sync-start` / `sync-stop` / `sync-status`: Sync operations
 - `get-system-info`: System information
 - `show-notification`: Display notifications

@@ -1,0 +1,79 @@
+{
+  "date": "2026-05-25",
+  "voucherType": "Purchase",
+  "partyName": "Keshav Computer Pvt.Ltd.",
+  "reference": "PUR-TEST-001",
+  "referenceDate": "2026-05-25",
+  "isInvoice": true,
+  "isOptional": false,
+  "inventoryAllocations": [
+    {
+      "stockItemName": "Tally Software Services-Gold",
+      "quantity": " 1.000 No.",
+      "rate": "4500.00/No.",
+      "amount": -4500,
+      "isDeemedPositive": true,
+      "accountingAllocations": [
+        {
+          "ledgerName": "Purchase GST",
+          "amount": -4500,
+          "isDeemedPositive": true
+        }
+      ],
+      "gstRateDetails": [
+        {
+          "dutyHead": "CGST",
+          "valuationType": "Based on Value",
+          "rate": 9
+        },
+        {
+          "dutyHead": "SGST/UTGST",
+          "valuationType": "Based on Value",
+          "rate": 9
+        },
+        {
+          "dutyHead": "Cess",
+          "valuationType": "Not Applicable"
+        }
+      ],
+      "batchAllocations": [
+        {
+          "godownName": "AIM INFOCOM",
+          "batchName": "",
+          "actualQuantity": " 1.000 No.",
+          "billedQuantity": " 1.000 No.",
+          "amount": -4500
+        }
+      ]
+    }
+  ],
+  "ledgerEntries": [
+    {
+      "ledgerName": "Keshav Computer Pvt.Ltd.",
+      "amount": 5310,
+      "isDeemedPositive": false,
+      "isPartyLedger": true,
+      "billAllocations": [
+        {
+          "name": "PUR-TEST-001",
+          "billType": "New Ref",
+          "amount": 5310
+        }
+      ]
+    },
+    {
+      "ledgerName": "Input CGST-Central Tax",
+      "amount": -405,
+      "isDeemedPositive": true,
+      "isPartyLedger": false
+    },
+    {
+      "ledgerName": "Input SGST-State Tax",
+      "amount": -405,
+      "isDeemedPositive": true,
+      "isPartyLedger": false
+    }
+  ],
+  "viewType": "Invoice Voucher View",
+  "voucherNumber": "PUR-TEST-001"
+}

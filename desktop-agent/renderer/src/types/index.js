@@ -11,6 +11,7 @@ export const SyncStatus = {
   IDLE: 'idle',
   RUNNING: 'running',
   COMPLETED: 'completed',
+  PARTIAL: 'partial',
   FAILED: 'failed',
   PAUSED: 'paused'
 }
@@ -94,6 +95,8 @@ export const DefaultConfig = {
   server: {
     url: 'ws://localhost:5000/tally-agent',
     apiUrl: 'http://localhost:5000/api',
+    companyId: '',
+    linkedCompanies: [],
     timeout: 30000,
     retryAttempts: 3,
     retryDelay: 5000
@@ -101,21 +104,24 @@ export const DefaultConfig = {
   tally: {
     host: 'localhost',
     port: 9000,
-    timeout: 30000,
+    timeout: 900000,
+    connectTimeoutMs: 20000,
     retryAttempts: 3,
-    retryDelay: 5000
+    retryDelay: 5000,
+    selectedCompanies: []
   },
   sync: {
-    autoSync: true,
-    syncInterval: '*/5 * * * *',
+    autoSync: false,
+    syncInterval: '0 * * * *',
     batchSize: 100,
     maxRetries: 3,
     retryDelay: 5000,
     syncTypes: {
-      vouchers: true,
-      items: true,
+      masters: true,
       parties: true,
-      companies: true
+      vouchers: true,
+      reports: true,
+      companies: false
     }
   },
   agent: {
@@ -192,4 +198,24 @@ export const formatRelativeTime = (timestamp) => {
   if (diffHours > 0) return `${diffHours} hour${diffHours > 1 ? 's' : ''} ago`
   if (diffMins > 0) return `${diffMins} minute${diffMins > 1 ? 's' : ''} ago`
   return 'Just now'
+}
+
+/** Normalize sync error entries from main process ({ message }) or per-item ({ type, item, error }). */
+export const formatSyncError = (entry) => {
+  if (entry == null) return 'Unknown error'
+  if (typeof entry === 'string') return entry
+  if (typeof entry.message === 'string' && entry.message) return entry.message
+
+  const detail = entry.error ?? entry.err
+  if (typeof detail === 'string' && detail) {
+    const type = entry.type ? String(entry.type) : 'sync'
+    const item = entry.item ? String(entry.item) : ''
+    return item ? `[${type}] ${item}: ${detail}` : `[${type}] ${detail}`
+  }
+
+  try {
+    return JSON.stringify(entry)
+  } catch {
+    return String(entry)
+  }
 }

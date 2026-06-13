@@ -15,20 +15,19 @@ const Card = ({
   ...props
 }) => {
   const cardClasses = clsx(
-    'bg-white rounded-lg overflow-hidden',
-    border && 'border border-gray-200',
+    'bg-white rounded-2xl overflow-hidden',
+    border && 'border border-slate-200/80',
     {
-      'shadow-sm': shadow === 'sm',
-      'shadow-md': shadow === 'default',
-      'shadow-lg': shadow === 'lg',
-      'shadow-xl': shadow === 'xl',
+      'shadow-soft': shadow === 'sm' || shadow === 'default',
+      'shadow-medium': shadow === 'lg',
+      'shadow-strong': shadow === 'xl',
       'shadow-none': shadow === 'none'
     },
     className
   )
 
   const headerClasses = clsx(
-    'px-6 py-4 border-b border-gray-200 bg-gray-50',
+    'px-6 py-4 border-b border-slate-100 bg-slate-50/80',
     headerClassName
   )
 
