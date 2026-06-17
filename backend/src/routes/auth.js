@@ -11,8 +11,7 @@ import { protect, optionalAuth } from '../middleware/auth.js';
 import { createTrialOrganization } from '../services/licenseService.js';
 import {
   registerTallySerial,
-  mapTallyLicensePayload,
-  checkTallySerialInUse
+  mapTallyLicensePayload
 } from '../services/tallySerialService.js';
 import logger from '../utils/logger.js';
 import { serializeUser } from '../utils/serializeUser.js';
@@ -113,18 +112,6 @@ router.post('/register', [
     const trimmedCompanyName = typeof companyName === 'string' ? companyName.trim() : '';
     const licensePayload = mapTallyLicensePayload(tallyLicense);
 
-    if (licensePayload?.serialNumber) {
-      const serialConflict = await checkTallySerialInUse(licensePayload.serialNumber, null);
-      if (serialConflict.inUse) {
-        return res.status(409).json({
-          success: false,
-          message: `This Tally serial number is already registered with ${serialConflict.registeredEmail}`,
-          code: 'TALLY_SERIAL_IN_USE',
-          data: serialConflict
-        });
-      }
-    }
-
     // Check if user already exists
     const existingUser = await User.findOne({ 
       $or: [{ email }, { phone }] 
@@ -177,12 +164,9 @@ router.post('/register', [
         await User.findByIdAndDelete(user._id);
         await Subscription.deleteOne({ _id: subscription._id });
         await Organization.deleteOne({ _id: organization._id });
-        const status = serialErr.statusCode || 409;
-        return res.status(status).json({
+        return res.status(500).json({
           success: false,
-          message: serialErr.message,
-          code: serialErr.code,
-          data: serialErr.conflict
+          message: serialErr?.message || 'Server error'
         });
       }
     }

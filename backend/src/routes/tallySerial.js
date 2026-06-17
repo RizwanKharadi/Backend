@@ -81,14 +81,6 @@ router.post(
         data: { id: doc._id, serialNumber: doc.serialNumber }
       });
     } catch (error) {
-      if (error.statusCode === 409) {
-        return res.status(409).json({
-          success: false,
-          message: error.message,
-          code: error.code,
-          data: error.conflict
-        });
-      }
       logger.error('tally-serial register error:', error);
       return res.status(500).json({ success: false, message: 'Server error' });
     }

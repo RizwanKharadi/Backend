@@ -73,22 +73,26 @@ export async function registerTallySerial({
   const existing = await TallySerialRegistration.findOne({ serialNumber: normalized });
 
   if (existing) {
-    const sameUser = existing.user.toString() === userId.toString();
-    const sameOrg = existing.organization.toString() === organizationId.toString();
+    const existingUserId = existing.user?.toString?.();
+    const existingOrgId = existing.organization?.toString?.();
+    const incomingUserId = userId?.toString?.();
+    const incomingOrgId = organizationId?.toString?.();
 
-    if (!sameUser && !(allowSameOrganizationRebind && sameOrg)) {
+    const changedOwner = Boolean(existingUserId && incomingUserId && existingUserId !== incomingUserId);
+    const changedOrg = Boolean(existingOrgId && incomingOrgId && existingOrgId !== incomingOrgId);
+
+    if (changedOwner || changedOrg) {
       const owner = await User.findById(existing.user).select('email name');
-      const err = new Error(
-        `This Tally serial number is already registered with ${maskEmail(owner?.email || existing.registeredEmail)}`
-      );
-      err.statusCode = 409;
-      err.code = 'TALLY_SERIAL_IN_USE';
-      err.conflict = {
-        inUse: true,
-        registeredEmail: maskEmail(owner?.email || existing.registeredEmail),
-        registeredName: owner?.name || ''
-      };
-      throw err;
+      logger.warn('Tally serial re-registered by different account/org (validation disabled)', {
+        serialNumber: normalized,
+        previousUserEmail: maskEmail(owner?.email || existing.registeredEmail),
+        previousUserName: owner?.name || '',
+        previousUserId: existingUserId,
+        previousOrganizationId: existingOrgId,
+        newUserId: incomingUserId,
+        newOrganizationId: incomingOrgId,
+        allowSameOrganizationRebind
+      });
     }
   }
 
