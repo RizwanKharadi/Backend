@@ -272,14 +272,36 @@ export async function activateDevice({
   let deviceLicense = await DeviceLicense.findOne({ agentId });
 
   if (deviceLicense) {
-    if (deviceLicense.organization.toString() !== organizationId.toString()) {
-      const err = new Error(
-        'This device is registered to another organization. Ask your administrator to transfer the device or remove it from the previous organization.'
-      );
-      err.statusCode = 403;
-      throw err;
-    }
-    if (deviceLicense.status === 'revoked') {
+    const isDifferentOrg =
+      deviceLicense.organization.toString() !== organizationId.toString();
+
+    if (isDifferentOrg) {
+      if (enforcementEnabled) {
+        const activeCount = await countActiveDevices(organizationId);
+        if (activeCount >= seatLimit) {
+          const err = new Error(
+            `Device seat limit reached (${seatLimit}). Revoke another device or upgrade your plan.`
+          );
+          err.statusCode = 402;
+          throw err;
+        }
+      }
+      const previousOrganizationId = deviceLicense.organization;
+      deviceLicense.organization = organizationId;
+      deviceLicense.activatedBy = user._id;
+      deviceLicense.linkedCompanies = [];
+      deviceLicense.status = 'active';
+      deviceLicense.revokedAt = undefined;
+      deviceLicense.revokeReason = undefined;
+      deviceLicense.revokedBy = undefined;
+      deviceLicense.activatedAt = new Date();
+      logger.info('Device reassigned to organization on login', {
+        agentId,
+        fromOrganizationId: previousOrganizationId,
+        toOrganizationId: organizationId,
+        userId: user._id
+      });
+    } else if (deviceLicense.status === 'revoked') {
       if (enforcementEnabled) {
         const activeCount = await countActiveDevices(organizationId);
         if (activeCount >= seatLimit) {
