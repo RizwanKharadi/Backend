@@ -1290,22 +1290,24 @@ class TallyWebSocketService {
   }
 
   /**
-   * Pick the MongoDB document to update without violating company+type+number unique index.
-   * Legacy rows may lack tallySync.tallyId; GUID-only upsert would insert duplicates otherwise.
+   * Resolve the MongoDB document to update for a Tally voucher row.
+   * Identity is Tally GUID (tallySync.tallyId) scoped to company — not voucher number.
+   * Legacy rows without a GUID may still match on type+number for one-time migration.
    */
   async resolveVoucherUpsertFilter(company, voucherType, voucherNumber, tallyId) {
     const companyId = company._id;
     const normalizedNumber = String(voucherNumber ?? '').trim();
+    const normalizedTallyId = String(tallyId ?? '').trim();
     const compositeFilter = {
       company: companyId,
       voucherType,
       voucherNumber: normalizedNumber
     };
 
-    if (tallyId) {
+    if (normalizedTallyId) {
       const byGuid = await Voucher.findOne({
         company: companyId,
-        'tallySync.tallyId': tallyId
+        'tallySync.tallyId': normalizedTallyId
       })
         .select('_id')
         .lean();
@@ -1314,20 +1316,109 @@ class TallyWebSocketService {
         return { _id: byGuid._id };
       }
 
+      if (normalizedNumber) {
+        const byComposite = await Voucher.findOne(compositeFilter).select('_id').lean();
+        if (byComposite?._id) {
+          return { _id: byComposite._id };
+        }
+      }
+
+      return { company: companyId, 'tallySync.tallyId': normalizedTallyId };
+    }
+
+    if (normalizedNumber) {
       const byComposite = await Voucher.findOne(compositeFilter).select('_id').lean();
       if (byComposite?._id) {
         return { _id: byComposite._id };
       }
-
-      return compositeFilter;
-    }
-
-    const byComposite = await Voucher.findOne(compositeFilter).select('_id').lean();
-    if (byComposite?._id) {
-      return { _id: byComposite._id };
     }
 
     return compositeFilter;
+  }
+
+  /**
+   * Batch-resolve upsert filters for voucher summary bulkWrite (avoids GUID-only misses).
+   */
+  async resolveVoucherUpsertFiltersBatch(company, rows = []) {
+    const companyId = company._id;
+    const filters = rows.map(() => null);
+
+    const tallyIds = [
+      ...new Set(
+        rows
+          .map((r) => String(r.tallyId || r.guid || r.GUID || '').trim())
+          .filter(Boolean)
+      )
+    ];
+
+    const guidToId = new Map();
+    if (tallyIds.length) {
+      const existingByGuid = await Voucher.find({
+        company: companyId,
+        'tallySync.tallyId': { $in: tallyIds }
+      })
+        .select('_id tallySync.tallyId')
+        .lean();
+      for (const doc of existingByGuid) {
+        if (doc.tallySync?.tallyId) {
+          guidToId.set(String(doc.tallySync.tallyId).trim(), doc._id);
+        }
+      }
+    }
+
+    const compositeClauses = [];
+    const compositeRowIndexes = [];
+    rows.forEach((row, index) => {
+      const tallyId = String(row.tallyId || row.guid || row.GUID || '').trim();
+      if (!tallyId) return;
+      if (guidToId.has(tallyId)) {
+        filters[index] = { _id: guidToId.get(tallyId) };
+        return;
+      }
+      const typeResolved = this.resolveIncomingVoucherType(row);
+      const voucherNumber = String(row.voucherNumber || '').trim();
+      if (!voucherNumber) {
+        filters[index] = { company: companyId, 'tallySync.tallyId': tallyId };
+        return;
+      }
+      compositeClauses.push({
+        company: companyId,
+        voucherType: typeResolved.voucherType,
+        voucherNumber
+      });
+      compositeRowIndexes.push(index);
+    });
+
+    const compositeToId = new Map();
+    if (compositeClauses.length) {
+      const CHUNK = 200;
+      for (let offset = 0; offset < compositeClauses.length; offset += CHUNK) {
+        const slice = compositeClauses.slice(offset, offset + CHUNK);
+        const sliceIndexes = compositeRowIndexes.slice(offset, offset + CHUNK);
+        const found = await Voucher.find({ $or: slice })
+          .select('_id voucherType voucherNumber')
+          .lean();
+        for (const doc of found) {
+          compositeToId.set(`${doc.voucherType}::${doc.voucherNumber}`, doc._id);
+        }
+        for (let i = 0; i < slice.length; i++) {
+          const rowIndex = sliceIndexes[i];
+          const clause = slice[i];
+          const key = `${clause.voucherType}::${clause.voucherNumber}`;
+          const tallyId = String(
+            rows[rowIndex].tallyId || rows[rowIndex].guid || rows[rowIndex].GUID || ''
+          ).trim();
+          if (filters[rowIndex]) continue;
+          if (compositeToId.has(key)) {
+            filters[rowIndex] = { _id: compositeToId.get(key) };
+          } else if (tallyId) {
+            filters[rowIndex] = { company: companyId, 'tallySync.tallyId': tallyId };
+          }
+        }
+      }
+    }
+
+    return filters;
   }
 
   async upsertTallyAccount(company, incoming = {}) {
@@ -1861,7 +1952,7 @@ class TallyWebSocketService {
    * With `preserveLines`, the op leaves existing items/ledgerEntries/totals untouched
    * (used when the incoming row carries no line detail but the stored voucher does).
    */
-  buildVoucherSummaryBulkOp(company, incomingVoucher, partyMap, { preserveLines = false } = {}) {
+  buildVoucherSummaryBulkOp(company, incomingVoucher, partyMap, { preserveLines = false, filter = null } = {}) {
     const typeResolved = this.resolveIncomingVoucherType(incomingVoucher);
     const voucherType = typeResolved.voucherType;
     const voucherNumber = String(
@@ -1874,6 +1965,10 @@ class TallyWebSocketService {
       incomingVoucher.tallyId || incomingVoucher.guid || incomingVoucher.GUID || ''
     ).trim();
     const alterId = String(incomingVoucher.alterId || incomingVoucher.ALTERID || '').trim();
+
+    if (!tallyId) {
+      return null;
+    }
 
     let voucherDate = new Date();
     if (incomingVoucher.date) {
@@ -1920,7 +2015,7 @@ class TallyWebSocketService {
         grandTotal: amount
       },
       'tallySync.synced': true,
-      'tallySync.tallyId': tallyId || voucherNumber,
+      'tallySync.tallyId': tallyId,
       'tallySync.tallyAlterId': alterId,
       'tallySync.isSummaryOnly': items.length === 0 && ledgerEntries.length === 0,
       'tallySync.lastSyncDate': new Date(),
@@ -1937,9 +2032,9 @@ class TallyWebSocketService {
       delete update['tallySync.isSummaryOnly'];
     }
 
-    const filter = tallyId
-      ? { company: company._id, 'tallySync.tallyId': tallyId }
-      : { company: company._id, voucherType, voucherNumber };
+    const upsertFilter =
+      filter ||
+      { company: company._id, 'tallySync.tallyId': tallyId };
 
     const updateDoc = { $set: update };
     if (incomingLedgerNames.length) {
@@ -1948,7 +2043,7 @@ class TallyWebSocketService {
 
     return {
       updateOne: {
-        filter,
+        filter: upsertFilter,
         update: updateDoc,
         upsert: true
       }
@@ -2033,12 +2128,16 @@ class TallyWebSocketService {
 
     const ops = [];
     let skipped = 0;
+    const resolvedFilters = await this.resolveVoucherUpsertFiltersBatch(company, rows);
     for (let i = 0; i < rows.length; i++) {
       const row = rows[i];
       try {
         const tid = String(row.tallyId || row.guid || row.GUID || '').trim();
         const preserveLines = !rowHasLines(row) && tid && fullDetailIdSet.has(tid);
-        const op = this.buildVoucherSummaryBulkOp(company, row, partyMap, { preserveLines });
+        const op = this.buildVoucherSummaryBulkOp(company, row, partyMap, {
+          preserveLines,
+          filter: resolvedFilters[i]
+        });
         if (op) ops.push(op);
         else skipped += 1;
       } catch (err) {
@@ -2251,7 +2350,7 @@ class TallyWebSocketService {
         },
       tallySync: {
         synced: true,
-        tallyId: tallyId || voucherNumber,
+        tallyId: tallyId || undefined,
         tallyAlterId: alterId,
         isSummaryOnly: !(preserveLineDetail || hasIncomingLines),
         lastSyncDate: new Date(),
@@ -2868,7 +2967,7 @@ class TallyWebSocketService {
       status: incomingVoucher.status || 'pending',
       tallySync: {
         synced: true,
-        tallyId: tallyId || incomingVoucher.alterid || voucherNumber,
+        tallyId: tallyId || String(incomingVoucher.alterid || '').trim() || undefined,
         tallyAlterId: String(
           incomingVoucher.alterId || incomingVoucher.alterid || incomingVoucher.ALTERID || ''
         ).trim(),

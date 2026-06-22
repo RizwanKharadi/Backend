@@ -269,14 +269,22 @@ const VoucherSchema = new mongoose.Schema({
   toObject: { virtuals: true }
 });
 
-// Indexes
-VoucherSchema.index({ company: 1, voucherType: 1, voucherNumber: 1 }, { unique: true });
+// Indexes — Tally GUID is the sync identity; voucher numbers repeat across types/years/companies.
+VoucherSchema.index({ company: 1, voucherType: 1, voucherNumber: 1 });
+VoucherSchema.index(
+  { company: 1, 'tallySync.tallyId': 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      'tallySync.tallyId': { $type: 'string', $ne: '' }
+    }
+  }
+);
 VoucherSchema.index({ company: 1, date: -1 });
 VoucherSchema.index({ company: 1, party: 1 });
 VoucherSchema.index({ company: 1, status: 1 });
 VoucherSchema.index({ company: 1, dueDate: 1 });
 VoucherSchema.index({ 'tallySync.synced': 1 });
-VoucherSchema.index({ company: 1, 'tallySync.tallyId': 1 });
 
 // Virtual for formatted voucher number
 VoucherSchema.virtual('formattedNumber').get(function() {

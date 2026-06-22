@@ -1670,37 +1670,36 @@ export const getOutstandingReceivableLedger = async (req, res) => {
 
     const normalizeVoucherNumber = (v) => String(v || '').trim();
     const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const sameCalendarDay = (a, b) => {
+      if (!a || !b) return false;
+      const left = new Date(a);
+      const right = new Date(b);
+      if (Number.isNaN(left.getTime()) || Number.isNaN(right.getTime())) return false;
+      return (
+        left.getUTCFullYear() === right.getUTCFullYear() &&
+        left.getUTCMonth() === right.getUTCMonth() &&
+        left.getUTCDate() === right.getUTCDate()
+      );
+    };
 
     const bills = Array.isArray(ledger.bills) ? ledger.bills : [];
-    const voucherLookups = bills
-      .map((b) => ({
-        vchNumber: normalizeVoucherNumber(b?.vchNumber),
-        vchType: String(b?.vchType || '').trim(),
-        vchDate: b?.vchDate ? new Date(b.vchDate) : null
-      }))
-      .filter((x) => x.vchNumber);
+    const billLookupNumber = (bill) =>
+      normalizeVoucherNumber(bill?.vchNumber) || normalizeVoucherNumber(bill?.billRef);
+
+    const uniqueLookupNumbers = [
+      ...new Set(bills.map(billLookupNumber).filter(Boolean))
+    ];
 
     // Batch-resolve voucher IDs for drill-down to VoucherDetailScreen.
-    // Match by voucher number + calendar day; voucher TYPE is only a tie-breaker,
-    // because Tally bill rows carry the display type name (e.g. "GST Sales") which
-    // slugs differently from the stored normalized voucherType.
-    const orClauses = voucherLookups.map((x) => {
-      const clause = {
-        company: toObjectId(companyId),
-        voucherNumber: { $regex: new RegExp(`^${escapeRegex(x.vchNumber)}$`, 'i') }
-      };
-      if (x.vchDate && !Number.isNaN(x.vchDate.getTime())) {
-        // Match within the same calendar day (dates stored at UTC midnight).
-        const d = x.vchDate;
-        const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-        const end = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), 23, 59, 59, 999));
-        clause.date = { $gte: start, $lte: end };
-      }
-      return clause;
-    });
-
+    // Tally often leaves BILLVCHNUMBER empty while BILLREF carries the voucher number.
+    // Match by voucher number only; use date/type only as tie-breakers when duplicates exist.
     const matchesByNumber = new Map();
-    if (orClauses.length > 0) {
+    if (uniqueLookupNumbers.length > 0) {
+      const orClauses = uniqueLookupNumbers.map((num) => ({
+        company: toObjectId(companyId),
+        voucherNumber: { $regex: new RegExp(`^${escapeRegex(num)}$`, 'i') }
+      }));
+
       const matches = await Voucher.find({ $or: orClauses })
         .select('_id voucherNumber voucherType tallyVoucherTypeName date')
         .lean();
@@ -1712,10 +1711,17 @@ export const getOutstandingReceivableLedger = async (req, res) => {
       }
     }
 
-    const resolveVoucherId = (vchNumber, vchType) => {
-      const candidates = matchesByNumber.get(vchNumber.toLowerCase()) || [];
+    const resolveVoucherId = (lookupNumber, vchType, prefDate) => {
+      let candidates = matchesByNumber.get(String(lookupNumber).trim().toLowerCase()) || [];
       if (!candidates.length) return null;
       if (candidates.length === 1) return candidates[0]._id.toString();
+
+      if (prefDate) {
+        const dateMatches = candidates.filter((v) => sameCalendarDay(v.date, prefDate));
+        if (dateMatches.length === 1) return dateMatches[0]._id.toString();
+        if (dateMatches.length > 1) candidates = dateMatches;
+      }
+
       const slug = normalizeVoucherTypeSlug('', vchType, vchType);
       const typeNameLower = String(vchType || '').trim().toLowerCase();
       const best = candidates.find(
@@ -1738,11 +1744,12 @@ export const getOutstandingReceivableLedger = async (req, res) => {
         oldestBillDue: ledger.oldestBillDue,
         oldestOverdueDays: ledger.oldestOverdueDays,
         bills: bills.map((b) => {
-          const vchNumber = normalizeVoucherNumber(b?.vchNumber);
+          const lookupNumber = billLookupNumber(b);
           const vchType = String(b?.vchType || '').trim();
+          const prefDate = b?.vchDate || b?.billDate || null;
           return {
             ...b,
-            voucherId: vchNumber ? resolveVoucherId(vchNumber, vchType) : null
+            voucherId: lookupNumber ? resolveVoucherId(lookupNumber, vchType, prefDate) : null
           };
         })
       }

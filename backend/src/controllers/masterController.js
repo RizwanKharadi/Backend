@@ -2,6 +2,7 @@ import VoucherType from '../models/VoucherType.js';
 import Godown from '../models/Godown.js';
 import Unit from '../models/Unit.js';
 import Party from '../models/Party.js';
+import TallyAccount from '../models/TallyAccount.js';
 import GstRegistration from '../models/GstRegistration.js';
 import {
   isSundryPartyParent,
@@ -132,21 +133,20 @@ export const getLedgers = async (req, res) => {
     const { excludeSundry, search, limit = 2000 } = req.query;
     const query = {
       company: req.company._id,
-      isActive: true,
-      recordType: 'ledger'
+      accountType: 'ledger'
     };
 
     if (search) {
       query.name = { $regex: search, $options: 'i' };
     }
 
-    let rows = await Party.find(query)
+    let rows = await TallyAccount.find(query)
       .sort({ name: 1 })
       .limit(Math.min(Number(limit) || 2000, 2000))
       .lean();
 
     if (excludeSundry === 'true' || excludeSundry === true) {
-      rows = rows.filter((r) => !isSundryPartyParent(r.tallyParent));
+      rows = rows.filter((r) => !isSundryPartyParent(r.parentGroup));
     }
 
     res.status(200).json({
@@ -154,7 +154,7 @@ export const getLedgers = async (req, res) => {
       data: rows.map((r) => ({
         id: r._id.toString(),
         name: r.name,
-        parentGroup: normalizeTallyParentName(r.tallyParent)
+        parentGroup: normalizeTallyParentName(r.parentGroup)
       }))
     });
   } catch (error) {
