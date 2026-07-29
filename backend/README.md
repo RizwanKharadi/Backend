@@ -103,15 +103,15 @@ LOG_LEVEL=info
 
 **Production (Heroku Config Vars)**
 ```bash
-NODE_ENV=development
-MONGODB_URI=mongodb+srv://hhirawat5:R79fVWIVMLY1BSUh@finsync.xwmeuwe.mongodb.net/finsync360?retryWrites=true&w=majority&authSource=admin
-JWT_SECRET=jFVdOwGOOHRA0716lvQ0F1PlY1GFbXZNxE5mtgZvPs8=
+NODE_ENV=production
+DATABASE_URL=mysql://USER:PASSWORD@HOST:3306/finsync360
+JWT_SECRET=<generate: node -e "console.log(require('crypto').randomBytes(48).toString('hex'))">
 BCRYPT_ROUNDS=12
-ENCRYPTION_KEY=frbcHZWNefSNvpn70bEVJw35JhPnN3+o
-FRONTEND_URL=https://finsync-frontend-nextjs-fbce311426ec.herokuapp.com
-RAZORPAY_KEY_ID=dummy_key_for_development
-RAZORPAY_KEY_SECRET=dummy_secret_for_development
-REDIS_URL=rediss://:p0ebd99f9f300dac913073c895f7acb6dfca3af58be5791df4823f62bc4a82c18@ec2-52-200-79-251.compute-1.amazonaws.com:26720
+ENCRYPTION_KEY=<generate: node -e "console.log(require('crypto').randomBytes(32).toString('hex'))">
+FRONTEND_URL=https://your-frontend-host
+RAZORPAY_KEY_ID=<your-razorpay-key-id>
+RAZORPAY_KEY_SECRET=<your-razorpay-key-secret>
+REDIS_URL=rediss://:PASSWORD@HOST:PORT
 LOG_LEVEL=info
 ```
 
