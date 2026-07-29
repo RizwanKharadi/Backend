@@ -1,0 +1,736 @@
+import express from 'express';
+import bcrypt from 'bcryptjs';
+import crypto from 'crypto';
+import jwt from 'jsonwebtoken';
+import { body, validationResult } from 'express-validator';
+import User from '../models/User.js';
+import Company from '../models/Company.js';
+import Subscription from '../models/Subscription.js';
+import Organization from '../models/Organization.js';
+import { protect, optionalAuth } from '../middleware/auth.js';
+import { createTrialOrganization } from '../services/licenseService.js';
+import {
+  registerTallySerial,
+  mapTallyLicensePayload
+} from '../services/tallySerialService.js';
+import logger from '../utils/logger.js';
+import { serializeUser } from '../utils/serializeUser.js';
+
+const router = express.Router();
+
+/**
+ * @swagger
+ * /api/auth/register:
+ *   post:
+ *     summary: Register a new user
+ *     tags: [Authentication]
+ *     security: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - email
+ *               - phone
+ *               - password
+ *               - companyName
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: John Doe
+ *               email:
+ *                 type: string
+ *                 example: john@example.com
+ *               phone:
+ *                 type: string
+ *                 example: +919876543210
+ *               password:
+ *                 type: string
+ *                 example: password123
+ *               companyName:
+ *                 type: string
+ *                 example: Acme Corporation
+ *               companyDetails:
+ *                 type: object
+ *                 properties:
+ *                   address:
+ *                     type: string
+ *                   city:
+ *                     type: string
+ *                   state:
+ *                     type: string
+ *                   pincode:
+ *                     type: string
+ *                   businessType:
+ *                     type: string
+ *                   industry:
+ *                     type: string
+ *     responses:
+ *       201:
+ *         description: User registered successfully
+ *       400:
+ *         description: Validation error or user already exists
+ *       500:
+ *         description: Server error
+ */
+// @desc    Register user
+// @route   POST /api/auth/register
+// @access  Public
+router.post('/register', [
+  body('name').trim().isLength({ min: 2, max: 50 }).withMessage('Name must be between 2 and 50 characters'),
+  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
+  body('phone').isMobilePhone().withMessage('Please provide a valid phone number'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters'),
+  body('companyName')
+    .optional({ checkFalsy: true })
+    .trim()
+    .isLength({ min: 2, max: 100 })
+    .withMessage('Company name must be between 2 and 100 characters when provided')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const {
+      name,
+      email,
+      phone,
+      password,
+      companyName = '',
+      companyDetails = {},
+      tallyLicense
+    } = req.body;
+    const trimmedCompanyName = typeof companyName === 'string' ? companyName.trim() : '';
+    const licensePayload = mapTallyLicensePayload(tallyLicense);
+
+    // Check if user already exists
+    const existingUser = await User.findOne({ 
+      $or: [{ email }, { phone }] 
+    });
+
+    if (existingUser) {
+      return res.status(400).json({
+        success: false,
+        message: 'User already exists with this email or phone number'
+      });
+    }
+
+    const orgDisplayName =
+      trimmedCompanyName.length >= 2 ? trimmedCompanyName : `${name}'s Organization`;
+
+    // Create user first, then trial organization (7 days, 1 device seat)
+    const user = await User.create({
+      name,
+      email,
+      phone,
+      password,
+      role: 'admin',
+      isEmailVerified: false
+    });
+
+    const { organization, subscription } = await createTrialOrganization({
+      name: orgDisplayName,
+      billingEmail: email,
+      createdBy: user._id
+    });
+
+    if (companyDetails && typeof companyDetails === 'object' && Object.keys(companyDetails).length > 0) {
+      if (!(organization.metadata instanceof Map)) {
+        organization.metadata = new Map(Object.entries(organization.metadata || {}));
+      }
+      organization.metadata.set('registrationDetails', JSON.stringify(companyDetails));
+      await organization.save();
+    }
+
+    if (licensePayload?.serialNumber) {
+      try {
+        await registerTallySerial({
+          serialNumber: licensePayload.serialNumber,
+          userId: user._id,
+          organizationId: organization._id,
+          email,
+          licenseDetails: licensePayload
+        });
+      } catch (serialErr) {
+        await User.findByIdAndDelete(user._id);
+        await Subscription.deleteOne({ _id: subscription._id });
+        await Organization.deleteOne({ _id: organization._id });
+        return res.status(500).json({
+          success: false,
+          message: serialErr?.message || 'Server error'
+        });
+      }
+    }
+
+    user.organizationId = organization._id;
+    await user.save();
+
+    let createdCompany = null;
+    if (trimmedCompanyName.length >= 2) {
+      createdCompany = await Company.create({
+        name: trimmedCompanyName,
+        organizationId: organization._id,
+        address: {
+          line1: companyDetails.address || 'Not specified',
+          city: companyDetails.city || 'Not specified',
+          state: companyDetails.state || 'Not specified',
+          pincode: companyDetails.pincode || '400001'
+        },
+        contact: {
+          phone: phone,
+          email: email
+        },
+        businessType: companyDetails.businessType || 'other',
+        industry: companyDetails.industry || 'Other',
+        financialYear: {
+          startDate: new Date(new Date().getFullYear(), 3, 1), // April 1st
+          endDate: new Date(new Date().getFullYear() + 1, 2, 31) // March 31st
+        },
+        createdBy: user._id,
+        users: [{
+          user: user._id,
+          role: 'admin',
+          permissions: {
+            vouchers: { create: true, read: true, update: true, delete: true },
+            inventory: { create: true, read: true, update: true, delete: true },
+            reports: { financial: true, inventory: true, gst: true, analytics: true }
+          }
+        }]
+      });
+
+      user.companies.push(createdCompany._id);
+      await user.save();
+    }
+
+    // Generate email verification token
+    const emailToken = user.getEmailVerificationToken();
+    await user.save();
+
+    const token = user.getSignedJwtToken();
+    const refreshToken = user.getRefreshToken();
+
+    logger.info(`New user registered: ${email}`);
+
+    const userOut = await User.findById(user._id)
+      .select('-password')
+      .populate('companies', 'name isActive');
+
+    res.status(201).json({
+      success: true,
+      message: 'User registered successfully',
+      data: {
+        token,
+        refreshToken,
+        user: serializeUser(userOut),
+        company: createdCompany
+          ? {
+              id: createdCompany._id,
+              name: createdCompany.name
+            }
+          : null,
+        organization: {
+          id: organization._id,
+          name: organization.name,
+          status: organization.status
+        },
+        subscription: {
+          status: subscription.status,
+          seatLimit: subscription.seatLimit,
+          trialEndsAt: subscription.trialEndsAt,
+          currentPeriodEnd: subscription.currentPeriodEnd,
+          mobileIncluded: true
+        },
+        tallySerial: licensePayload?.serialNumber
+          ? { serialNumber: licensePayload.serialNumber, registered: true }
+          : null
+      }
+    });
+
+  } catch (error) {
+    logger.error('Registration error:', error);
+    if (error.name === 'ValidationError') {
+      const messages = Object.values(error.errors || {}).map((e) => e.message);
+      return res.status(400).json({
+        success: false,
+        message: messages[0] || 'Validation failed',
+        errors: messages
+      });
+    }
+    res.status(500).json({
+      success: false,
+      message: 'Server error during registration'
+    });
+  }
+});
+
+// @desc    Login user
+// @route   POST /api/auth/login
+// @access  Public
+router.post('/login', [
+  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
+  body('password').notEmpty().withMessage('Password is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { email, password } = req.body;
+
+    // Check for user
+    const user = await User.findOne({ email })
+      .select('+password')
+      .populate('companies', 'name isActive');
+
+    if (!user) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Check if account is locked
+    if (user.isLocked) {
+      return res.status(423).json({
+        success: false,
+        message: 'Account is temporarily locked due to too many failed login attempts'
+      });
+    }
+
+    // Check if user is active
+    if (!user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account is deactivated'
+      });
+    }
+
+    // Check password
+    const isMatch = await user.matchPassword(password);
+
+    if (!isMatch) {
+      try {
+        await user.incLoginAttempts();
+      } catch (error) {
+        logger.error('Error incrementing login attempts:', error);
+        // Continue with the response even if incrementing fails
+      }
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid credentials'
+      });
+    }
+
+    // Reset login attempts on successful login
+    if (user.loginAttempts > 0) {
+      try {
+        await user.resetLoginAttempts();
+      } catch (error) {
+        logger.error('Error resetting login attempts:', error);
+        // Continue with successful login even if reset fails
+      }
+    }
+
+    // Update last login
+    user.lastLogin = new Date();
+    await user.save();
+
+    const token = user.getSignedJwtToken();
+    const refreshToken = user.getRefreshToken();
+
+    logger.info(`User logged in: ${email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Login successful',
+      data: {
+        token,
+        refreshToken,
+        user: serializeUser(user)
+      }
+    });
+
+  } catch (error) {
+    logger.error('Login error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during login'
+    });
+  }
+});
+
+// @desc    Refresh access token (desktop/mobile — no password needed)
+// @route   POST /api/auth/refresh
+// @access  Public (requires valid refresh token)
+router.post('/refresh', [
+  body('refreshToken').notEmpty().withMessage('refreshToken is required')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { refreshToken } = req.body;
+
+    let decoded;
+    try {
+      decoded = jwt.verify(refreshToken, process.env.JWT_SECRET);
+    } catch (error) {
+      const expired = error?.name === 'TokenExpiredError';
+      return res.status(401).json({
+        success: false,
+        message: expired
+          ? 'Your session has expired. Please sign in again.'
+          : 'Invalid session. Please sign in again.',
+        code: expired ? 'REFRESH_TOKEN_EXPIRED' : 'REFRESH_TOKEN_INVALID'
+      });
+    }
+
+    if (decoded.type !== 'refresh' || !decoded.id) {
+      return res.status(401).json({
+        success: false,
+        message: 'Invalid session. Please sign in again.',
+        code: 'REFRESH_TOKEN_INVALID'
+      });
+    }
+
+    const user = await User.findById(decoded.id)
+      .select('-password')
+      .populate('companies', 'name isActive');
+
+    if (!user || !user.isActive) {
+      return res.status(401).json({
+        success: false,
+        message: 'Account not found or deactivated. Please sign in again.',
+        code: 'USER_INACTIVE'
+      });
+    }
+
+    const token = user.getSignedJwtToken();
+    const newRefreshToken = user.getRefreshToken();
+
+    res.status(200).json({
+      success: true,
+      message: 'Session renewed',
+      data: {
+        token,
+        refreshToken: newRefreshToken,
+        user: serializeUser(user)
+      }
+    });
+  } catch (error) {
+    logger.error('Token refresh error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during session refresh'
+    });
+  }
+});
+
+// @desc    Get current user
+// @route   GET /api/auth/me
+// @access  Private
+router.get('/me', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .populate('companies', 'name isActive');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: serializeUser(user)
+      }
+    });
+  } catch (error) {
+    logger.error('Get current user error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Get user profile (alias for /me)
+// @route   GET /api/auth/profile
+// @access  Private
+router.get('/profile', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id)
+      .populate('companies', 'name isActive');
+
+    res.status(200).json({
+      success: true,
+      data: {
+        user: serializeUser(user)
+      }
+    });
+  } catch (error) {
+    logger.error('Get user profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Update user profile
+// @route   PUT /api/auth/profile
+// @access  Private
+router.put('/profile', [
+  body('name').optional().trim().isLength({ min: 2, max: 50 }).withMessage('Name must be between 2 and 50 characters'),
+  body('phone').optional().isMobilePhone().withMessage('Please provide a valid phone number'),
+  body('preferences').optional().isObject().withMessage('Preferences must be an object')
+], protect, async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const allowedFields = ['name', 'phone', 'preferences'];
+    const updateData = {};
+
+    Object.keys(req.body).forEach(key => {
+      if (allowedFields.includes(key)) {
+        updateData[key] = req.body[key];
+      }
+    });
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      updateData,
+      { new: true, runValidators: true }
+    ).select('-password').populate('companies', 'name isActive');
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    logger.info(`User profile updated: ${user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Profile updated successfully',
+      data: {
+        user: serializeUser(user)
+      }
+    });
+  } catch (error) {
+    logger.error('Update profile error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Resend email verification link
+// @route   POST /api/auth/resend-verification
+// @access  Private
+router.post('/resend-verification', protect, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    if (user.isEmailVerified) {
+      return res.status(200).json({
+        success: true,
+        message: 'Email is already verified'
+      });
+    }
+
+    const verificationToken = user.getEmailVerificationToken();
+    await user.save();
+
+    logger.info(`Verification email resent for: ${user.email}`);
+
+    const payload = {
+      success: true,
+      message:
+        'Verification link generated. Check your email inbox (and spam folder).'
+    };
+
+    if (process.env.NODE_ENV !== 'production') {
+      payload.verificationToken = verificationToken;
+    }
+
+    res.status(200).json(payload);
+  } catch (error) {
+    logger.error('Resend verification error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Logout user
+// @route   POST /api/auth/logout
+// @access  Private
+router.post('/logout', protect, async (req, res) => {
+  try {
+    // In a more sophisticated setup, you might want to blacklist the token
+    // For now, we'll just send a success response
+    
+    logger.info(`User logged out: ${req.user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Logout successful'
+    });
+  } catch (error) {
+    logger.error('Logout error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error during logout'
+    });
+  }
+});
+
+// @desc    Forgot password
+// @route   POST /api/auth/forgot-password
+// @access  Public
+router.post('/forgot-password', [
+  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
+
+    // Generate reset token
+    const resetToken = user.getResetPasswordToken();
+    await user.save();
+
+    // In a real application, you would send an email here
+    // For now, we'll just return the token (remove this in production)
+    
+    logger.info(`Password reset requested for: ${email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset email sent',
+      // Remove this in production
+      resetToken: resetToken
+    });
+
+  } catch (error) {
+    logger.error('Forgot password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+// @desc    Reset password
+// @route   PUT /api/auth/reset-password/:resettoken
+// @access  Public
+router.put('/reset-password/:resettoken', [
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    // Get hashed token
+    const resetPasswordToken = crypto
+      .createHash('sha256')
+      .update(req.params.resettoken)
+      .digest('hex');
+
+    const user = await User.findOne({
+      resetPasswordToken,
+      resetPasswordExpire: { $gt: Date.now() }
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid or expired reset token'
+      });
+    }
+
+    // Set new password
+    user.password = req.body.password;
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    await user.save();
+
+    // Generate JWT token
+    const token = user.getSignedJwtToken();
+
+    logger.info(`Password reset successful for: ${user.email}`);
+
+    res.status(200).json({
+      success: true,
+      message: 'Password reset successful',
+      data: {
+        token
+      }
+    });
+
+  } catch (error) {
+    logger.error('Reset password error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Server error'
+    });
+  }
+});
+
+export default router;

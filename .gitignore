@@ -1,0 +1,30 @@
+node_modules/
+
+# Environment — never commit real secrets
+.env
+.env.local
+.env.office
+.env.production
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Local MySQL (dev on Windows)
+my-local.ini
+mysqld-*.log
+.mysql-data/
+
+# Build / test output
+coverage/
+dist/
+build/
+uploads/
+*.sql
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
