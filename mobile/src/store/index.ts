@@ -15,14 +15,45 @@ import inventoryReducer from './slices/inventorySlice';
 import networkReducer from './slices/networkSlice';
 import paymentReducer from './slices/paymentSlice';
 import reportReducer from './slices/reportSlice';
+import aiReducer from './slices/aiSlice';
 import notificationReducer from './slices/notificationSlice';
 import tallyReducer from './slices/tallySlice';
+
+const companyPersistConfig = {
+  key: 'company',
+  storage: AsyncStorage,
+  whitelist: ['selectedCompany', 'companies'],
+};
+
+const voucherPersistConfig = {
+  key: 'voucher',
+  storage: AsyncStorage,
+  whitelist: ['vouchers', 'stats', 'statsFetchedAt', 'pagination', 'filters'],
+};
+
+const inventoryPersistConfig = {
+  key: 'inventory',
+  storage: AsyncStorage,
+  whitelist: ['items', 'stats', 'lastFetchedAt', 'statsFetchedAt', 'pagination', 'filters'],
+};
+
+const syncPersistConfig = {
+  key: 'sync',
+  storage: AsyncStorage,
+  whitelist: ['lastSyncTime', 'syncHistory', 'pendingChanges'],
+};
+
+const offlinePersistConfig = {
+  key: 'offline',
+  storage: AsyncStorage,
+  blacklist: ['isOfflineMode'],
+};
 
 // Persist configuration
 const persistConfig = {
   key: 'root',
   storage: AsyncStorage,
-  whitelist: ['settings', 'offline'], // Only persist these reducers
+  whitelist: ['settings'],
 };
 
 // Secure persist configuration for sensitive data
@@ -35,17 +66,18 @@ const authPersistConfig = {
 const rootReducer = combineReducers({
   auth: persistReducer(authPersistConfig, authReducer),
   ml: mlReducer,
-  offline: offlineReducer,
+  offline: persistReducer(offlinePersistConfig, offlineReducer),
   settings: settingsReducer,
-  company: companyReducer,
-  sync: syncReducer,
-  voucher: voucherReducer,
-  inventory: inventoryReducer,
+  company: persistReducer(companyPersistConfig, companyReducer),
+  sync: persistReducer(syncPersistConfig, syncReducer),
+  voucher: persistReducer(voucherPersistConfig, voucherReducer),
+  inventory: persistReducer(inventoryPersistConfig, inventoryReducer),
   network: networkReducer,
   payment: paymentReducer,
   report: reportReducer,
   notification: notificationReducer,
   tally: tallyReducer,
+  ai: aiReducer,
 });
 
 // Persisted reducer

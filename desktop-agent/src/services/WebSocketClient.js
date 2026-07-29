@@ -14,6 +14,8 @@ class WebSocketClient extends EventEmitter {
     this.reconnectAttempts = 0;
     this.maxReconnectAttempts = 10;
     this.reconnectDelay = 5000;
+    this.syncInProgress = false;
+    this.pendingReconnect = false;
     this.heartbeatInterval = null;
     this.heartbeatTimeout = null;
     
@@ -419,8 +421,8 @@ class WebSocketClient extends EventEmitter {
       // Start heartbeat
       this.startHeartbeat();
       
-      // Process queued messages
-      this.processMessageQueue();
+      // Process queued messages after the socket is fully open
+      setImmediate(() => this.processMessageQueue());
       
       // Send agent registration (optionally enriched with Tally license info)
       this.sendAgentRegistration().catch((err) => {
@@ -772,9 +774,13 @@ class WebSocketClient extends EventEmitter {
       return;
     }
 
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
     this.isProcessingQueue = true;
     
-    while (this.messageQueue.length > 0 && this.isConnected) {
+    while (this.messageQueue.length > 0 && this.ws && this.ws.readyState === WebSocket.OPEN) {
       const message = this.messageQueue.shift();
       
       try {
@@ -793,6 +799,21 @@ class WebSocketClient extends EventEmitter {
     }
     
     this.isProcessingQueue = false;
+  }
+
+  setSyncInProgress(inProgress) {
+    const wasSyncing = this.syncInProgress;
+    this.syncInProgress = Boolean(inProgress);
+    if (wasSyncing && !this.syncInProgress && this.pendingReconnect && this.hasAuth()) {
+      this.logger.info('Sync finished — applying deferred WebSocket reconnect');
+      this.pendingReconnect = false;
+      if (this.isConnected || this.ws) {
+        this.disconnect();
+      }
+      setTimeout(() => {
+        this.connect().catch((err) => this.logger.error('Deferred reconnect failed:', err));
+      }, 400);
+    }
   }
 
   startHeartbeat() {
@@ -926,6 +947,12 @@ class WebSocketClient extends EventEmitter {
     const authBecameAvailable = !prev.token && !prev.apiKey && this.hasAuth();
 
     if ((mustReconnect || authBecameAvailable) && this.hasAuth()) {
+      if (this.syncInProgress) {
+        this.logger.info('Deferring WebSocket reconnect until sync completes');
+        this.pendingReconnect = true;
+        this.saveConfig(this.config);
+        return;
+      }
       this.logger.info('WebSocket config changed; connecting with updated credentials…');
       if (this.isConnected || this.ws) {
         this.disconnect();

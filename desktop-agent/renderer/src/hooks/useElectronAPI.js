@@ -672,13 +672,18 @@ export const useElectronAPI = () => {
       })
       const result = await window.electronAPI.syncStart(options)
       toast.dismiss('sync-in-progress')
-      if (result) {
+      if (result?.started) {
         setSyncStatus({ status: SyncStatus.RUNNING, progress: 0 })
         toast.success('Sync started')
-      } else {
-        toast.error('Failed to start sync')
+        return true
       }
-      return result
+      if (result === true) {
+        setSyncStatus({ status: SyncStatus.RUNNING, progress: 0 })
+        toast.success('Sync started')
+        return true
+      }
+      toast.error(result?.reason || 'Failed to start sync')
+      return false
     } catch (error) {
       toast.dismiss('sync-in-progress')
       console.error('Failed to start sync:', error)

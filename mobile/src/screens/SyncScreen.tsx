@@ -36,7 +36,7 @@ import {
 } from '../store/slices/syncSlice';
 
 // Types
-import { MainTabScreenProps } from '../types/navigation';
+import { MainStackScreenProps } from '../types/navigation';
 
 interface SyncStatus {
   lastSync: string | null;
@@ -48,10 +48,9 @@ interface SyncStatus {
   syncInterval: number;
 }
 
-type Props = MainTabScreenProps<'Sync'>;
+type Props = MainStackScreenProps<'Sync'>;
 
 const SyncScreen: React.FC<Props> = ({ navigation }) => {
-  const parentNavigation = navigation.getParent();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
 
@@ -169,7 +168,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const getSyncStatusColor = (): string => {
-    if (error) return theme.colors.error;
+    if (syncError) return theme.colors.error;
     if (isSyncing) return theme.colors.primary;
     if (!isOnline) return theme.colors.error;
     if (pendingChanges > 0) return theme.colors.tertiary;
@@ -177,7 +176,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const getSyncStatusText = (): string => {
-    if (error) return 'Error';
+    if (syncError) return 'Error';
     if (isSyncing) return 'Syncing...';
     if (!isOnline) return 'Offline';
     if (pendingChanges > 0) return 'Pending changes';
@@ -189,8 +188,10 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
       <Header
         title="Sync"
         subtitle="Data synchronization"
+        showBack
         showSync
-        onSettingsPress={() => parentNavigation?.navigate('Settings')}
+        onBackPress={() => navigation.goBack()}
+        onSettingsPress={() => navigation.navigate('Settings')}
       />
 
       <ScrollView

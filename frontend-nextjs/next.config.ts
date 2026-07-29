@@ -6,10 +6,13 @@ const nextConfig: NextConfig = {
     unoptimized: process.env.NODE_ENV === 'development',
   },
   async rewrites() {
+    const apiBase = (process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api')
+      .replace(/\/+$/, '')
+      .replace(/\/api$/, '');
     return [
       {
         source: '/api/:path*',
-        destination: `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/api/:path*`,
+        destination: `${apiBase}/api/:path*`,
       },
     ];
   },

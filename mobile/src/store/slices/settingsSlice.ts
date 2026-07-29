@@ -10,6 +10,7 @@ interface SettingsState {
   offlineMode: boolean;
   debugMode: boolean;
   isFirstLaunch: boolean;
+  hasSeenAppGuide: boolean;
   selectedCompanyId: string | null;
 }
 
@@ -23,6 +24,7 @@ const initialState: SettingsState = {
   offlineMode: false,
   debugMode: false,
   isFirstLaunch: true,
+  hasSeenAppGuide: false,
   selectedCompanyId: null,
 };
 
@@ -57,6 +59,12 @@ const settingsSlice = createSlice({
     setFirstLaunchCompleted: (state) => {
       state.isFirstLaunch = false;
     },
+    setAppGuideCompleted: (state) => {
+      state.hasSeenAppGuide = true;
+    },
+    resetAppGuide: (state) => {
+      state.hasSeenAppGuide = false;
+    },
     setSelectedCompany: (state, action: PayloadAction<string | null>) => {
       state.selectedCompanyId = action.payload;
     },
@@ -64,6 +72,7 @@ const settingsSlice = createSlice({
       return {
         ...initialState,
         isFirstLaunch: false, // Don't reset first launch flag
+        hasSeenAppGuide: state.hasSeenAppGuide,
       };
     },
   },
@@ -79,6 +88,8 @@ export const {
   setOfflineMode,
   setDebugMode,
   setFirstLaunchCompleted,
+  setAppGuideCompleted,
+  resetAppGuide,
   setSelectedCompany,
   resetSettings,
 } = settingsSlice.actions;

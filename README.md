@@ -67,7 +67,8 @@ A full-stack ERP solution with seamless Tally integration, designed for modern b
 ```
 FinSync360/
 ├── backend/                 # Node.js API server
-├── frontend/               # React.js web application
+├── frontend-nextjs/          # Next.js web application (production)
+├── frontend/                 # Legacy CRA web app (deprecated)
 ├── mobile/                 # React Native mobile apps
 ├── desktop/                # Electron desktop application
 ├── desktop-agent/          # Electron Tally sync agent
@@ -101,7 +102,7 @@ chmod +x quick-setup.sh
 ```
 
 This script will:
-- Install all dependencies for backend, frontend, mobile, and ML services
+- Install all dependencies for backend, frontend-nextjs, mobile, and ML services
 - Set up environment configuration files
 - Initialize the database with sample data
 - Verify all services are ready to run
@@ -151,16 +152,33 @@ mongod --dbpath /path/to/your/data/directory
 
 ### Running the Application
 
-**Start all services:**
+#### Tally sync → mobile (no web browser required)
+
+```bash
+npm run backend:dev          # API + WebSocket on http://localhost:5000
+npm run desktop-agent:dev    # Tally sync agent (TallyPrime must be open)
+npm run mobile:dev           # React Native app
+npm run verify:sync-stack    # Check config + backend health
+```
+
+See **[docs/SYNC_STACK_VERIFICATION.md](docs/SYNC_STACK_VERIFICATION.md)** for the full checklist.
+
+Or start backend + agent together:
+
+```bash
+npm run sync:dev
+```
+
+#### Web + API development
+
+**Start backend and web UI:**
 ```bash
 npm run dev
 ```
 
 This starts:
 - Backend API on `http://localhost:5000`
-- Frontend web app on `http://localhost:3000`
-- ML service on `http://localhost:8000`
-- MongoDB connection
+- Next.js web app on `http://localhost:3000`
 
 **Start individual services:**
 
@@ -168,8 +186,12 @@ This starts:
 # Backend API only
 npm run backend:dev
 
-# Frontend web app only
-npm run frontend:dev
+# Web app (Next.js — production UI)
+npm run frontend:setup   # first time only (install + .env.local)
+npm run frontend:dev     # http://localhost:3000
+
+# Legacy CRA web app (deprecated)
+npm run frontend-legacy:dev
 
 # Mobile app (React Native)
 npm run mobile:dev
@@ -257,15 +279,15 @@ ENABLE_PUSH_NOTIFICATIONS=true
 ENABLE_OFFLINE_MODE=true
 ```
 
-**Frontend (.env)**
+**Frontend — frontend-nextjs (.env.local)**
 ```bash
-# API Configuration
+# Copy: cp frontend-nextjs/.env.example frontend-nextjs/.env.local
 NEXT_PUBLIC_API_URL=http://localhost:5000/api
 NEXT_PUBLIC_ML_SERVICE_URL=http://localhost:8000/api/v1
-
-# Environment
 NODE_ENV=development
 ```
+
+The legacy `frontend/` Create React App folder is deprecated; see [frontend/README.md](frontend/README.md).
 
 ## 📱 Platform-Specific Features
 
@@ -410,6 +432,7 @@ For production deployment, ensure you:
 - **[ML Service](ml-service/README.md)** - Machine learning service and model training
 - **[Desktop App](desktop/README.md)** - Electron desktop application
 - **[Desktop Agent](desktop-agent/README.md)** - Tally synchronization agent
+- **[Tally Sync Verification](docs/SYNC_STACK_VERIFICATION.md)** - Tally → agent → Atlas → mobile checklist
 
 ### Integration Guides
 - **Tally Integration** - XML-based bidirectional sync with Tally ERP

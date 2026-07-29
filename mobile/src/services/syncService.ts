@@ -1,10 +1,10 @@
 import { apiClient } from './apiClient';
 import { databaseService } from './databaseService';
 import { webSocketService } from './webSocketService';
-import { SyncSession, SyncProgress, SyncStatus, Voucher, InventoryItem, SyncConflict } from '../types';
+import { SyncSession, SyncProgress, SyncStatus, SyncConflict } from '../types';
 import { store } from '../store';
-import { setSyncProgress, addSyncSession, setSyncStatus } from '../store/slices/syncSlice';
-import { setNetworkStatus } from '../store/slices/networkSlice';
+import { setSyncProgress, addSyncSession, updateSyncStatus } from '../store/slices/syncSlice';
+import { setNetworkState } from '../store/slices/networkSlice';
 import NetInfo from '@react-native-community/netinfo';
 
 export interface ConflictResolutionStrategy {
@@ -41,9 +41,10 @@ class SyncService {
       const wasOnline = this.isOnline;
       this.isOnline = state.isConnected || false;
 
-      store.dispatch(setNetworkStatus({
-        isOnline: this.isOnline,
-        connectionType: state.type,
+      store.dispatch(setNetworkState({
+        isConnected: this.isOnline,
+        type: state.type || 'unknown',
+        isInternetReachable: state.isInternetReachable ?? this.isOnline,
       }));
 
       // Process pending changes when coming back online
@@ -76,7 +77,7 @@ class SyncService {
     });
 
     webSocketService.on('disconnected', () => {
-      this.isOnline = false;
+      // WebSocket drop ≠ phone offline; NetInfo drives offline mode.
     });
   }
 
@@ -106,9 +107,14 @@ class SyncService {
     };
 
     this.currentSession = session;
-    store.dispatch(setSyncStatus('syncing'));
+    store.dispatch(updateSyncStatus('syncing'));
 
     try {
+      const selectedCompanyId = store.getState().company?.selectedCompany?.id;
+      if (!selectedCompanyId) {
+        throw new Error('Please select a company before syncing');
+      }
+
       // Sync companies first
       await this.syncCompanies(session);
 
@@ -123,6 +129,14 @@ class SyncService {
 
       session.status = 'completed';
       session.endTime = new Date().toISOString();
+      store.dispatch(updateSyncStatus('completed'));
+      store.dispatch(setSyncProgress({
+        type: 'sync',
+        current: session.processedItems,
+        total: session.totalItems,
+        percentage: 100,
+        message: `Sync completed: ${session.processedItems}/${session.totalItems}`,
+      }));
 
       // Add to sync history
       store.dispatch(addSyncSession(session));
@@ -131,6 +145,7 @@ class SyncService {
     } catch (error: any) {
       session.status = 'error';
       session.endTime = new Date().toISOString();
+      store.dispatch(updateSyncStatus('error'));
       session.errors.push({
         type: 'general',
         item: 'sync',
@@ -177,8 +192,19 @@ class SyncService {
     history?: SyncSession[];
   }> {
     try {
-      const response = await apiClient.get('/sync/status');
-      return response.data.data;
+      const companyId = store.getState().company?.selectedCompany?.id;
+      if (companyId) {
+        const response = await apiClient.get(`/tally/sync-status/${companyId}`);
+        const backendData = response.data?.data || {};
+        return {
+          status: backendData.currentSync?.inProgress ? 'syncing' : 'idle',
+          lastSyncTime: backendData.lastSyncDate || undefined,
+          pendingChanges: 0,
+          history: [],
+        };
+      }
+
+      throw new Error('No company selected');
     } catch (error) {
       // Return local status if API call fails
       const pendingChanges = await databaseService.getPendingChangesCount();
@@ -198,13 +224,15 @@ class SyncService {
   private async syncCompanies(session: SyncSession): Promise<void> {
     try {
       const response = await apiClient.get('/companies');
-      const companies = response.data.data;
+      const payload = response.data?.data || {};
+      const companies = payload.companies || payload.docs || [];
 
       session.summary.companies = {
         total: companies.length,
         processed: 0,
         errors: 0,
       };
+      session.totalItems += companies.length;
 
       for (const company of companies) {
         try {
@@ -222,11 +250,12 @@ class SyncService {
         }
 
         // Update progress
+        const total = Math.max(session.totalItems, 1);
         store.dispatch(setSyncProgress({
           type: 'companies',
-          current: session.summary.companies.processed,
-          total: session.summary.companies.total,
-          percentage: (session.summary.companies.processed / session.summary.companies.total) * 100,
+          current: session.processedItems,
+          total,
+          percentage: (session.processedItems / total) * 100,
           message: `Syncing companies: ${session.summary.companies.processed}/${session.summary.companies.total}`,
         }));
       }
@@ -240,24 +269,18 @@ class SyncService {
    */
   private async syncVouchers(session: SyncSession): Promise<void> {
     try {
-      // Get vouchers from last 30 days
-      const fromDate = new Date();
-      fromDate.setDate(fromDate.getDate() - 30);
-      
-      const response = await apiClient.get('/vouchers', {
-        params: {
-          fromDate: fromDate.toISOString().split('T')[0],
-          limit: 1000,
-        },
-      });
-      
-      const vouchers = response.data.data;
+      const companyId = store.getState().company?.selectedCompany?.id;
+      if (!companyId) {
+        throw new Error('No company selected');
+      }
+      const vouchers = await this.fetchAllVouchers(companyId);
 
       session.summary.vouchers = {
         total: vouchers.length,
         processed: 0,
         errors: 0,
       };
+      session.totalItems += vouchers.length;
 
       for (const voucher of vouchers) {
         try {
@@ -275,11 +298,12 @@ class SyncService {
         }
 
         // Update progress
+        const total = Math.max(session.totalItems, 1);
         store.dispatch(setSyncProgress({
           type: 'vouchers',
-          current: session.summary.vouchers.processed,
-          total: session.summary.vouchers.total,
-          percentage: (session.summary.vouchers.processed / session.summary.vouchers.total) * 100,
+          current: session.processedItems,
+          total,
+          percentage: (session.processedItems / total) * 100,
           message: `Syncing vouchers: ${session.summary.vouchers.processed}/${session.summary.vouchers.total}`,
         }));
       }
@@ -293,14 +317,18 @@ class SyncService {
    */
   private async syncInventoryItems(session: SyncSession): Promise<void> {
     try {
-      const response = await apiClient.get('/inventory/items');
-      const items = response.data.data;
+      const companyId = store.getState().company?.selectedCompany?.id;
+      if (!companyId) {
+        throw new Error('No company selected');
+      }
+      const items = await this.fetchAllInventoryItems(companyId);
 
       session.summary.items = {
         total: items.length,
         processed: 0,
         errors: 0,
       };
+      session.totalItems += items.length;
 
       for (const item of items) {
         try {
@@ -318,11 +346,12 @@ class SyncService {
         }
 
         // Update progress
+        const total = Math.max(session.totalItems, 1);
         store.dispatch(setSyncProgress({
           type: 'items',
-          current: session.summary.items.processed,
-          total: session.summary.items.total,
-          percentage: (session.summary.items.processed / session.summary.items.total) * 100,
+          current: session.processedItems,
+          total,
+          percentage: (session.processedItems / total) * 100,
           message: `Syncing items: ${session.summary.items.processed}/${session.summary.items.total}`,
         }));
       }
@@ -621,6 +650,50 @@ class SyncService {
    */
   private generateSyncId(): string {
     return `sync_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  }
+
+  private async fetchAllVouchers(companyId: string): Promise<any[]> {
+    const all: any[] = [];
+    let page = 1;
+    const limit = 500;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await apiClient.get('/vouchers', {
+        params: { companyId, page, limit }
+      });
+      const pageData = response.data?.data || {};
+      const docs = pageData.docs || [];
+      all.push(...docs);
+
+      const totalPages = pageData.totalPages || 1;
+      hasMore = page < totalPages;
+      page += 1;
+    }
+
+    return all;
+  }
+
+  private async fetchAllInventoryItems(companyId: string): Promise<any[]> {
+    const all: any[] = [];
+    let page = 1;
+    const limit = 500;
+    let hasMore = true;
+
+    while (hasMore) {
+      const response = await apiClient.get('/inventory/items', {
+        params: { companyId, page, limit }
+      });
+      const pageData = response.data?.data || {};
+      const docs = pageData.docs || [];
+      all.push(...docs);
+
+      const totalPages = pageData.totalPages || 1;
+      hasMore = page < totalPages;
+      page += 1;
+    }
+
+    return all;
   }
 }
 

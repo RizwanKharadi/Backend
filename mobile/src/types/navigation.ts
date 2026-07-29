@@ -24,6 +24,7 @@ export type MainStackParamList = {
   LoginHistory: undefined;
   ChangePassword: undefined;
   CompanySelection: undefined;
+  InventoryList: { initialFilter?: 'all' | 'ok' | 'low' | 'out' } | undefined;
   VoucherDetail: { voucherId: string };
   CreateVoucher: { type?: string };
   CreateNewVoucher: { initialType?: string };
@@ -113,6 +114,7 @@ export type ReportsStackParamList = {
     parentGroup?: string;
   };
   TopTenReport: undefined;
+  FastMovingItems: undefined;
   OutstandingReceivable: undefined;
   OutstandingLedgerDetail: { partyName: string };
   InactiveCustomer: undefined;

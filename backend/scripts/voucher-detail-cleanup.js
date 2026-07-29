@@ -1,26 +1,20 @@
 /**
- * LRU / TTL cleanup for voucher_details cache.
- * Usage: node scripts/voucher-detail-cleanup.js
+ * Voucher detail cleanup (MySQL).
  */
-import mongoose from 'mongoose';
 import dotenv from 'dotenv';
-import VoucherDetail from '../src/models/VoucherDetail.js';
-
 dotenv.config();
+import { connectDB, disconnectDB, getModels } from '../src/config/database.js';
 
 async function main() {
-  const uri = process.env.MONGODB_URI || process.env.MONGO_URI;
-  if (!uri) {
-    console.error('MONGODB_URI is not set');
-    process.exit(1);
-  }
-  await mongoose.connect(uri);
-  const result = await VoucherDetail.cleanupStale();
-  console.log('Voucher detail cleanup:', result);
-  await mongoose.disconnect();
+  await connectDB();
+  const { VoucherDetail } = getModels();
+  const days = Number(process.env.VOUCHER_DETAIL_TTL_DAYS) || 30;
+  const result = await VoucherDetail.cleanupStale(days);
+  console.log('Cleaned stale voucher details:', result);
+  await disconnectDB();
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((e) => {
+  console.error(e);
   process.exit(1);
 });

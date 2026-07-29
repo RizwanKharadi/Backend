@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Contact TallyFin support — sales, setup help, and partnerships.">
+  <title>Contact — TallyFin</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div id="site-header-mount"></div>
+
+  <main>
+    <header class="page-hero">
+      <div class="container reveal is-visible">
+        <p class="eyebrow">Contact</p>
+        <h1 class="display-lg">We’re here to help.</h1>
+        <p class="subhead">Setup, billing, or partnership — send us a message.</p>
+      </div>
+    </header>
+
+    <section class="section" style="padding-top:0">
+      <div class="container-wide">
+        <div class="contact-grid reveal">
+          <form id="contact-form" class="feature-card" style="padding:40px" novalidate>
+            <div class="form-group">
+              <label for="name">Name</label>
+              <input type="text" id="name" name="name" required autocomplete="name">
+            </div>
+            <div class="form-group">
+              <label for="email">Email</label>
+              <input type="email" id="email" name="email" required autocomplete="email">
+            </div>
+            <div class="form-group">
+              <label for="subject">Topic</label>
+              <select id="subject" name="subject">
+                <option value="support">Technical support</option>
+                <option value="sales">Sales &amp; pricing</option>
+                <option value="partner">Partnership</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="message">Message</label>
+              <textarea id="message" name="message" required></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary btn-lg">Send message</button>
+            <p class="caption" style="margin-top:12px">Opens your email app — no data is sent to a server from this website.</p>
+          </form>
+          <div>
+            <div class="contact-info-card">
+              <h3>Email</h3>
+              <p id="contact-email-display">support@tallyfin.com</p>
+              <h3>Phone</h3>
+              <p id="contact-phone-display">+91 00000 00000</p>
+              <h3>Office</h3>
+              <p id="contact-address-display">India</p>
+            </div>
+            <p class="text-secondary" style="margin-top:24px;font-size:15px">
+              For fastest setup help, mention your Tally version and whether you’ve installed the desktop agent.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-footer-mount"></div>
+  <script src="js/config.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    (function () {
+      var c = window.TALLYFIN_CONFIG || {};
+      var e = document.getElementById('contact-email-display');
+      var p = document.getElementById('contact-phone-display');
+      var a = document.getElementById('contact-address-display');
+      if (e && c.contactEmail) { e.textContent = c.contactEmail; e.innerHTML = '<a href="mailto:' + c.contactEmail + '">' + c.contactEmail + '</a>'; }
+      if (p && c.contactPhone) p.textContent = c.contactPhone;
+      if (a && c.contactAddress) a.textContent = c.contactAddress;
+    })();
+  </script>
+</body>
+</html>

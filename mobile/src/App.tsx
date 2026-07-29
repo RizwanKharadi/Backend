@@ -6,9 +6,11 @@ import { Provider as ReduxProvider } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import Toast from 'react-native-toast-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Store and Navigation
 import { store, persistor } from './store';
+import { validateSession } from './store/slices/authSlice';
 import AppNavigator from './navigation/AppNavigator';
 
 // Services
@@ -21,6 +23,7 @@ import ErrorBoundary from './components/common/ErrorBoundary';
 
 // Utils
 import { setupNetworkListener } from './utils/networkUtils';
+import { refreshConnectivityAndBackend } from './utils/connectivity';
 import { initializeDatabase } from './utils/databaseUtils';
 
 // Ignore specific warnings for development
@@ -54,21 +57,30 @@ const App: React.FC = () => {
   return (
     <ErrorBoundary>
       <GestureHandlerRootView style={{ flex: 1 }}>
-        <ReduxProvider store={store}>
-          <PersistGate loading={<LoadingScreen />} persistor={persistor}>
-            <PaperProvider theme={theme}>
-              <NavigationContainer>
-                <StatusBar
-                  barStyle="dark-content"
-                  backgroundColor={theme.colors.surface}
-                  translucent={false}
-                />
-                <AppNavigator />
-                <Toast />
-              </NavigationContainer>
-            </PaperProvider>
-          </PersistGate>
-        </ReduxProvider>
+        <SafeAreaProvider>
+          <ReduxProvider store={store}>
+            <PersistGate
+              loading={<LoadingScreen />}
+              persistor={persistor}
+              onBeforeLift={() => {
+                store.dispatch(validateSession());
+                void refreshConnectivityAndBackend();
+              }}
+            >
+              <PaperProvider theme={theme}>
+                <NavigationContainer>
+                  <StatusBar
+                    barStyle="dark-content"
+                    backgroundColor={theme.colors.surface}
+                    translucent={false}
+                  />
+                  <AppNavigator />
+                  <Toast />
+                </NavigationContainer>
+              </PaperProvider>
+            </PersistGate>
+          </ReduxProvider>
+        </SafeAreaProvider>
       </GestureHandlerRootView>
     </ErrorBoundary>
   );

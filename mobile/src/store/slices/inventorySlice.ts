@@ -1,6 +1,7 @@
 import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
 import { inventoryService } from '../../services/inventoryService';
 import { databaseService } from '../../services/databaseService';
+import { offlineCacheService } from '../../services/offlineCacheService';
 import { InventoryItem, CreateInventoryItemData, UpdateInventoryItemData } from '../../types';
 
 interface InventoryState {
@@ -12,7 +13,16 @@ interface InventoryState {
     category?: string;
     search?: string;
     lowStock?: boolean;
+    outOfStock?: boolean;
   };
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    hasMore: boolean;
+  };
+  lastFetchedAt: number;
+  statsFetchedAt: number;
   stats: {
     total: number;
     lowStock: number;
@@ -34,6 +44,14 @@ const initialState: InventoryState = {
   isLoading: false,
   error: null,
   filters: {},
+  pagination: {
+    page: 1,
+    limit: 30,
+    total: 0,
+    hasMore: true,
+  },
+  lastFetchedAt: 0,
+  statsFetchedAt: 0,
   stats: {
     total: 0,
     lowStock: 0,
@@ -47,15 +65,55 @@ const initialState: InventoryState = {
 // Async thunks
 export const fetchInventoryItems = createAsyncThunk(
   'inventory/fetchItems',
-  async (params: { refresh?: boolean } = {}, { getState, rejectWithValue }) => {
+  async (params: { page?: number; refresh?: boolean } = {}, { getState, rejectWithValue }) => {
+    const state = getState() as any;
+    const { filters, pagination } = state.inventory;
+    const companyId = state.company?.selectedCompany?.id;
+
     try {
-      const state = getState() as any;
-      const { filters } = state.inventory;
+      if (!companyId) {
+        return {
+          items: [] as InventoryItem[],
+          pagination: { page: 1, limit: pagination.limit, total: 0, pages: 0 },
+          refresh: true,
+        };
+      }
 
-      const response = await inventoryService.getItems(filters);
+      const page = params.page ?? (params.refresh ? 1 : pagination.page);
 
-      return response.data;
+      const response = await inventoryService.getItems({
+        page,
+        limit: pagination.limit,
+        companyId,
+        search: filters.search,
+        category: filters.category && filters.category !== 'all' ? filters.category : undefined,
+        lowStock: filters.lowStock,
+        outOfStock: filters.outOfStock,
+      });
+
+      if (companyId) {
+        void offlineCacheService.saveInventoryItems(companyId, response.data);
+      }
+
+      return {
+        items: response.data,
+        pagination: response.pagination!,
+        refresh: params.refresh ?? page === 1,
+      };
     } catch (error: any) {
+      const cached = companyId ? await offlineCacheService.loadInventoryItems(companyId) : null;
+      if (cached?.length) {
+        return {
+          items: cached,
+          pagination: {
+            page: 1,
+            limit: pagination.limit,
+            total: cached.length,
+            pages: 1,
+          },
+          refresh: true,
+        };
+      }
       return rejectWithValue(error.response?.data?.message || 'Failed to fetch inventory items');
     }
   }
@@ -65,9 +123,16 @@ export const fetchInventoryStats = createAsyncThunk(
   'inventory/fetchStats',
   async (companyId: string | undefined = undefined, { rejectWithValue }) => {
     try {
-      const response = await inventoryService.getInventoryStats(companyId);
-      return response.data;
+      const stats = await inventoryService.getInventoryStats(companyId);
+      if (companyId) {
+        void offlineCacheService.saveInventoryStats(companyId, stats);
+      }
+      return stats;
     } catch (error: any) {
+      if (companyId) {
+        const cached = await offlineCacheService.loadInventoryStats(companyId);
+        if (cached) return cached as typeof initialState.stats;
+      }
       return rejectWithValue(error.message || 'Failed to fetch inventory stats');
     }
   }
@@ -97,7 +162,8 @@ export const createItem = createAsyncThunk(
       return response.data;
     } catch (error: any) {
       // Store as pending change if offline
-      if (!navigator.onLine) {
+      const isOffline = typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine;
+      if (isOffline) {
         await databaseService.addPendingChange({
           type: 'item',
           action: 'create',
@@ -141,7 +207,8 @@ export const updateItem = createAsyncThunk(
       return response.data;
     } catch (error: any) {
       // Store as pending change if offline
-      if (!navigator.onLine) {
+      const isOffline = typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine;
+      if (isOffline) {
         await databaseService.addPendingChange({
           type: 'item',
           action: 'update',
@@ -162,7 +229,8 @@ export const deleteItem = createAsyncThunk(
       return itemId;
     } catch (error: any) {
       // Store as pending change if offline
-      if (!navigator.onLine) {
+      const isOffline = typeof navigator !== 'undefined' && 'onLine' in navigator && !navigator.onLine;
+      if (isOffline) {
         await databaseService.addPendingChange({
           type: 'item',
           action: 'delete',
@@ -215,9 +283,16 @@ const inventorySlice = createSlice({
     },
     setFilters: (state, action: PayloadAction<typeof initialState.filters>) => {
       state.filters = action.payload;
+      state.pagination.page = 1;
+      state.pagination.hasMore = true;
     },
     clearFilters: (state) => {
       state.filters = {};
+      state.pagination.page = 1;
+      state.pagination.hasMore = true;
+    },
+    resetPagination: (state) => {
+      state.pagination = initialState.pagination;
     },
     updateItemStock: (state, action: PayloadAction<{ itemId: string; newStock: number }>) => {
       const { itemId, newStock } = action.payload;
@@ -239,18 +314,38 @@ const inventorySlice = createSlice({
       })
       .addCase(fetchInventoryItems.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.items = action.payload;
+        const { items, pagination, refresh } = action.payload;
+        const pg = pagination as { page: number; limit: number; total: number; pages: number };
+
+        if (refresh || pg.page === 1) {
+          state.items = items;
+        } else {
+          const existingIds = new Set(state.items.map((i) => i.id));
+          const merged = items.filter((i) => !existingIds.has(i.id));
+          state.items = [...state.items, ...merged];
+        }
+
+        state.pagination = {
+          page: pg.page,
+          limit: pg.limit,
+          total: pg.total,
+          hasMore: pg.page < pg.pages,
+        };
+        state.lastFetchedAt = Date.now();
         state.error = null;
       })
       .addCase(fetchInventoryItems.rejected, (state, action) => {
         state.isLoading = false;
-        state.error = action.payload as string;
+        if (state.items.length === 0) {
+          state.error = action.payload as string;
+        }
       });
 
     // Fetch stats
     builder
       .addCase(fetchInventoryStats.fulfilled, (state, action) => {
         state.stats = action.payload;
+        state.statsFetchedAt = Date.now();
       });
 
     // Fetch item by ID
@@ -314,6 +409,7 @@ export const {
   setSelectedItem,
   setFilters,
   clearFilters,
+  resetPagination,
   updateItemStock,
 } = inventorySlice.actions;
 

@@ -1,371 +1,272 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import {
   View,
   ScrollView,
   StyleSheet,
-  RefreshControl,
   Alert,
+  TouchableOpacity,
 } from 'react-native';
-import {
-  Surface,
-  Text,
-  Button,
-  Card,
-  List,
-  useTheme,
-  SegmentedButtons,
-} from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// Components
-import Header from '../components/common/Header';
-import StatsCard from '../components/dashboard/StatsCard';
+import ReportsHeader from '../components/reports/ReportsHeader';
+import { dashboardColors } from '../components/dashboard/dashboardTheme';
+import { useCompany } from '../store/hooks';
+import { CompositeScreenProps } from '@react-navigation/native';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import { MainTabParamList, ReportsStackParamList } from '../types/navigation';
 
-// Services
-import { apiClient } from '../services';
+type Props = CompositeScreenProps<
+  NativeStackScreenProps<ReportsStackParamList, 'ReportsHome'>,
+  BottomTabScreenProps<MainTabParamList>
+>;
 
-// Types
-import { MainTabScreenProps } from '../types/navigation';
-
-type Props = MainTabScreenProps<'Reports'>;
+type ReportCategory = 'all' | 'financial' | 'inventory' | 'customer' | 'vouchers';
 
 interface ReportItem {
   id: string;
   title: string;
   description: string;
   icon: string;
-  category: 'financial' | 'inventory' | 'customer' | 'ml';
+  category: Exclude<ReportCategory, 'all'>;
 }
 
-const reports: ReportItem[] = [
+const REPORTS: ReportItem[] = [
+  {
+    id: 'top_10',
+    title: 'Top 10 Report',
+    description: 'Top customers, suppliers and items by value or quantity',
+    icon: 'trophy',
+    category: 'customer',
+  },
   {
     id: 'profit_loss',
     title: 'Profit & Loss',
-    description: 'Income statement and profitability analysis',
+    description: 'Income statement and profitability',
     icon: 'chart-line',
     category: 'financial',
   },
   {
     id: 'balance_sheet',
     title: 'Balance Sheet',
-    description: 'Assets, liabilities, and equity overview',
-    icon: 'scale-balance',
+    description: 'Assets, liabilities and equity',
+    icon: 'bank',
     category: 'financial',
   },
   {
-    id: 'cash_flow',
-    title: 'Cash Flow',
-    description: 'Cash inflows and outflows analysis',
+    id: 'cash_bank_book',
+    title: 'Cash/Bank Book',
+    description: 'Cash-in-hand, bank accounts and OD balances',
     icon: 'cash-multiple',
-    category: 'financial',
-  },
-  {
-    id: 'sales_report',
-    title: 'Sales Report',
-    description: 'Sales performance and trends',
-    icon: 'trending-up',
     category: 'financial',
   },
   {
     id: 'inventory_valuation',
     title: 'Inventory Valuation',
-    description: 'Stock value and movement analysis',
+    description: 'Stock value and movement',
     icon: 'package-variant',
     category: 'inventory',
   },
   {
     id: 'stock_movement',
     title: 'Stock Movement',
-    description: 'Inventory transactions and transfers',
+    description: 'Inventory transfers and adjustments',
     icon: 'swap-horizontal',
     category: 'inventory',
   },
   {
-    id: 'customer_aging',
-    title: 'Customer Aging',
-    description: 'Outstanding receivables by age',
-    icon: 'account-clock',
+    id: 'outstanding_receivable',
+    title: 'Outstanding Receivable',
+    description: 'Bills receivable by ledger',
+    icon: 'account-cash-outline',
     category: 'customer',
   },
   {
-    id: 'payment_analysis',
-    title: 'Payment Analysis',
-    description: 'Payment patterns and delays',
-    icon: 'credit-card-clock',
+    id: 'inactive_customer',
+    title: 'Inactive Customer',
+    description: 'Customers with no bill for 30+ days',
+    icon: 'account-clock-outline',
     category: 'customer',
   },
   {
-    id: 'risk_assessment',
-    title: 'AI Risk Assessment',
-    description: 'ML-powered customer risk analysis',
-    icon: 'robot',
-    category: 'ml',
-  },
-  {
-    id: 'demand_forecast',
-    title: 'Demand Forecast',
-    description: 'AI-driven inventory demand predictions',
-    icon: 'crystal-ball',
-    category: 'ml',
+    id: 'inactive_item',
+    title: 'Inactive Item',
+    description: 'Stock items not sold for 30+ days',
+    icon: 'package-variant-closed',
+    category: 'inventory',
   },
 ];
 
-interface ReportData {
-  totalRevenue: number;
-  totalExpenses: number;
-  netProfit: number;
-  totalVouchers: number;
-  totalItems: number;
-  topSellingItems: Array<{
-    id: string;
-    name: string;
-    quantity: number;
-    revenue: number;
-  }>;
-  monthlyTrends: Array<{
-    month: string;
-    revenue: number;
-    expenses: number;
-    profit: number;
-  }>;
-}
+const CATEGORY_CHIPS: { id: ReportCategory; label: string; icon: string }[] = [
+  { id: 'all', label: 'All', icon: 'view-grid-outline' },
+  { id: 'financial', label: 'Financial', icon: 'chart-line' },
+  { id: 'inventory', label: 'Inventory', icon: 'package-variant' },
+  { id: 'customer', label: 'Customer', icon: 'account-group-outline' },
+];
+
+const CATEGORY_COLORS: Record<Exclude<ReportCategory, 'all'>, string> = {
+  financial: dashboardColors.accent,
+  inventory: '#06b6d4',
+  customer: '#8b5cf6',
+  vouchers: '#6366f1',
+};
+
+const GROUP_LABELS: Record<Exclude<ReportCategory, 'all'>, string> = {
+  vouchers: 'Vouchers',
+  financial: 'Financial',
+  inventory: 'Inventory',
+  customer: 'Customer',
+};
 
 const ReportsScreen: React.FC<Props> = ({ navigation }) => {
   const parentNavigation = navigation.getParent();
-  const theme = useTheme();
+  const { selectedCompany } = useCompany();
 
-  const [refreshing, setRefreshing] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState('all');
-  const [reportData, setReportData] = useState<ReportData>({
-    totalRevenue: 0,
-    totalExpenses: 0,
-    netProfit: 40000,
-    totalVouchers: 156,
-    totalItems: 89,
-    topSellingItems: [],
-    monthlyTrends: [],
-  });
+  const [selectedCategory, setSelectedCategory] = useState<ReportCategory>('all');
 
-  const filteredReports = selectedCategory === 'all'
-    ? reports
-    : reports.filter(report => report.category === selectedCategory);
+  const filteredReports =
+    selectedCategory === 'all'
+      ? REPORTS
+      : REPORTS.filter((r) => r.category === selectedCategory);
 
-  useEffect(() => {
-    loadReportData();
-  }, []);
-
-  const loadReportData = useCallback(async () => {
-    try {
-      const response = await apiClient.get('/reports/dashboard');
-
-      if (response.data.success) {
-        setReportData(response.data.data);
-      }
-    } catch (error) {
-      console.error('Failed to load report data:', error);
-      Alert.alert('Error', 'Failed to load report data');
-    }
-  }, []);
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await loadReportData();
-    setRefreshing(false);
-  }, [loadReportData]);
-
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const getCategoryColor = (category: string): string => {
-    switch (category) {
-      case 'financial':
-        return theme.colors.primary;
-      case 'inventory':
-        return theme.colors.secondary;
-      case 'customer':
-        return theme.colors.tertiary;
-      case 'ml':
-        return '#8b5cf6';
-      default:
-        return theme.colors.onSurfaceVariant;
-    }
-  };
+  const groupedReports =
+    selectedCategory === 'all'
+      ? (['customer', 'financial', 'inventory'] as const)
+          .map((cat) => ({
+            category: cat,
+            items: REPORTS.filter((r) => r.category === cat),
+          }))
+          .filter((g) => g.items.length > 0)
+      : [{ category: selectedCategory, items: filteredReports }];
 
   const handleReportPress = (reportId: string) => {
     switch (reportId) {
-      case 'risk_assessment':
-      case 'demand_forecast':
-        navigation.navigate('MLAnalytics');
+      case 'top_10':
+        navigation.navigate('TopTenReport');
+        break;
+      case 'profit_loss':
+        navigation.navigate('ProfitLoss');
+        break;
+      case 'balance_sheet':
+        navigation.navigate('BalanceSheet');
+        break;
+      case 'cash_bank_book':
+        navigation.navigate('CashBankBook');
+        break;
+      case 'outstanding_receivable':
+        navigation.navigate('OutstandingReceivable');
+        break;
+      case 'inactive_customer':
+        navigation.navigate('InactiveCustomer');
+        break;
+      case 'inactive_item':
+        navigation.navigate('InactiveItem');
         break;
       case 'inventory_valuation':
       case 'stock_movement':
-        navigation.navigate('Inventory');
+        parentNavigation?.navigate('Inventory');
         break;
       default:
-        Alert.alert('Coming Soon', `${reportId} report will be available soon`);
+        Alert.alert('Coming soon', 'This report will be available in a future update.');
     }
   };
 
-  const renderReportItem = (report: ReportItem) => (
-    <Card key={report.id} style={styles.reportCard}>
-      <List.Item
-        title={report.title}
-        description={report.description}
+  const renderReportCard = (report: ReportItem) => {
+    const color = CATEGORY_COLORS[report.category];
+    return (
+      <TouchableOpacity
+        key={report.id}
+        style={styles.reportCard}
         onPress={() => handleReportPress(report.id)}
-        left={() => (
-          <View style={[styles.iconContainer, { backgroundColor: `${getCategoryColor(report.category)}20` }]}>
-            <Icon
-              name={report.icon}
-              size={24}
-              color={getCategoryColor(report.category)}
-            />
-          </View>
-        )}
-        right={() => (
-          <Icon
-            name="chevron-right"
-            size={24}
-            color={theme.colors.onSurfaceVariant}
-          />
-        )}
-      />
-    </Card>
-  );
+        activeOpacity={0.75}
+      >
+        <View style={[styles.reportIconWrap, { backgroundColor: `${color}18` }]}>
+          <Icon name={report.icon} size={24} color={color} />
+        </View>
+        <View style={styles.reportBody}>
+          <Text style={styles.reportTitle} numberOfLines={1}>
+            {report.title}
+          </Text>
+          <Text style={styles.reportDesc} numberOfLines={2}>
+            {report.description}
+          </Text>
+        </View>
+        <Icon name="chevron-right" size={22} color={dashboardColors.muted} />
+      </TouchableOpacity>
+    );
+  };
+
+  const subtitle = selectedCompany?.name
+    ? `${selectedCompany.name} · insights`
+    : 'Business intelligence from Tally';
 
   return (
     <View style={styles.container}>
-      <Header
-        title="Reports"
-        subtitle="Business Intelligence & Analytics"
-        showSync
+      <ReportsHeader
+        subtitle={subtitle}
+        onSyncPress={() => parentNavigation?.navigate('Sync')}
         onSettingsPress={() => parentNavigation?.navigate('Settings')}
       />
 
       <ScrollView
-        style={styles.content}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }
+        style={styles.scroll}
+        contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* Key Metrics */}
-        <View style={styles.metricsGrid}>
-          <StatsCard
-            title="Revenue"
-            value={formatCurrency(reportData.totalRevenue)}
-            icon="trending-up"
-            color={theme.colors.primary}
-            onPress={() => {}}
-          />
-          <StatsCard
-            title="Expenses"
-            value={formatCurrency(reportData.totalExpenses)}
-            icon="trending-down"
-            color={theme.colors.error}
-            onPress={() => {}}
-          />
-        </View>
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.chipScroll}
+          contentContainerStyle={styles.chipScrollContent}
+        >
+          {CATEGORY_CHIPS.map((chip) => {
+            const active = selectedCategory === chip.id;
+            return (
+              <TouchableOpacity
+                key={chip.id}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => setSelectedCategory(chip.id)}
+              >
+                <Icon
+                  name={chip.icon}
+                  size={16}
+                  color={active ? dashboardColors.accent : dashboardColors.muted}
+                />
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{chip.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
 
-        <View style={styles.metricsGrid}>
-          <StatsCard
-            title="Net Profit"
-            value={formatCurrency(reportData.netProfit)}
-            icon={reportData.netProfit >= 0 ? "trending-up" : "trending-down"}
-            color={reportData.netProfit >= 0 ? theme.colors.primary : theme.colors.error}
-            onPress={() => {}}
-          />
-          <StatsCard
-            title="Vouchers"
-            value={reportData.totalVouchers.toString()}
-            icon="receipt"
-            color={theme.colors.secondary}
-            onPress={() => navigation.navigate('Vouchers')}
-          />
-        </View>
-
-        {/* Category Filter */}
-        <Surface style={styles.filterCard} elevation={2}>
-          <Text variant="titleMedium" style={styles.filterTitle}>Report Categories</Text>
-          <SegmentedButtons
-            value={selectedCategory}
-            onValueChange={setSelectedCategory}
-            buttons={[
-              { value: 'all', label: 'All' },
-              { value: 'financial', label: 'Financial' },
-              { value: 'inventory', label: 'Inventory' },
-              { value: 'customer', label: 'Customer' },
-              { value: 'ml', label: 'AI/ML' },
-            ]}
-          />
-        </Surface>
-
-        {/* Quick Actions */}
-        <Surface style={styles.quickActionsCard} elevation={2}>
-          <Text variant="titleMedium" style={styles.cardTitle}>Quick Actions</Text>
-          <View style={styles.quickActions}>
-            <Button
-              mode="outlined"
-              onPress={() => navigation.navigate('MLAnalytics')}
-              style={styles.quickActionButton}
-              icon="robot"
-            >
-              AI Insights
-            </Button>
-            <Button
-              mode="outlined"
-              onPress={() => Alert.alert('Coming Soon', 'Export functionality will be available soon')}
-              style={styles.quickActionButton}
-              icon="download"
-            >
-              Export All
-            </Button>
-          </View>
-        </Surface>
-
-        {/* Reports List */}
-        <Surface style={styles.reportsCard} elevation={2}>
-          <Text variant="titleMedium" style={styles.cardTitle}>
-            {selectedCategory === 'all' ? 'All Reports' : `${selectedCategory.charAt(0).toUpperCase() + selectedCategory.slice(1)} Reports`}
-          </Text>
-
-          <View style={styles.reportsList}>
-            {filteredReports.map(renderReportItem)}
-          </View>
-        </Surface>
-
-        {/* Report Summary */}
-        <Surface style={styles.summaryCard} elevation={2}>
-          <Text variant="titleMedium" style={styles.cardTitle}>Report Summary</Text>
-
-          <View style={styles.summaryGrid}>
-            <View style={styles.summaryItem}>
-              <Icon name="file-chart" size={24} color={theme.colors.primary} />
-              <Text variant="bodyMedium" style={styles.summaryLabel}>Total Reports</Text>
-              <Text variant="titleMedium" style={styles.summaryValue}>{reports.length}</Text>
-            </View>
-
-            <View style={styles.summaryItem}>
-              <Icon name="robot" size={24} color="#8b5cf6" />
-              <Text variant="bodyMedium" style={styles.summaryLabel}>AI Reports</Text>
-              <Text variant="titleMedium" style={styles.summaryValue}>
-                {reports.filter(r => r.category === 'ml').length}
+        {groupedReports.map((group) => (
+          <View key={group.category} style={styles.section}>
+            {selectedCategory === 'all' ? (
+              <View style={styles.sectionHeader}>
+                <View
+                  style={[
+                    styles.sectionDot,
+                    {
+                      backgroundColor:
+                        CATEGORY_COLORS[group.category as keyof typeof CATEGORY_COLORS],
+                    },
+                  ]}
+                />
+                <Text style={styles.sectionTitle}>
+                  {GROUP_LABELS[group.category as keyof typeof GROUP_LABELS]}
+                </Text>
+                <Text style={styles.sectionCount}>{group.items.length}</Text>
+              </View>
+            ) : (
+              <Text style={styles.sectionTitleStandalone}>
+                {filteredReports.length} report{filteredReports.length !== 1 ? 's' : ''}
               </Text>
-            </View>
-
-            <View style={styles.summaryItem}>
-              <Icon name="clock" size={24} color={theme.colors.tertiary} />
-              <Text variant="bodyMedium" style={styles.summaryLabel}>Last Updated</Text>
-              <Text variant="bodyMedium" style={styles.summaryValue}>Just now</Text>
-            </View>
+            )}
+            {group.items.map(renderReportCard)}
           </View>
-        </Surface>
+        ))}
 
-        <View style={styles.bottomSpacing} />
+        <View style={styles.bottomSpacer} />
       </ScrollView>
     </View>
   );
@@ -374,93 +275,122 @@ const ReportsScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: dashboardColors.pageBg,
   },
-  content: {
+  scroll: {
     flex: 1,
-    padding: 16,
-  },
-  metricsGrid: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
   },
   scrollContent: {
-    paddingBottom: 20,
-  },
-  filterCard: {
     padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+    paddingTop: 12,
   },
-  filterTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 12,
+  chipScroll: {
+    marginBottom: 14,
+    marginHorizontal: -16,
   },
-  quickActionsCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  cardTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 16,
-  },
-  quickActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  quickActionButton: {
-    flex: 1,
-  },
-  reportsCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
-  },
-  reportsList: {
+  chipScrollContent: {
+    paddingHorizontal: 16,
     gap: 8,
   },
-  reportCard: {
-    borderRadius: 8,
-  },
-  iconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: 'center',
+  chip: {
+    flexDirection: 'row',
     alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 14,
+    paddingVertical: 9,
+    borderRadius: 20,
+    backgroundColor: dashboardColors.cardBg,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
     marginRight: 8,
   },
-  summaryCard: {
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 16,
+  chipActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: dashboardColors.accent,
   },
-  summaryGrid: {
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: dashboardColors.muted,
+  },
+  chipTextActive: {
+    color: dashboardColors.accent,
+  },
+  section: {
+    marginBottom: 8,
+  },
+  sectionHeader: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  summaryItem: {
-    flex: 1,
     alignItems: 'center',
-    padding: 12,
+    marginBottom: 10,
+    gap: 8,
   },
-  summaryLabel: {
+  sectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  sectionTitle: {
+    flex: 1,
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  sectionCount: {
     fontSize: 12,
-    textAlign: 'center',
-    marginTop: 8,
-    marginBottom: 4,
+    fontWeight: '600',
+    color: dashboardColors.muted,
+    backgroundColor: '#e2e8f0',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+    overflow: 'hidden',
   },
-  summaryValue: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    textAlign: 'center',
+  sectionTitleStandalone: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: dashboardColors.muted,
+    marginBottom: 10,
   },
-  bottomSpacing: {
-    height: 20,
+  reportCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: dashboardColors.cardBg,
+    borderRadius: 14,
+    padding: 14,
+    marginBottom: 8,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  reportIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  reportBody: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
+  },
+  reportTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  reportDesc: {
+    fontSize: 12,
+    color: dashboardColors.muted,
+    marginTop: 3,
+    lineHeight: 17,
+  },
+  bottomSpacer: {
+    height: 24,
   },
 });
 

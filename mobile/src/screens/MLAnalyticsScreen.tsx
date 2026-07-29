@@ -5,6 +5,7 @@ import {
   StyleSheet,
   RefreshControl,
   Dimensions,
+  TouchableOpacity,
 } from 'react-native';
 import {
   Surface,
@@ -37,13 +38,57 @@ import {
 } from '../store/slices/mlSlice';
 
 // Types
-import { MainStackScreenProps } from '../types/navigation';
+import { MainStackScreenProps, MainStackParamList } from '../types/navigation';
+import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { dashboardColors } from '../components/dashboard/dashboardTheme';
 
 const { width } = Dimensions.get('window');
 
 type Props = MainStackScreenProps<'MLAnalytics'>;
 
+const PREDICTION_TOOLS = [
+  {
+    route: 'PaymentPrediction' as const,
+    // NOTE: MaterialCommunityIcons does not include "cash-clock" (crashes with icon list dump).
+    icon: 'cash-sync',
+    color: '#3b82f6',
+    title: 'Payment delay prediction',
+    description:
+      'Predict if a customer will pay late before the due date. Helps collections and credit decisions.',
+    howTo:
+      'Enter party name as Customer ID, optional amount and due date, then tap Predict.',
+  },
+  {
+    route: 'RiskAssessment' as const,
+    icon: 'shield-alert',
+    color: '#dc2626',
+    title: 'Customer risk assessment',
+    description:
+      'Score credit and payment risk using history from synced Tally vouchers.',
+    howTo:
+      'Enter supplier/customer ledger name, choose Overall, Credit, or Payment focus.',
+  },
+  {
+    route: 'InventoryForecast' as const,
+    icon: 'chart-timeline-variant',
+    color: '#10b981',
+    title: 'Inventory demand forecast',
+    description:
+      'Forecast stock demand and get reorder quantity suggestions for the next 30–90 days.',
+    howTo:
+      'Leave item IDs empty to forecast all items, or paste Mongo item IDs separated by commas.',
+  },
+];
+
 const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
+  const stackNav = navigation.getParent<NativeStackNavigationProp<MainStackParamList>>();
+  const openTool = (route: keyof MainStackParamList) => {
+    if (stackNav) {
+      stackNav.navigate(route as never);
+    } else {
+      navigation.navigate(route as never);
+    }
+  };
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   
@@ -107,7 +152,10 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
     }).format(amount);
   };
 
-  const formatPercentage = (value: number): string => {
+  const formatPercentage = (value?: number | null): string => {
+    if (typeof value !== 'number' || Number.isNaN(value)) {
+      return 'N/A';
+    }
     return `${(value * 100).toFixed(1)}%`;
   };
 
@@ -128,15 +176,15 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
     return (
       <View style={styles.container}>
         <Header
-          title="ML Analytics"
-          subtitle="AI-Powered Insights"
-          showBack
+          title="AI Insights"
+          subtitle="ML service unavailable"
+          showBack={navigation.canGoBack()}
           onBackPress={() => navigation.goBack()}
         />
         
         <View style={styles.errorContainer}>
           <Icon
-            name="robot-confused"
+            name="robot-outline"
             size={80}
             color={theme.colors.error}
           />
@@ -189,15 +237,15 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
               <Icon name="trending-up" size={24} color={theme.colors.primary} />
               <Paragraph style={styles.metricLabel}>Revenue Growth</Paragraph>
               <Title style={[styles.metricValue, { color: theme.colors.primary }]}>
-                {formatPercentage(businessMetrics.revenue_forecast.growth_rate)}
+                {formatPercentage(businessMetrics.revenue_forecast?.growth_rate)}
               </Title>
             </View>
             
             <View style={styles.metricItem}>
               <Icon name="clock-check" size={24} color={theme.colors.tertiary} />
               <Paragraph style={styles.metricLabel}>On-time Payments</Paragraph>
-              <Title style={[styles.metricValue, { color: theme.colors.tertiary }]}>
-                {formatPercentage(businessMetrics.payment_insights.on_time_percentage)}
+              <Title style={[styles.metricValue, { color: theme.colors.tertiary }]}> 
+                {formatPercentage(businessMetrics.payment_insights?.on_time_percentage)}
               </Title>
             </View>
             
@@ -205,7 +253,7 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
               <Icon name="account-group" size={24} color={theme.colors.secondary} />
               <Paragraph style={styles.metricLabel}>Total Customers</Paragraph>
               <Title style={[styles.metricValue, { color: theme.colors.secondary }]}>
-                {businessMetrics.customer_analytics.total_customers}
+                {businessMetrics.customer_analytics?.total_customers ?? 'N/A'}
               </Title>
             </View>
             
@@ -213,7 +261,7 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
               <Icon name="package-variant" size={24} color={theme.colors.tertiary} />
               <Paragraph style={styles.metricLabel}>Inventory Items</Paragraph>
               <Title style={[styles.metricValue, { color: theme.colors.tertiary }]}>
-                {businessMetrics.inventory_insights.total_items}
+                {businessMetrics.inventory_insights?.total_items ?? 'N/A'}
               </Title>
             </View>
           </View>
@@ -232,7 +280,7 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 style={[styles.riskChip, { borderColor: theme.colors.error }]}
                 textStyle={{ color: theme.colors.error }}
               >
-                {riskDashboard.summary.total_high_risk} High Risk
+                {(riskDashboard.summary?.total_high_risk ?? 0)} High Risk
               </Chip>
             </View>
             
@@ -242,7 +290,7 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 style={[styles.riskChip, { borderColor: '#f59e0b' }]}
                 textStyle={{ color: '#f59e0b' }}
               >
-                {riskDashboard.summary.total_overdue} Overdue
+                {(riskDashboard.summary?.total_overdue ?? 0)} Overdue
               </Chip>
             </View>
             
@@ -252,7 +300,7 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 style={[styles.riskChip, { borderColor: theme.colors.tertiary }]}
                 textStyle={{ color: theme.colors.tertiary }}
               >
-                {riskDashboard.summary.total_credit_alerts} Credit Alerts
+                {(riskDashboard.summary?.total_credit_alerts ?? 0)} Credit Alerts
               </Chip>
             </View>
           </View>
@@ -264,30 +312,36 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
         <Surface style={styles.card} elevation={2}>
           <Title style={styles.cardTitle}>AI Model Status</Title>
           
-          <View style={styles.modelGrid}>
-            {Object.entries(modelStatus.models).map(([modelName, model]) => (
-              <View key={modelName} style={styles.modelItem}>
-                <View style={styles.modelHeader}>
-                  <Icon
-                    name={model.status === 'active' ? 'check-circle' : 'alert-circle'}
-                    size={16}
-                    color={model.status === 'active' ? theme.colors.primary : theme.colors.error}
-                  />
-                  <Paragraph style={styles.modelName}>
-                    {modelName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+          {modelStatus.models && Object.keys(modelStatus.models).length > 0 ? (
+            <View style={styles.modelGrid}>
+              {Object.entries(modelStatus.models).map(([modelName, model]) => (
+                <View key={modelName} style={styles.modelItem}>
+                  <View style={styles.modelHeader}>
+                    <Icon
+                      name={model.status === 'active' ? 'check-circle' : 'alert-circle'}
+                      size={16}
+                      color={model.status === 'active' ? theme.colors.primary : theme.colors.error}
+                    />
+                    <Paragraph style={styles.modelName}>
+                      {modelName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                    </Paragraph>
+                  </View>
+                  <Paragraph style={styles.modelAccuracy}>
+                    Accuracy: {formatPercentage(model.accuracy)}
                   </Paragraph>
+                  <ProgressBar
+                    progress={typeof model.accuracy === 'number' ? model.accuracy : 0}
+                    color={theme.colors.primary}
+                    style={styles.accuracyBar}
+                  />
                 </View>
-                <Paragraph style={styles.modelAccuracy}>
-                  Accuracy: {formatPercentage(model.accuracy)}
-                </Paragraph>
-                <ProgressBar
-                  progress={model.accuracy}
-                  color={theme.colors.primary}
-                  style={styles.accuracyBar}
-                />
-              </View>
-            ))}
-          </View>
+              ))}
+            </View>
+          ) : (
+            <Paragraph style={styles.helpText}>
+              Model status data is not available at the moment.
+            </Paragraph>
+          )}
         </Surface>
       )}
     </View>
@@ -295,45 +349,50 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
 
   const renderPredictionsTab = () => (
     <View style={styles.tabContent}>
-      <Surface style={styles.card} elevation={2}>
-        <Title style={styles.cardTitle}>Prediction Tools</Title>
-        
-        <Button
-          mode="outlined"
-          onPress={() => navigation.navigate('PaymentPrediction')}
-          style={styles.predictionButton}
-          icon="crystal-ball"
-        >
-          Payment Delay Prediction
-        </Button>
-        
-        <Button
-          mode="outlined"
-          onPress={() => navigation.navigate('RiskAssessment')}
-          style={styles.predictionButton}
-          icon="shield-alert"
-        >
-          Customer Risk Assessment
-        </Button>
-        
-        <Button
-          mode="outlined"
-          onPress={() => navigation.navigate('InventoryForecast')}
-          style={styles.predictionButton}
-          icon="chart-timeline-variant"
-        >
-          Inventory Demand Forecast
-        </Button>
+      <Surface style={styles.aboutCard} elevation={1}>
+        <Icon name="robot" size={28} color={dashboardColors.accent} />
+        <View style={styles.aboutText}>
+          <Title style={styles.aboutTitle}>FinSync360 ML Service</Title>
+          <Paragraph style={styles.aboutBody}>
+            A separate AI microservice reads your synced MongoDB data (sales,
+            purchases, parties, stock) and runs trained models for predictions.
+            Keep Tally + desktop-agent syncing so forecasts stay accurate.
+          </Paragraph>
+        </View>
       </Surface>
+
+      <Title style={styles.toolsHeading}>Prediction tools</Title>
+      {PREDICTION_TOOLS.map((tool) => (
+        <TouchableOpacity
+          key={tool.route}
+          activeOpacity={0.85}
+          onPress={() => openTool(tool.route)}
+        >
+          <Surface style={styles.toolCard} elevation={2}>
+            <View style={[styles.toolIconWrap, { backgroundColor: `${tool.color}18` }]}>
+              <Icon name={tool.icon} size={26} color={tool.color} />
+            </View>
+            <View style={styles.toolBody}>
+              <Title style={styles.toolTitle}>{tool.title}</Title>
+              <Paragraph style={styles.toolDesc}>{tool.description}</Paragraph>
+              <Paragraph style={styles.toolHow}>
+                <Paragraph style={styles.toolHowLabel}>How to use: </Paragraph>
+                {tool.howTo}
+              </Paragraph>
+            </View>
+            <Icon name="chevron-right" size={24} color={dashboardColors.muted} />
+          </Surface>
+        </TouchableOpacity>
+      ))}
     </View>
   );
 
   return (
     <View style={styles.container}>
       <Header
-        title="ML Analytics"
-        subtitle="AI-Powered Business Insights"
-        showBack
+        title="AI Insights"
+        subtitle="Powered by ML Service"
+        showBack={navigation.canGoBack()}
         onBackPress={() => navigation.goBack()}
       />
 
@@ -366,8 +425,44 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: dashboardColors.pageBg,
   },
+  aboutCard: {
+    flexDirection: 'row',
+    padding: 16,
+    borderRadius: 14,
+    gap: 14,
+    backgroundColor: '#eff6ff',
+  },
+  aboutText: { flex: 1 },
+  aboutTitle: { fontSize: 17, marginBottom: 6 },
+  aboutBody: { fontSize: 13, color: '#475569', lineHeight: 19 },
+  toolsHeading: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginBottom: 4,
+  },
+  toolCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    borderRadius: 14,
+    marginBottom: 12,
+    gap: 12,
+  },
+  toolIconWrap: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toolBody: { flex: 1 },
+  toolTitle: { fontSize: 15, fontWeight: '700', marginBottom: 4 },
+  toolDesc: { fontSize: 13, color: '#64748b', lineHeight: 18 },
+  toolHow: { fontSize: 12, color: '#94a3b8', marginTop: 6, lineHeight: 17 },
+  toolHowLabel: { fontWeight: '700', color: '#64748b' },
   content: {
     flex: 1,
     padding: 16,
@@ -449,8 +544,10 @@ const styles = StyleSheet.create({
     height: 4,
     borderRadius: 2,
   },
-  predictionButton: {
-    marginBottom: 12,
+  helpText: {
+    fontSize: 14,
+    color: '#6b7280',
+    textAlign: 'center',
   },
   errorContainer: {
     flex: 1,

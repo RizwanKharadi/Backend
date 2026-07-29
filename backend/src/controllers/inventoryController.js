@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import { isValidId } from '../db/queryUtils.js';
 import Item from '../models/Item.js';
 import tallyWebSocketService from '../services/tallyWebSocketService.js';
 import { buildStockItemImportPayload } from '../utils/tallyMasterImportPayload.js';
@@ -176,12 +176,20 @@ export const getItems = async (req, res) => {
     if (lowStock === 'true' || outOfStock === 'true') {
       items.docs = items.docs.filter(item => {
         if (!item.inventory.trackInventory) return false;
-        
-        const totalStock = item.totalStock;
-        
+
+        const current = Array.isArray(item.inventory.currentStock)
+          ? item.inventory.currentStock
+          : [];
+        const totalStock = current.reduce((sum, c) => {
+          const qty = Number(c?.availableQuantity ?? c?.quantity ?? c?.qty ?? 0);
+          return sum + qty;
+        }, 0);
+
+        const reorderLevel = Number(item.inventory?.stockLevels?.reorderLevel ?? 0);
+
         if (outOfStock === 'true' && totalStock <= 0) return true;
-        if (lowStock === 'true' && totalStock <= item.inventory.stockLevels.reorderLevel && totalStock > 0) return true;
-        
+        if (lowStock === 'true' && totalStock <= reorderLevel && totalStock > 0) return true;
+
         return false;
       });
     }
@@ -244,7 +252,7 @@ export const getItemByBarcode = async (req, res) => {
 export const getItem = async (req, res) => {
   try {
     const id = String(req.params.id || '').trim();
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!isValidId(id)) {
       return res.status(400).json({
         success: false,
         message: 'Invalid item id'

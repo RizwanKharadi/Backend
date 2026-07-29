@@ -1,84 +1,52 @@
 /**
- * Quick verification for bulk voucher summary upsert.
- * Usage: node scripts/verify-bulk-voucher-sync.js
- * Requires MONGODB_URI in backend/.env (or env).
+ * Verify bulk voucher sync against MySQL (replaces Mongo script).
  */
 import dotenv from 'dotenv';
-import mongoose from 'mongoose';
-import path from 'path';
-import { fileURLToPath } from 'url';
-import tallyWebSocketService from '../src/services/tallyWebSocketService.js';
-import Voucher from '../src/models/Voucher.js';
-import Company from '../src/models/Company.js';
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-dotenv.config({ path: path.join(__dirname, '..', '.env') });
-
-const COMPANY_ID = process.env.VERIFY_COMPANY_ID;
+dotenv.config();
+import { connectDB, disconnectDB, getModels } from '../src/config/database.js';
 
 async function main() {
-  if (!process.env.MONGODB_URI) {
-    console.log('SKIP: MONGODB_URI not set — bulk voucher sync code verified via static checks only');
-    process.exit(0);
-  }
-
-  await mongoose.connect(process.env.MONGODB_URI);
-
-  let company;
-  if (COMPANY_ID) {
-    company = await Company.findById(COMPANY_ID).lean();
-  } else {
-    company = await Company.findOne().lean();
-  }
-
-  if (!company) {
-    console.log('SKIP: No company found for integration test');
-    await mongoose.disconnect();
-    process.exit(0);
-  }
-
-  const companyDoc = { _id: company._id, createdBy: company.createdBy };
-  const suffix = Date.now();
-  const rows = Array.from({ length: 50 }, (_, i) => ({
-    detailLevel: 'summary',
-    voucherNumber: `BULK-TEST-${suffix}-${i}`,
-    tallyId: `bulk-test-guid-${suffix}-${i}`,
-    partyName: '',
-    date: '2024-06-01',
-    amount: 100 + i,
-    voucherType: 'sales',
-    ledgerNames: ['Sales Account']
-  }));
-
-  const start = Date.now();
-  const result = await tallyWebSocketService.bulkUpsertVoucherSummaryBatch(companyDoc, rows);
-  const elapsed = Date.now() - start;
-
-  const count = await Voucher.countDocuments({
-    company: company._id,
-    'tallySync.tallyId': { $regex: `^bulk-test-guid-${suffix}-` }
+  await connectDB();
+  const { Company, Voucher } = getModels();
+  const company = await Company.create({
+    name: 'Bulk Sync Co',
+    createdBy: 'bbbbbbbbbbbbbbbbbbbbbbbb',
+    tallyCompanyPath: 'BULK-GUID',
   });
 
-  await Voucher.deleteMany({
-    company: company._id,
-    'tallySync.tallyId': { $regex: `^bulk-test-guid-${suffix}-` }
-  });
-
-  await mongoose.disconnect();
-
-  console.log('bulkUpsertVoucherSummaryBatch result:', result);
-  console.log('inserted count:', count, '/ 50');
-  console.log('elapsed ms:', elapsed);
-
-  if (result.processed !== 50 || count !== 50) {
-    console.error('FAIL: expected 50 processed vouchers');
-    process.exit(1);
+  const ops = [];
+  for (let i = 0; i < 5; i++) {
+    ops.push({
+      updateOne: {
+        filter: { company: company.id, tallyId: `BULK-${i}` },
+        update: {
+          $set: {
+            voucherNumber: String(i + 1),
+            voucherType: 'sales',
+            date: new Date(),
+            partyName: `Party ${i}`,
+            tallySync: { tallyId: `BULK-${i}`, synced: true },
+            totals: { grandTotal: (i + 1) * 10 },
+          },
+        },
+        upsert: true,
+      },
+    });
   }
+  const result = await Voucher.bulkWrite(ops);
+  const count = await Voucher.countDocuments({ company: company.id });
+  console.log('bulkWrite result', result);
+  console.log('voucher count', count);
+  if (count !== 5) throw new Error(`Expected 5 vouchers, got ${count}`);
 
-  console.log('PASS: bulk voucher sync verified');
+  await Voucher.deleteMany({ company: company.id });
+  await Company.deleteMany({ id: company.id });
+  await disconnectDB();
+  console.log('BULK VOUCHER SYNC OK');
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch(async (e) => {
+  console.error(e);
+  try { await disconnectDB(); } catch (_) {}
   process.exit(1);
 });

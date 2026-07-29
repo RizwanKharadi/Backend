@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import { isValidId } from '../db/queryUtils.js';
 
 /**
  * Map mobile / flat API body → Item schema (category as name, units, pricing, inventory).
@@ -14,7 +14,7 @@ export function normalizeItemInput(body = {}) {
   const categoryRaw = data.categoryName ?? data.category;
   if (categoryRaw != null && String(categoryRaw).trim() !== '') {
     const catStr = String(categoryRaw).trim();
-    if (mongoose.Types.ObjectId.isValid(catStr)) {
+    if (isValidId(catStr)) {
       data.category = catStr;
       if (!data.categoryName) delete data.categoryName;
     } else {

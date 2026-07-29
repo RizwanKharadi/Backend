@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="TallyFin pricing — 7-day free trial, monthly and yearly plans per Tally PC. Mobile app included.">
+  <title>Pricing — TallyFin</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div id="site-header-mount"></div>
+
+  <main>
+    <header class="page-hero">
+      <div class="container reveal is-visible">
+        <p class="eyebrow">Pricing</p>
+        <h1 class="display-lg">Simple plans.<br>Serious value.</h1>
+        <p class="subhead">Pay per Tally desktop (device). Mobile app included for your whole team.</p>
+      </div>
+    </header>
+
+    <section class="section" style="padding-top:0">
+      <div class="container-wide">
+        <div class="pricing-grid" id="pricing-grid">
+          <article class="pricing-card reveal">
+            <h3 class="headline">Free trial</h3>
+            <p class="pricing-price">₹0<small> / 7 days</small></p>
+            <p class="text-secondary">1 device · Full features</p>
+            <ul class="pricing-features">
+              <li>All reports &amp; dashboard</li>
+              <li>Mobile app access</li>
+              <li>Secure Tally sync</li>
+              <li>No credit card to start</li>
+            </ul>
+            <a href="download.html" class="btn btn-secondary" style="width:100%">Start trial</a>
+          </article>
+          <article class="pricing-card featured reveal reveal-delay-1">
+            <h3 class="headline">Yearly</h3>
+            <p class="pricing-price" data-plan="yearly">₹9,999<small> / device / year</small></p>
+            <p class="text-secondary">Best value · Mobile included</p>
+            <ul class="pricing-features">
+              <li>Everything in trial</li>
+              <li>Unlimited companies per license</li>
+              <li>Voucher entry from mobile</li>
+              <li>Team permissions</li>
+              <li>Priority sync</li>
+            </ul>
+            <a href="download.html" class="btn btn-primary" style="width:100%">Get started</a>
+          </article>
+          <article class="pricing-card reveal reveal-delay-2">
+            <h3 class="headline">Monthly</h3>
+            <p class="pricing-price" data-plan="monthly">₹999<small> / device / month</small></p>
+            <p class="text-secondary">Flexible · Cancel anytime</p>
+            <ul class="pricing-features">
+              <li>All core features</li>
+              <li>Per Tally PC billing</li>
+              <li>Add devices as you grow</li>
+              <li>Razorpay secure checkout</li>
+            </ul>
+            <a href="download.html" class="btn btn-secondary" style="width:100%">Get started</a>
+          </article>
+        </div>
+        <p class="text-center caption reveal" style="margin-top:32px;max-width:640px;margin-inline:auto" id="pricing-note">
+          18% GST applicable. Subscription is per Tally PC where the desktop agent runs. Additional devices can be added from the agent after signup.
+        </p>
+      </div>
+    </section>
+
+    <section class="section" style="background:#f5f5f7;padding-block:80px">
+      <div class="container text-center reveal">
+        <h2 class="headline">What’s included on every plan</h2>
+        <div class="steps-grid" style="margin-top:40px;text-align:left">
+          <div class="step-card"><h3>Mobile app</h3><p>iOS &amp; Android — no extra per-user mobile fee.</p></div>
+          <div class="step-card"><h3>Multi-company</h3><p>Sync all companies under your Tally license.</p></div>
+          <div class="step-card"><h3>Updates</h3><p>Product updates and sync improvements included.</p></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="site-footer-mount"></div>
+  <script src="js/config.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    (function () {
+      var c = window.TALLYFIN_CONFIG && window.TALLYFIN_CONFIG.pricing;
+      if (!c) return;
+      var yearly = document.querySelector('[data-plan="yearly"]');
+      var monthly = document.querySelector('[data-plan="monthly"]');
+      if (yearly) yearly.innerHTML = '₹' + c.yearlyInr.toLocaleString('en-IN') + '<small> / device / year</small>';
+      if (monthly) monthly.innerHTML = '₹' + c.monthlyInr.toLocaleString('en-IN') + '<small> / device / month</small>';
+      var note = document.getElementById('pricing-note');
+      if (note && c.gstNote) note.textContent = c.gstNote + ' Trial: ' + c.trialDays + ' days, one device.';
+    })();
+  </script>
+</body>
+</html>

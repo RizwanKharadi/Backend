@@ -1,6 +1,7 @@
 const request = require('supertest');
-const mongoose = require('mongoose');
 const express = require('express');
+const { randomUUID } = require('crypto');
+const newId = () => randomUUID().replace(/-/g, '').slice(0, 24);
 
 // Create test app without starting server
 const app = express();
@@ -127,7 +128,7 @@ describe('Tally Integration Tests', () => {
     });
 
     it('should return 404 for non-existent company', async () => {
-      const fakeId = new mongoose.Types.ObjectId();
+      const fakeId = newId();
       await request(app)
         .get(`/api/tally/sync-status/${fakeId}`)
         .set('Authorization', `Bearer ${authToken}`)

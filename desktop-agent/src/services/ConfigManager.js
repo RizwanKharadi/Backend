@@ -211,6 +211,11 @@ class ConfigManager {
   validateConfig() {
     const config = this.store.store;
     let hasChanges = false;
+    const forceLocal =
+      process.env.FORCE_LOCAL_SERVER === '1'
+      || process.env.DESKTOP_AGENT_FORCE_LOCAL === '1'
+      || process.env.NODE_ENV === 'development'
+      || !isPackagedApp();
     
     // Validate server configuration
     if (!config.server.url) {
@@ -223,11 +228,26 @@ class ConfigManager {
       hasChanges = true;
     }
 
-    if (
-      isPackagedApp()
+    // Local MySQL / local backend testing: never keep stale Railway/Heroku URLs
+    if (forceLocal && (!isLocalServerUrl(config.server.url) || !isLocalServerUrl(config.server.apiUrl))) {
+      const developmentDefaults = getServerDefaults(false);
+      config.server.url = developmentDefaults.url;
+      config.server.apiUrl = developmentDefaults.apiUrl;
+      hasChanges = true;
+      this.logger.info('Forcing local server URLs for desktop agent', {
+        url: developmentDefaults.url,
+        apiUrl: developmentDefaults.apiUrl,
+        reason: forceLocal ? 'dev_or_force_local' : 'unpackaged'
+      });
+    } else if (
+      !forceLocal
+      && isPackagedApp()
+      && process.env.USE_PRODUCTION_SERVER !== '0'
       && isLocalServerUrl(config.server.url)
       && isLocalServerUrl(config.server.apiUrl)
+      && process.env.USE_PRODUCTION_SERVER === '1'
     ) {
+      // Only auto-switch packaged→production when explicitly requested
       const productionDefaults = getServerDefaults(true);
       config.server.url = productionDefaults.url;
       config.server.apiUrl = productionDefaults.apiUrl;

@@ -11,14 +11,11 @@ import {
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
-// Store
 import { AppDispatch } from '../../store';
-import { setBiometricEnabled } from '../../store/slices/authSlice';
-
-// Types
+import { setBiometricEnabled } from '../../store/slices/settingsSlice';
+import { setBiometricEnabled as setAuthBiometricEnabled } from '../../store/slices/authSlice';
+import { biometricService } from '../../services/biometricService';
 import { AuthStackScreenProps } from '../../types/navigation';
-
-// Styles
 import { styles } from './BiometricSetupScreen.styles';
 
 type Props = AuthStackScreenProps<'BiometricSetup'>;
@@ -47,14 +44,14 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
   const checkBiometricAvailability = async () => {
     try {
       setIsLoading(true);
-
-      // Simulate checking biometric availability
-      // In a real app, you would use react-native-biometrics or similar
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const capabilities = await biometricService.isSupported();
 
       setBiometricInfo({
-        available: true,
-        type: 'Fingerprint', // Default to fingerprint for demo
+        available: capabilities.isSupported && capabilities.isEnrolled,
+        type: capabilities.biometryType,
+        error: capabilities.isSupported
+          ? undefined
+          : 'Biometric authentication is not available on this device',
       });
     } catch (error: any) {
       setBiometricInfo({
@@ -70,16 +67,18 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
   const enableBiometric = async () => {
     try {
       setIsEnabling(true);
-
-      // Simulate biometric setup
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Enable biometric in store
+      const biometricType = await biometricService.getBiometricTypeString();
+      await biometricService.authenticate({
+        title: 'Enable biometric login',
+        description: `Authenticate with ${biometricType} to continue`,
+      });
+      await biometricService.markBiometricEnabled();
       dispatch(setBiometricEnabled(true));
+      dispatch(setAuthBiometricEnabled(true));
 
       Alert.alert(
         'Success',
-        'Biometric authentication has been enabled successfully!',
+        'Biometric authentication has been enabled. Sign in once with your password, or enable it from Settings after login.',
         [
           {
             text: 'Continue',
@@ -89,7 +88,6 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
       );
     } catch (error: any) {
       console.error('Biometric setup error:', error);
-
       Alert.alert(
         'Setup Failed',
         error.message || 'Failed to enable biometric authentication',

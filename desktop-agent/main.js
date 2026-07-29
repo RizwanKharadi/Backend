@@ -1296,7 +1296,13 @@ class DesktopAgent {
         await this.resetDeviceLicenseForReconnect();
       }
       await this.webSocketClient.ensureConnected();
-      return this.syncManager.startSync();
+      if (this.syncManager.isSyncing) {
+        return { started: false, reason: 'Sync already in progress' };
+      }
+      this.syncManager.startSync(options).catch((err) => {
+        electronLog.error('Sync session failed:', err);
+      });
+      return { started: true };
     });
     ipcMain.handle('sync-stop', () => this.syncManager.stopSync());
     ipcMain.handle('sync-status', () => this.syncManager.getStatus());

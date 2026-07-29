@@ -17,10 +17,10 @@ import { RootStackParamList } from '../types/navigation';
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 const AppNavigator: React.FC = () => {
-  const { isAuthenticated, isLoading } = useSelector((state: RootState) => state.auth);
+  const { isAuthenticated, sessionChecked } = useSelector((state: RootState) => state.auth);
   const { isFirstLaunch } = useSelector((state: RootState) => state.settings);
 
-  if (isLoading) {
+  if (!sessionChecked) {
     return <SplashScreen />;
   }
 

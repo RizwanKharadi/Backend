@@ -1,7 +1,11 @@
+import { Platform } from 'react-native';
 import { io, Socket } from 'socket.io-client';
-import { WS_BASE_URL } from '@env';
+import { WEBSOCKET_URL } from '@env';
 import { authService } from './authService';
-import { EventEmitter } from 'events';
+import { EventEmitter } from '../utils/EventEmitter';
+import { resolveLocalhostForDevice } from '../utils/devHost';
+
+const SOCKET_URL = resolveLocalhostForDevice(WEBSOCKET_URL);
 
 interface WebSocketMessage {
   type: string;
@@ -16,38 +20,112 @@ class WebSocketService extends EventEmitter {
   private maxReconnectAttempts = 5;
   private reconnectDelay = 1000;
   private heartbeatInterval: NodeJS.Timeout | null = null;
-
+  private lastConnectErrorLogAt = 0;
+  private wsAvailable: boolean | null = null;
+  private wsUnavailableWarned = false;
   constructor() {
     super();
+    // Prevent unhandled 'error' events from crashing the React Native redbox.
+    this.on('error', () => {});
   }
 
   /**
    * Initialize WebSocket connection
    */
   async initialize(): Promise<void> {
+    if (this.isConnected) {
+      return;
+    }
+    if (this.wsAvailable === false && this.wsUnavailableWarned) {
+      return;
+    }
+
     try {
       const token = await authService.getToken();
-      
+
       if (!token) {
-        throw new Error('No authentication token available');
+        return;
       }
 
-      this.socket = io(WS_BASE_URL, {
-        auth: {
-          token,
-        },
-        transports: ['websocket'],
-        timeout: 20000,
+      // `socket.io-client` expects an http(s) URL. If env uses ws(s), normalize.
+      const socketBaseUrl = SOCKET_URL.replace(/^ws(s)?:\/\//, 'http$1://');
+
+      if (this.wsAvailable === null) {
+        this.wsAvailable = await this.probeSocketServer(socketBaseUrl);
+      }
+
+      if (!this.wsAvailable) {
+        this.logUnavailableOnce();
+        return;
+      }
+
+      if (this.socket) {
+        this.socket.disconnect();
+        this.socket = null;
+      }
+
+      // React Native: polling first avoids noisy "websocket error" on many devices/emulators.
+      const transports =
+        Platform.OS === 'web' ? ['websocket', 'polling'] : ['polling', 'websocket'];
+
+      this.socket = io(socketBaseUrl, {
+        auth: { token },
+        transports,
+        timeout: 15000,
         reconnection: true,
         reconnectionAttempts: this.maxReconnectAttempts,
         reconnectionDelay: this.reconnectDelay,
       });
 
       this.setupEventListeners();
-      console.log('WebSocket service initialized');
     } catch (error) {
-      console.error('Failed to initialize WebSocket:', error);
-      throw error;
+      this.wsAvailable = false;
+      this.logUnavailableOnce();
+      if (__DEV__) {
+        console.warn('Real-time connection skipped:', error);
+      }
+    }
+  }
+
+  private async probeSocketServer(socketBaseUrl: string): Promise<boolean> {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 4000);
+      const probeUrl = `${socketBaseUrl.replace(/\/+$/, '')}/socket.io/?EIO=4&transport=polling&t=${Date.now()}`;
+      const res = await fetch(probeUrl, { method: 'GET', signal: controller.signal });
+      clearTimeout(timeout);
+      if (!res.ok) {
+        return false;
+      }
+      const body = await res.text();
+      return body.includes('"sid"') || body.startsWith('0');
+    } catch {
+      return false;
+    }
+  }
+
+  private logUnavailableOnce(): void {
+    if (!this.wsUnavailableWarned) {
+      this.wsUnavailableWarned = true;
+      if (__DEV__) {
+        console.warn(
+          'Real-time sync (Socket.IO) is off — REST API still works. ' +
+            'This is normal if the backend has no Socket.IO or on emulator networking.'
+        );
+      }
+    }
+  }
+
+  private disableRealtimeAfterFailure(): void {
+    this.wsAvailable = false;
+    this.logUnavailableOnce();
+    if (this.socket) {
+      this.socket.removeAllListeners();
+      if (this.socket.io?.opts) {
+        this.socket.io.opts.reconnection = false;
+      }
+      this.socket.disconnect();
+      this.socket = null;
     }
   }
 
@@ -73,8 +151,15 @@ class WebSocketService extends EventEmitter {
     });
 
     this.socket.on('connect_error', (error) => {
-      console.error('WebSocket connection error:', error);
-      this.emit('error', error);
+      const now = Date.now();
+      if (__DEV__ && now - this.lastConnectErrorLogAt > 8000) {
+        this.lastConnectErrorLogAt = now;
+        console.warn(
+          'Real-time connection failed (optional):',
+          error?.message || error
+        );
+      }
+      this.emit('connection-error', error);
     });
 
     this.socket.on('reconnect', (attemptNumber) => {
@@ -83,12 +168,14 @@ class WebSocketService extends EventEmitter {
     });
 
     this.socket.on('reconnect_error', (error) => {
-      console.error('WebSocket reconnection error:', error);
+      if (__DEV__) {
+        console.warn('Real-time reconnect failed:', error?.message || error);
+      }
       this.emit('reconnect_error', error);
     });
 
     this.socket.on('reconnect_failed', () => {
-      console.error('WebSocket reconnection failed');
+      this.disableRealtimeAfterFailure();
       this.emit('reconnect_failed');
     });
 

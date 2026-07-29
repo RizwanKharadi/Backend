@@ -1,7 +1,7 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import winston from 'winston';
 import jwt from 'jsonwebtoken';
-import mongoose from 'mongoose';
+import { isValidId } from '../db/queryUtils.js';
 import TallyConnection from '../models/TallyConnection.js';
 import tallyCommunicationService from './tallyCommunicationService.js';
 import Company from '../models/Company.js';
@@ -1077,23 +1077,35 @@ class TallyWebSocketService {
     ).trim();
 
     const userAccess =
-      userId && mongoose.Types.ObjectId.isValid(userId)
+      userId && isValidId(userId)
         ? {
             $or: [
-              { createdBy: new mongoose.Types.ObjectId(userId) },
-              { 'users.user': new mongoose.Types.ObjectId(userId) }
+              { createdBy: String(userId) },
             ]
           }
         : null;
 
-    // 1) Tally company GUID → Mongo company (canonical)
+    const matchesUserAccess = (doc) => {
+      if (!userId || !doc) return true;
+      const uid = String(userId);
+      if (String(doc.createdBy) === uid) return true;
+      const users = doc.users || [];
+      return users.some((u) => String(u.user?._id || u.user) === uid);
+    };
+
+    // 1) Tally company GUID → company (canonical)
     if (guidStr) {
-      const byGuid = { 'tallyIntegration.companyPath': guidStr };
+      const byGuid = { tallyCompanyPath: guidStr };
       let doc = userAccess ? await Company.findOne({ $and: [byGuid, userAccess] }) : null;
       if (!doc) {
         doc = await Company.findOne(byGuid);
       }
-      if (doc) {
+      if (doc && (!userAccess || matchesUserAccess(doc))) {
+        return doc;
+      }
+      if (doc && userAccess && !matchesUserAccess(doc)) {
+        // fall through — wrong owner
+      } else if (doc) {
         return doc;
       }
     }
@@ -1107,7 +1119,7 @@ class TallyWebSocketService {
       if (!doc) {
         doc = await Company.findOne(byName);
       }
-      if (doc) {
+      if (doc && (!userAccess || matchesUserAccess(doc))) {
         return doc;
       }
     }
@@ -1130,7 +1142,7 @@ class TallyWebSocketService {
     }
 
     // 4) Explicit workspace companyId from agent — last resort only
-    if (companyId && mongoose.Types.ObjectId.isValid(companyId)) {
+    if (companyId && isValidId(companyId)) {
       const byId = await Company.findById(companyId);
       if (byId) {
         return byId;
@@ -1147,13 +1159,14 @@ class TallyWebSocketService {
       lastSyncDate: new Date(),
       companyPath: incomingCompany.guid || company.tallyIntegration?.companyPath
     };
+    company.tallyCompanyPath = company.tallyIntegration.companyPath;
 
     await company.save();
   }
 
   async upsertCompany(incomingCompany = {}, userId = null) {
     let organizationId = null;
-    if (mongoose.Types.ObjectId.isValid(userId)) {
+    if (isValidId(userId)) {
       const owner = await User.findById(userId).select('organizationId');
       organizationId = owner?.organizationId || null;
     }
@@ -1166,15 +1179,15 @@ class TallyWebSocketService {
     const financialYearEnd = new Date(year + 1, fyStartMonth, fyStartDay - 1);
 
     // Find by Tally GUID first
-    let company = await Company.findOne({ 'tallyIntegration.companyPath': incomingCompany.guid });
+    let company = await Company.findOne({ tallyCompanyPath: incomingCompany.guid });
 
     if (!company) {
-      const createdById = mongoose.Types.ObjectId.isValid(userId) ? new mongoose.Types.ObjectId(userId) : new mongoose.Types.ObjectId();
+      const createdById = isValidId(userId) ? String(userId) : undefined;
       const newUsers = [];
 
-      if (mongoose.Types.ObjectId.isValid(userId)) {
+      if (isValidId(userId)) {
         newUsers.push({
-          user: new mongoose.Types.ObjectId(userId),
+          user: String(userId),
           role: 'admin',
           permissions: {
             vouchers: { create: true, read: true, update: true, delete: true },
@@ -1216,6 +1229,7 @@ class TallyWebSocketService {
             syncMasters: true
           }
         },
+        tallyCompanyPath: incomingCompany.guid,
         createdBy: createdById,
         organizationId: organizationId || undefined,
         users: newUsers
@@ -1228,24 +1242,27 @@ class TallyWebSocketService {
         company.organizationId = organizationId;
       }
       // Add authenticated user to existing company if not already present
-      if (mongoose.Types.ObjectId.isValid(userId) && !company.hasUserAccess(userId)) {
-        company.users.push({
-          user: new mongoose.Types.ObjectId(userId),
-          role: 'admin',
-          permissions: {
-            vouchers: { create: true, read: true, update: true, delete: true },
-            inventory: { create: true, read: true, update: true, delete: true },
-            reports: { financial: true, inventory: true, gst: true, analytics: true }
+      if (isValidId(userId) && !company.hasUserAccess(userId)) {
+        company.users = [
+          ...(company.users || []),
+          {
+            user: String(userId),
+            role: 'admin',
+            permissions: {
+              vouchers: { create: true, read: true, update: true, delete: true },
+              inventory: { create: true, read: true, update: true, delete: true },
+              reports: { financial: true, inventory: true, gst: true, analytics: true }
+            }
           }
-        });
+        ];
       }
       await this.upsertCompanyMetadata(company, incomingCompany);
     }
 
     // Mobile / REST APIs scope companies via User.companies — keep it in sync with company.users
-    if (mongoose.Types.ObjectId.isValid(userId)) {
+    if (isValidId(userId)) {
       await User.findByIdAndUpdate(userId, {
-        $addToSet: { companies: company._id }
+        $addToSet: { companies: company._id || company.id }
       });
     }
 
@@ -1283,8 +1300,8 @@ class TallyWebSocketService {
 
   toObjectIdOrUndefined(value) {
     if (!value) return undefined;
-    if (mongoose.Types.ObjectId.isValid(value)) {
-      return new mongoose.Types.ObjectId(value);
+    if (isValidId(value) || (typeof value === 'string' && value.length > 0)) {
+      return String(value);
     }
     return undefined;
   }

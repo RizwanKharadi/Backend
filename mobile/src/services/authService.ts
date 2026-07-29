@@ -5,8 +5,40 @@ import { apiClient } from './apiClient';
 import { LoginCredentials, RegisterData, AuthResponse, User } from '../types';
 
 const TOKEN_KEY = 'auth_token';
+const REFRESH_TOKEN_KEY = 'auth_refresh_token';
 const USER_KEY = 'user_data';
 const BIOMETRIC_KEY = 'biometric_credentials';
+
+/** Map API user object to app User type (handles missing isActive / dates). */
+export function normalizeUser(raw: Record<string, unknown> | null | undefined): User {
+  if (!raw) {
+    return {
+      id: '',
+      name: '',
+      email: '',
+      phone: '',
+      role: 'user',
+      isEmailVerified: false,
+      isActive: true,
+      companies: [],
+      createdAt: '',
+      updatedAt: '',
+    };
+  }
+  return {
+    id: String(raw.id || raw._id || ''),
+    name: String(raw.name || ''),
+    email: String(raw.email || ''),
+    phone: String(raw.phone || ''),
+    role: (raw.role as User['role']) || 'user',
+    isEmailVerified: Boolean(raw.isEmailVerified),
+    isActive: raw.isActive !== false,
+    companies: Array.isArray(raw.companies) ? (raw.companies as string[]) : [],
+    createdAt: raw.createdAt ? String(raw.createdAt) : '',
+    updatedAt: raw.updatedAt ? String(raw.updatedAt) : '',
+    lastLogin: raw.lastLogin ? String(raw.lastLogin) : null,
+  };
+}
 
 class AuthService {
   private biometrics: ReactNativeBiometrics;
@@ -17,30 +49,44 @@ class AuthService {
     });
   }
 
+  private normalizeCredentials(credentials: LoginCredentials): LoginCredentials {
+    return {
+      email: (credentials.email || '').toLowerCase().trim(),
+      password: credentials.password ?? '',
+      rememberMe: credentials.rememberMe ?? true,
+    };
+  }
+
   /**
    * Login user with email and password
    */
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
+    const normalized = this.normalizeCredentials(credentials);
+    if (!normalized.email || !normalized.password) {
+      throw new Error('Email and password are required');
+    }
+
     try {
-      const response = await apiClient.post('/auth/login', credentials);
+      const response = await apiClient.post('/auth/login', normalized);
       
       if (response.data.success) {
-        const { token, user } = response.data.data;
+        const { token, refreshToken, user: rawUser } = response.data.data;
+        const user = normalizeUser(rawUser);
         
-        // Store token securely
         await EncryptedStorage.setItem(TOKEN_KEY, token);
-        
-        // Store user data
+        if (refreshToken) {
+          await EncryptedStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        }
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
         
-        // Store biometric credentials if enabled
-        if (credentials.rememberMe) {
-          await this.storeBiometricCredentials(credentials);
+        if (normalized.rememberMe) {
+          await this.storeBiometricCredentials(normalized);
         }
         
         return {
           success: true,
           token,
+          refreshToken: refreshToken || null,
           user,
         };
       }
@@ -55,28 +101,46 @@ class AuthService {
    * Register new user
    */
   async register(userData: RegisterData): Promise<AuthResponse> {
+    const normalized: RegisterData = {
+      ...userData,
+      email: (userData.email || '').toLowerCase().trim(),
+      name: (userData.name || '').trim(),
+      phone: (userData.phone || '').trim(),
+    };
     try {
-      const response = await apiClient.post('/auth/register', userData);
+      const response = await apiClient.post('/auth/register', normalized);
       
       if (response.data.success) {
-        const { token, user } = response.data.data;
+        const { token, refreshToken, user: rawUser } = response.data.data;
+        const user = normalizeUser(rawUser);
         
-        // Store token securely
         await EncryptedStorage.setItem(TOKEN_KEY, token);
-        
-        // Store user data
+        if (refreshToken) {
+          await EncryptedStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        }
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
         
         return {
           success: true,
           token,
+          refreshToken: refreshToken || null,
           user,
         };
       }
       
       throw new Error(response.data.message || 'Registration failed');
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || 'Registration failed');
+      const apiErrors = error.response?.data?.errors;
+      const firstMsg =
+        Array.isArray(apiErrors) && apiErrors.length > 0
+          ? apiErrors[0]?.msg || apiErrors[0]?.message
+          : null;
+      throw new Error(
+        firstMsg ||
+          error.response?.data?.message ||
+          error.message ||
+          'Registration failed'
+      );
     }
   }
 
@@ -101,20 +165,29 @@ class AuthService {
    */
   async refreshToken(): Promise<AuthResponse> {
     try {
-      const response = await apiClient.post('/auth/refresh');
+      const storedRefresh = await EncryptedStorage.getItem(REFRESH_TOKEN_KEY);
+      if (!storedRefresh) {
+        throw new Error('Please sign in again.');
+      }
+
+      const response = await apiClient.post('/auth/refresh', {
+        refreshToken: storedRefresh,
+      });
       
       if (response.data.success) {
-        const { token, user } = response.data.data;
+        const { token, refreshToken, user: rawUser } = response.data.data;
+        const user = normalizeUser(rawUser);
         
-        // Update stored token
         await EncryptedStorage.setItem(TOKEN_KEY, token);
-        
-        // Update user data
+        if (refreshToken) {
+          await EncryptedStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+        }
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
         
         return {
           success: true,
           token,
+          refreshToken: refreshToken || storedRefresh,
           user,
         };
       }
@@ -161,30 +234,117 @@ class AuthService {
   }
 
   /**
-   * Setup biometric authentication
+   * Verify password with the server, then store credentials for biometric login.
+   */
+  async enableBiometricLogin(credentials: LoginCredentials): Promise<boolean> {
+    const normalized = this.normalizeCredentials(credentials);
+    if (!normalized.email || !normalized.password) {
+      throw new Error('Email and password are required');
+    }
+
+    const { available } = await this.biometrics.isSensorAvailable();
+    if (!available) {
+      throw new Error('Biometric authentication is not available on this device');
+    }
+
+    let response;
+    try {
+      response = await apiClient.post('/auth/login', normalized);
+    } catch (error: any) {
+      throw new Error(
+        error?.response?.data?.message || error?.message || 'Invalid credentials'
+      );
+    }
+
+    if (!response.data?.success) {
+      throw new Error(response.data?.message || 'Invalid credentials');
+    }
+
+    const { token, user } = response.data.data;
+    await EncryptedStorage.setItem(TOKEN_KEY, token);
+    await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+
+    try {
+      await this.biometrics.createKeys();
+    } catch (error) {
+      console.warn('Biometric key creation skipped:', error);
+    }
+
+    await this.storeBiometricCredentials(normalized);
+    return true;
+  }
+
+  /**
+   * Update stored credentials after a successful password login (no extra API call).
+   */
+  async refreshBiometricCredentials(credentials: LoginCredentials): Promise<void> {
+    const { available } = await this.biometrics.isSensorAvailable();
+    if (!available) return;
+    await this.storeBiometricCredentials(credentials);
+  }
+
+  /**
+   * Setup biometric authentication (alias — validates password before storing).
    */
   async setupBiometric(credentials: LoginCredentials): Promise<boolean> {
-    try {
-      const { available } = await this.biometrics.isSensorAvailable();
-      
-      if (!available) {
-        throw new Error('Biometric authentication not available');
-      }
+    return this.enableBiometricLogin(credentials);
+  }
 
-      // Create biometric key
-      const { success } = await this.biometrics.createKeys();
-      
-      if (success) {
-        // Store encrypted credentials
-        await this.storeBiometricCredentials(credentials);
-        return true;
-      }
-      
-      return false;
-    } catch (error) {
-      console.error('Biometric setup failed:', error);
-      return false;
+  /**
+   * Biometric prompt + login using stored credentials.
+   */
+  async biometricSignIn(): Promise<AuthResponse> {
+    const { available } = await this.biometrics.isSensorAvailable();
+    if (!available) {
+      throw new Error('Biometric authentication is not available on this device');
     }
+
+    const { success } = await this.biometrics.simplePrompt({
+      promptMessage: 'Sign in with biometrics',
+      cancelButtonText: 'Cancel',
+    });
+
+    if (!success) {
+      throw new Error('Biometric verification was cancelled');
+    }
+
+    const credentials = await this.getBiometricCredentials();
+    if (!credentials?.email || !credentials?.password) {
+      throw new Error(
+        'No saved login found. Sign in with your password, then enable biometrics in Settings.'
+      );
+    }
+
+    try {
+      return await this.login(credentials);
+    } catch (error: any) {
+      const msg = String(error?.message || '').toLowerCase();
+      if (msg.includes('invalid credentials')) {
+        await this.clearBiometricCredentials();
+        throw new Error(
+          'Saved password is incorrect or outdated. Sign in with your password, then turn biometrics off and on again in Settings.'
+        );
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Remove stored biometric login credentials (settings toggle off / logout optional)
+   */
+  async clearBiometricCredentials(): Promise<void> {
+    try {
+      await EncryptedStorage.removeItem(BIOMETRIC_KEY);
+    } catch (error) {
+      console.error('Failed to clear biometric credentials:', error);
+    }
+  }
+
+  /**
+   * Whether email/password are stored for biometric sign-in
+   */
+  async hasBiometricCredentials(): Promise<boolean> {
+    return this.hasStoredBiometricCredentials();
   }
 
   /**
@@ -205,11 +365,13 @@ class AuthService {
       });
 
       if (success) {
-        // Retrieve stored credentials
         const credentials = await this.getBiometricCredentials();
+        if (!credentials?.email || !credentials?.password) {
+          return { success: false };
+        }
         return { success: true, credentials };
       }
-      
+
       return { success: false };
     } catch (error) {
       console.error('Biometric verification failed:', error);
@@ -223,7 +385,7 @@ class AuthService {
   async isBiometricAvailable(): Promise<boolean> {
     try {
       const { available } = await this.biometrics.isSensorAvailable();
-      const hasCredentials = await this.hasBiometricCredentials();
+      const hasCredentials = await this.hasStoredBiometricCredentials();
       return available && hasCredentials;
     } catch (error) {
       return false;
@@ -234,11 +396,8 @@ class AuthService {
    * Store biometric credentials securely
    */
   private async storeBiometricCredentials(credentials: LoginCredentials): Promise<void> {
-    try {
-      await EncryptedStorage.setItem(BIOMETRIC_KEY, JSON.stringify(credentials));
-    } catch (error) {
-      console.error('Failed to store biometric credentials:', error);
-    }
+    const normalized = this.normalizeCredentials(credentials);
+    await EncryptedStorage.setItem(BIOMETRIC_KEY, JSON.stringify(normalized));
   }
 
   /**
@@ -247,7 +406,13 @@ class AuthService {
   private async getBiometricCredentials(): Promise<LoginCredentials | null> {
     try {
       const data = await EncryptedStorage.getItem(BIOMETRIC_KEY);
-      return data ? JSON.parse(data) : null;
+      if (!data) return null;
+      const parsed = JSON.parse(data) as LoginCredentials;
+      const normalized = this.normalizeCredentials(parsed);
+      if (!normalized.email || !normalized.password) {
+        return null;
+      }
+      return normalized;
     } catch (error) {
       console.error('Failed to get biometric credentials:', error);
       return null;
@@ -255,29 +420,85 @@ class AuthService {
   }
 
   /**
-   * Check if biometric credentials are stored
+   * Email saved for biometric login (for login form prefill).
    */
-  private async hasBiometricCredentials(): Promise<boolean> {
-    try {
-      const data = await EncryptedStorage.getItem(BIOMETRIC_KEY);
-      return !!data;
-    } catch (error) {
-      return false;
-    }
+  async getStoredBiometricEmail(): Promise<string | null> {
+    const credentials = await this.getBiometricCredentials();
+    return credentials?.email ?? null;
   }
 
   /**
-   * Clear all authentication data
+   * Check if biometric credentials are stored
+   */
+  private async hasStoredBiometricCredentials(): Promise<boolean> {
+    const credentials = await this.getBiometricCredentials();
+    return !!(credentials?.email && credentials?.password);
+  }
+
+  /**
+   * Validate stored token against backend (user still exists).
+   */
+  async validateSession(): Promise<{ valid: boolean; user?: User; token?: string }> {
+    const token = await this.getToken();
+    if (!token) {
+      return { valid: false };
+    }
+    try {
+      const response = await apiClient.get('/auth/profile');
+      if (response.data?.success) {
+        const user = normalizeUser(response.data.data.user);
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+        return { valid: true, user, token };
+      }
+    } catch (error: any) {
+      const status = error?.status ?? error?.response?.status;
+      const message = String(
+        error?.message || error?.response?.data?.message || ''
+      ).toLowerCase();
+      if (
+        status === 401 ||
+        status === 404 ||
+        message.includes('not exist') ||
+        message.includes('not found') ||
+        message.includes('invalid token')
+      ) {
+        await this.clearLocalSession();
+      }
+    }
+    return { valid: false };
+  }
+
+  /** Clear local credentials without calling logout API */
+  async clearLocalSession(): Promise<void> {
+    await this.clearAuthData();
+  }
+
+  /**
+   * Clear session tokens only — keep biometric credentials so sign-in with
+   * fingerprint/face still works after logout.
    */
   private async clearAuthData(): Promise<void> {
     try {
       await Promise.all([
         EncryptedStorage.removeItem(TOKEN_KEY),
-        EncryptedStorage.removeItem(BIOMETRIC_KEY),
+        EncryptedStorage.removeItem(REFRESH_TOKEN_KEY),
         AsyncStorage.removeItem(USER_KEY),
       ]);
     } catch (error) {
       console.error('Failed to clear auth data:', error);
+    }
+  }
+
+  /**
+   * Whether the login screen should offer biometric sign-in.
+   */
+  async canUseBiometricLogin(): Promise<boolean> {
+    try {
+      const { available } = await this.biometrics.isSensorAvailable();
+      if (!available) return false;
+      return this.hasStoredBiometricCredentials();
+    } catch {
+      return false;
     }
   }
 }

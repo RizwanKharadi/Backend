@@ -10,7 +10,8 @@ FinSync360 follows a microservices architecture with the following components:
 ```
 FinSync360/
 ├── backend/                 # Node.js + Express API server
-├── frontend/               # React.js web application
+├── frontend-nextjs/        # Next.js web application (production)
+├── frontend/               # Legacy CRA web app (deprecated)
 ├── mobile/                 # React Native mobile apps
 ├── desktop/                # Electron desktop application
 ├── desktop-agent/          # Electron Tally sync agent
@@ -34,9 +35,9 @@ FinSync360/
 - **Testing**: Jest, Supertest
 - **Documentation**: Swagger/OpenAPI
 
-#### Frontend
-- **Framework**: React 18 with Hooks
-- **Routing**: React Router v6
+#### Frontend (frontend-nextjs)
+- **Framework**: Next.js 15 (React 18)
+- **Routing**: App Router
 - **State Management**: Context API + useReducer
 - **Data Fetching**: React Query
 - **Forms**: React Hook Form
@@ -86,7 +87,7 @@ npm run install:all
 # Copy environment files
 cp .env.example .env
 cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
+cp frontend-nextjs/.env.example frontend-nextjs/.env.local
 
 # Configure your settings
 nano .env
@@ -120,6 +121,31 @@ npm run lint           # Lint all
 npm run lint:fix       # Fix linting issues
 ```
 
+### Mobile Metro Stability (Windows)
+
+Use a single Metro instance and a single port for React Native (`8082` in this repo).
+
+```bash
+# Terminal 1 - start Metro cleanly
+npm run mobile:reset
+
+# Terminal 2 - install/run Android app
+npm run mobile:android
+```
+
+If you see `Metro has encountered an error: Failed to start watch mode`:
+
+```bash
+# 1) Close all Metro/React Native terminals
+# 2) Start Metro with clean cache
+npm run mobile:reset
+
+# 3) Run app again in a second terminal
+npm run mobile:android
+```
+
+Avoid running multiple Metro servers on different ports (`8081` and `8082`) at the same time.
+
 ### 3. Code Structure
 
 #### Backend Structure
@@ -136,9 +162,9 @@ backend/src/
 └── scripts/           # Database scripts
 ```
 
-#### Frontend Structure
+#### Frontend Structure (legacy CRA in `frontend/` is deprecated)
 ```
-frontend/src/
+frontend-nextjs/src/
 ├── components/        # Reusable components
 │   ├── common/       # Common UI components
 │   ├── forms/        # Form components

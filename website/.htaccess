@@ -1,0 +1,17 @@
+# Apache — optional (cPanel / shared hosting)
+DirectoryIndex index.html
+
+<IfModule mod_headers.c>
+  <FilesMatch "\.(exe|msi)$">
+    Header set Content-Disposition "attachment"
+  </FilesMatch>
+</IfModule>
+
+<IfModule mod_mime.c>
+  AddType application/octet-stream .exe
+</IfModule>
+
+# Force HTTPS (uncomment when SSL is active)
+# RewriteEngine On
+# RewriteCond %{HTTPS} off
+# RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

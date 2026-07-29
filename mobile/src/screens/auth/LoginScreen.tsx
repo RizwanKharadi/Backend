@@ -6,30 +6,33 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  TouchableOpacity,
+  TextInput as RNTextInput,
+  ActivityIndicator,
+  StatusBar,
+  Image,
 } from 'react-native';
-import {
-  TextInput,
-  Button,
-  Text,
-  Checkbox,
-  Surface,
-  useTheme,
-  HelperText,
-} from 'react-native-paper';
+import { Text } from 'react-native-paper';
 import { useDispatch, useSelector } from 'react-redux';
 import { useForm, Controller } from 'react-hook-form';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useFocusEffect } from '@react-navigation/native';
 
-// Store
+import AuthBackground from '../../components/auth/AuthBackground';
+import { authColors, authSpacing } from '../../theme/authTheme';
 import { AppDispatch, RootState } from '../../store';
-import { login, verifyBiometric, clearError } from '../../store/slices/authSlice';
-
-// Services
-import { authService } from '../../services';
-
-// Types
+import { login, biometricLogin, clearError } from '../../store/slices/authSlice';
+import { authService, biometricService } from '../../services';
 import { AuthStackScreenProps } from '../../types/navigation';
 import { LoginCredentials } from '../../types';
+import {
+  fetchCompanies,
+  setSelectedCompany,
+} from '../../store/slices/companySlice';
+import { setSelectedCompany as setPersistedCompanyId } from '../../store/slices/settingsSlice';
+import { initializeRealtimeServices } from '../../services';
+import { pickDefaultCompany } from '../../utils/companySelection';
 
 type Props = AuthStackScreenProps<'Login'>;
 
@@ -39,20 +42,28 @@ interface LoginForm {
   rememberMe: boolean;
 }
 
+const FEATURES = [
+  { icon: 'sync', label: 'Tally sync' },
+  { icon: 'chart-timeline-variant', label: 'Live reports' },
+  { icon: 'shield-check', label: 'Secure' },
+] as const;
+
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
-  const theme = useTheme();
+  const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
-  
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
-  
+  const biometricEnabled = useSelector((state: RootState) => state.settings.biometricEnabled);
+
   const [showPassword, setShowPassword] = useState(false);
   const [biometricAvailable, setBiometricAvailable] = useState(false);
+  const [emailFocused, setEmailFocused] = useState(false);
+  const [passwordFocused, setPasswordFocused] = useState(false);
 
   const {
     control,
     handleSubmit,
-    formState: { errors },
     setValue,
+    formState: { errors },
   } = useForm<LoginForm>({
     defaultValues: {
       email: '',
@@ -62,16 +73,24 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
   });
 
   useEffect(() => {
-    checkBiometricAvailability();
-    
-    // Clear any previous errors
     dispatch(clearError());
   }, [dispatch]);
 
-  const checkBiometricAvailability = async () => {
-    const available = await authService.isBiometricAvailable();
-    setBiometricAvailable(available);
-  };
+  const checkBiometricAvailability = React.useCallback(async () => {
+    const canLogin = await authService.canUseBiometricLogin();
+    const enabledInSettings =
+      biometricEnabled || (await biometricService.isBiometricEnabled());
+    setBiometricAvailable(canLogin && enabledInSettings);
+  }, [biometricEnabled]);
+
+  useFocusEffect(
+    React.useCallback(() => {
+      void checkBiometricAvailability();
+      void authService.getStoredBiometricEmail().then((email) => {
+        if (email) setValue('email', email);
+      });
+    }, [checkBiometricAvailability, setValue])
+  );
 
   const onSubmit = async (data: LoginForm) => {
     try {
@@ -82,57 +101,94 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       };
 
       await dispatch(login(credentials)).unwrap();
-    } catch (error: any) {
-      Alert.alert('Login Failed', error || 'Please check your credentials and try again.');
+
+      const companiesResult = await dispatch(fetchCompanies({})).unwrap();
+
+      if (companiesResult && companiesResult.length > 0) {
+        const chosen = pickDefaultCompany(companiesResult as any[]);
+        if (chosen) {
+          const id = String(chosen._id || chosen.id);
+          dispatch(setSelectedCompany({ ...chosen, id }));
+          dispatch(setPersistedCompanyId(id));
+          await initializeRealtimeServices();
+        }
+      }
+    } catch (err: any) {
+      Alert.alert('Login Failed', err || 'Please check your credentials and try again.');
     }
   };
 
   const handleBiometricLogin = async () => {
     try {
-      const result = await dispatch(verifyBiometric()).unwrap();
-      
-      if (result.success && result.credentials) {
-        await dispatch(login(result.credentials)).unwrap();
+      await dispatch(biometricLogin()).unwrap();
+      const companiesResult = await dispatch(fetchCompanies({})).unwrap();
+      if (companiesResult?.length) {
+        const chosen = pickDefaultCompany(companiesResult as any[]);
+        if (chosen) {
+          const id = String(chosen._id || chosen.id);
+          dispatch(setSelectedCompany({ ...chosen, id }));
+          dispatch(setPersistedCompanyId(id));
+          await initializeRealtimeServices();
+        }
       }
-    } catch (error: any) {
-      Alert.alert('Biometric Login Failed', error || 'Please try again or use password login.');
+    } catch (err: any) {
+      Alert.alert(
+        'Biometric Login Failed',
+        err || 'Please try again or use password login.'
+      );
     }
   };
 
-  const handleForgotPassword = () => {
-    navigation.navigate('ForgotPassword');
-  };
-
-  const handleRegister = () => {
-    navigation.navigate('Register');
+  const inputBorder = (focused: boolean, hasError: boolean) => {
+    if (hasError) return authColors.error;
+    if (focused) return authColors.inputBorderFocus;
+    return authColors.inputBorder;
   };
 
   return (
-    <KeyboardAvoidingView
-      style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-    >
-      <ScrollView
-        contentContainerStyle={styles.scrollContent}
-        keyboardShouldPersistTaps="handled"
-        showsVerticalScrollIndicator={false}
-      >
-        <View style={styles.header}>
-          <Icon
-            name="account-circle"
-            size={80}
-            color={theme.colors.primary}
-          />
-          <Text variant="headlineMedium" style={styles.title}>
-            Welcome Back
-          </Text>
-          <Text variant="bodyLarge" style={styles.subtitle}>
-            Sign in to your FinSync360 account
-          </Text>
-        </View>
+    <View style={styles.root}>
+      <StatusBar barStyle="light-content" backgroundColor={authColors.bgDeep} />
+      <AuthBackground />
 
-        <Surface style={styles.formContainer} elevation={2}>
-          <View style={styles.form}>
+      <KeyboardAvoidingView
+        style={styles.flex}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
+        <ScrollView
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: insets.top + 12, paddingBottom: insets.bottom + 24 },
+          ]}
+          keyboardShouldPersistTaps="handled"
+          showsVerticalScrollIndicator={false}
+        >
+          {/* Hero */}
+          <View style={styles.hero}>
+            <View style={styles.logoRing}>
+              <Image
+                source={require('../../assets/tallyfin-icon.png')}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
+            <Text style={styles.brand}>TallyFin</Text>
+            <Text style={styles.tagline}>TRACK • ANALYZE • GROW</Text>
+
+            <View style={styles.featureRow}>
+              {FEATURES.map((f) => (
+                <View key={f.label} style={styles.featureChip}>
+                  <Icon name={f.icon} size={14} color={authColors.textOnDark} />
+                  <Text style={styles.featureChipText}>{f.label}</Text>
+                </View>
+              ))}
+            </View>
+          </View>
+
+          {/* Card */}
+          <View style={styles.card}>
+            <Text style={styles.cardTitle}>Welcome back</Text>
+            <Text style={styles.cardSubtitle}>Sign in to continue to your dashboard</Text>
+
             <Controller
               control={control}
               name="email"
@@ -140,30 +196,49 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 required: 'Email is required',
                 pattern: {
                   value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: 'Please enter a valid email address',
+                  message: 'Enter a valid email address',
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Email"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  mode="outlined"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="email"
-                  error={!!errors.email}
-                  left={<TextInput.Icon icon="email" />}
-                  style={styles.input}
-                />
+                <View style={styles.fieldWrap}>
+                  <Text style={styles.fieldLabel}>Email</Text>
+                  <View
+                    style={[
+                      styles.inputRow,
+                      {
+                        borderColor: inputBorder(emailFocused, !!errors.email),
+                        backgroundColor: emailFocused ? '#fff' : authColors.inputBg,
+                      },
+                    ]}
+                  >
+                    <Icon
+                      name="email-outline"
+                      size={22}
+                      color={emailFocused ? authColors.primary : authColors.textSecondary}
+                      style={styles.inputIcon}
+                    />
+                    <RNTextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={() => {
+                        onBlur();
+                        setEmailFocused(false);
+                      }}
+                      onFocus={() => setEmailFocused(true)}
+                      placeholder="you@company.com"
+                      placeholderTextColor="#94a3b8"
+                      keyboardType="email-address"
+                      autoCapitalize="none"
+                      autoComplete="email"
+                      style={styles.textInput}
+                    />
+                  </View>
+                  {errors.email ? (
+                    <Text style={styles.fieldError}>{errors.email.message}</Text>
+                  ) : null}
+                </View>
               )}
             />
-            {errors.email && (
-              <HelperText type="error" visible={!!errors.email}>
-                {errors.email.message}
-              </HelperText>
-            )}
 
             <Controller
               control={control}
@@ -172,175 +247,395 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 required: 'Password is required',
                 minLength: {
                   value: 6,
-                  message: 'Password must be at least 6 characters',
+                  message: 'At least 6 characters',
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
-                <TextInput
-                  label="Password"
-                  value={value}
-                  onChangeText={onChange}
-                  onBlur={onBlur}
-                  mode="outlined"
-                  secureTextEntry={!showPassword}
-                  autoComplete="password"
-                  error={!!errors.password}
-                  left={<TextInput.Icon icon="lock" />}
-                  right={
-                    <TextInput.Icon
-                      icon={showPassword ? 'eye-off' : 'eye'}
-                      onPress={() => setShowPassword(!showPassword)}
+                <View style={styles.fieldWrap}>
+                  <Text style={styles.fieldLabel}>Password</Text>
+                  <View
+                    style={[
+                      styles.inputRow,
+                      {
+                        borderColor: inputBorder(passwordFocused, !!errors.password),
+                        backgroundColor: passwordFocused ? '#fff' : authColors.inputBg,
+                      },
+                    ]}
+                  >
+                    <Icon
+                      name="lock-outline"
+                      size={22}
+                      color={passwordFocused ? authColors.primary : authColors.textSecondary}
+                      style={styles.inputIcon}
                     />
-                  }
-                  style={styles.input}
-                />
+                    <RNTextInput
+                      value={value}
+                      onChangeText={onChange}
+                      onBlur={() => {
+                        onBlur();
+                        setPasswordFocused(false);
+                      }}
+                      onFocus={() => setPasswordFocused(true)}
+                      placeholder="••••••••"
+                      placeholderTextColor="#94a3b8"
+                      secureTextEntry={!showPassword}
+                      autoComplete="password"
+                      style={styles.textInput}
+                    />
+                    <TouchableOpacity
+                      onPress={() => setShowPassword(!showPassword)}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                    >
+                      <Icon
+                        name={showPassword ? 'eye-off-outline' : 'eye-outline'}
+                        size={22}
+                        color={authColors.textSecondary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                  {errors.password ? (
+                    <Text style={styles.fieldError}>{errors.password.message}</Text>
+                  ) : null}
+                </View>
               )}
             />
-            {errors.password && (
-              <HelperText type="error" visible={!!errors.password}>
-                {errors.password.message}
-              </HelperText>
-            )}
 
-            <View style={styles.checkboxContainer}>
+            <View style={styles.rememberRow}>
               <Controller
                 control={control}
                 name="rememberMe"
                 render={({ field: { onChange, value } }) => (
-                  <Checkbox.Item
-                    label="Remember me"
-                    status={value ? 'checked' : 'unchecked'}
+                  <TouchableOpacity
+                    style={styles.rememberTouch}
                     onPress={() => onChange(!value)}
-                    labelStyle={styles.checkboxLabel}
-                  />
+                    activeOpacity={0.7}
+                  >
+                    <View style={[styles.checkbox, value && styles.checkboxChecked]}>
+                      {value ? <Icon name="check" size={14} color="#fff" /> : null}
+                    </View>
+                    <Text style={styles.rememberText}>Remember me</Text>
+                  </TouchableOpacity>
                 )}
               />
+              <TouchableOpacity
+                onPress={() => navigation.navigate('ForgotPassword')}
+                disabled={isLoading}
+              >
+                <Text style={styles.forgotLink}>Forgot password?</Text>
+              </TouchableOpacity>
             </View>
 
-            {error && (
-              <HelperText type="error" visible={!!error} style={styles.errorText}>
-                {error}
-              </HelperText>
-            )}
+            {error ? (
+              <View style={styles.errorBanner}>
+                <Icon name="alert-circle-outline" size={18} color={authColors.error} />
+                <Text style={styles.errorBannerText}>{error}</Text>
+              </View>
+            ) : null}
 
-            <Button
-              mode="contained"
+            <TouchableOpacity
+              style={[styles.primaryBtn, isLoading && styles.primaryBtnDisabled]}
               onPress={handleSubmit(onSubmit)}
-              loading={isLoading}
               disabled={isLoading}
-              style={styles.loginButton}
-              contentStyle={styles.buttonContent}
+              activeOpacity={0.88}
             >
-              Sign In
-            </Button>
+              {isLoading ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <>
+                  <Text style={styles.primaryBtnText}>Sign in</Text>
+                  <Icon name="arrow-right" size={22} color="#fff" />
+                </>
+              )}
+            </TouchableOpacity>
 
-            {biometricAvailable && (
-              <Button
-                mode="outlined"
+            {biometricAvailable ? (
+              <TouchableOpacity
+                style={styles.biometricBtn}
                 onPress={handleBiometricLogin}
                 disabled={isLoading}
-                style={styles.biometricButton}
-                contentStyle={styles.buttonContent}
-                icon="fingerprint"
+                activeOpacity={0.85}
               >
-                Use Biometric
-              </Button>
-            )}
-
-            <Button
-              mode="text"
-              onPress={handleForgotPassword}
-              disabled={isLoading}
-              style={styles.forgotButton}
-            >
-              Forgot Password?
-            </Button>
+                <View style={styles.biometricIconWrap}>
+                  <Icon name="fingerprint" size={28} color={authColors.primary} />
+                </View>
+                <Text style={styles.biometricText}>Sign in with biometrics</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
-        </Surface>
 
-        <View style={styles.footer}>
-          <Text variant="bodyMedium" style={styles.footerText}>
-            Don't have an account?{' '}
-          </Text>
-          <Button
-            mode="text"
-            onPress={handleRegister}
-            disabled={isLoading}
-            compact
-          >
-            Sign Up
-          </Button>
-        </View>
-      </ScrollView>
-    </KeyboardAvoidingView>
+          <View style={styles.footer}>
+            <Text style={styles.footerHint}>
+              Sign up here or on the TallyFin Desktop Agent. Use the same email and password on both
+              — after you sync from desktop, your Tally data appears in this app.
+            </Text>
+            <TouchableOpacity
+              onPress={() => navigation.navigate('Register')}
+              disabled={isLoading}
+              style={styles.signUpRow}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.footerHint}>Don&apos;t have an account? </Text>
+              <Text style={styles.signUpLink}>Sign up</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  root: {
     flex: 1,
-    backgroundColor: '#f5f5f5',
+    backgroundColor: authColors.bgDeep,
   },
+  flex: { flex: 1 },
   scrollContent: {
     flexGrow: 1,
-    justifyContent: 'center',
-    padding: 20,
+    paddingHorizontal: authSpacing.screenPadding,
   },
-  header: {
+  hero: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 28,
   },
-  title: {
-    fontSize: 28,
-    fontWeight: 'bold',
-    marginTop: 16,
-    marginBottom: 8,
+  logoRing: {
+    width: 96,
+    height: 96,
+    borderRadius: 20,
+    padding: 4,
+    backgroundColor: '#ffffff',
+    marginBottom: 16,
+    ...Platform.select({
+      ios: {
+        shadowColor: authColors.primary,
+        shadowOffset: { width: 0, height: 8 },
+        shadowOpacity: 0.45,
+        shadowRadius: 16,
+      },
+      android: { elevation: 12 },
+    }),
   },
-  subtitle: {
-    fontSize: 16,
-    textAlign: 'center',
-    opacity: 0.7,
-  },
-  formContainer: {
+  logoImage: {
+    width: '100%',
+    height: '100%',
     borderRadius: 16,
+  },
+  brand: {
+    fontSize: 32,
+    fontWeight: '800',
+    color: authColors.textOnDark,
+    letterSpacing: -0.5,
+  },
+  tagline: {
+    fontSize: 15,
+    color: authColors.textOnDarkMuted,
+    marginTop: 6,
+    fontWeight: '500',
+  },
+  featureRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 20,
+  },
+  featureChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+    backgroundColor: authColors.chipBg,
+    borderWidth: 1,
+    borderColor: authColors.chipBorder,
+  },
+  featureChipText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: authColors.textOnDark,
+  },
+  card: {
+    backgroundColor: authColors.card,
+    borderRadius: authSpacing.cardRadius,
     padding: 24,
-    marginBottom: 24,
+    ...Platform.select({
+      ios: {
+        shadowColor: '#0f172a',
+        shadowOffset: { width: 0, height: 12 },
+        shadowOpacity: 0.2,
+        shadowRadius: 24,
+      },
+      android: { elevation: 10 },
+    }),
   },
-  form: {
-    gap: 16,
+  cardTitle: {
+    fontSize: 24,
+    fontWeight: '800',
+    color: authColors.textPrimary,
+    letterSpacing: -0.3,
   },
-  input: {
-    backgroundColor: 'transparent',
-  },
-  checkboxContainer: {
-    marginLeft: -8,
-  },
-  checkboxLabel: {
+  cardSubtitle: {
     fontSize: 14,
+    color: authColors.textSecondary,
+    marginTop: 4,
+    marginBottom: 22,
   },
-  errorText: {
-    textAlign: 'center',
-    marginTop: -8,
+  fieldWrap: {
+    marginBottom: 16,
   },
-  loginButton: {
-    marginTop: 8,
+  fieldLabel: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: authColors.textSecondary,
+    marginBottom: 8,
+    marginLeft: 2,
   },
-  biometricButton: {
-    marginTop: 8,
+  inputRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderRadius: authSpacing.inputRadius,
+    paddingHorizontal: 14,
+    minHeight: 52,
   },
-  forgotButton: {
-    marginTop: 8,
+  inputIcon: {
+    marginRight: 10,
   },
-  buttonContent: {
+  textInput: {
+    flex: 1,
+    fontSize: 16,
+    color: authColors.textPrimary,
+    paddingVertical: Platform.OS === 'ios' ? 14 : 10,
+  },
+  fieldError: {
+    fontSize: 12,
+    color: authColors.error,
+    marginTop: 6,
+    marginLeft: 2,
+  },
+  rememberRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  rememberTouch: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  checkbox: {
+    width: 22,
+    height: 22,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: authColors.inputBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  checkboxChecked: {
+    backgroundColor: authColors.primary,
+    borderColor: authColors.primary,
+  },
+  rememberText: {
+    fontSize: 14,
+    color: authColors.textSecondary,
+    fontWeight: '500',
+  },
+  forgotLink: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: authColors.primary,
+  },
+  errorBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#fef2f2',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: '#fecaca',
+  },
+  errorBannerText: {
+    flex: 1,
+    fontSize: 13,
+    color: authColors.error,
+    fontWeight: '500',
+  },
+  primaryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    backgroundColor: authColors.primary,
+    borderRadius: authSpacing.buttonRadius,
+    minHeight: 54,
+    ...Platform.select({
+      ios: {
+        shadowColor: authColors.primaryDark,
+        shadowOffset: { width: 0, height: 6 },
+        shadowOpacity: 0.4,
+        shadowRadius: 12,
+      },
+      android: { elevation: 6 },
+    }),
+  },
+  primaryBtnDisabled: {
+    opacity: 0.85,
+  },
+  primaryBtnText: {
+    fontSize: 17,
+    fontWeight: '700',
+    color: '#fff',
+  },
+  biometricBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 16,
+    paddingVertical: 12,
+    gap: 12,
+  },
+  biometricIconWrap: {
+    width: 48,
     height: 48,
+    borderRadius: 24,
+    backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
+  },
+  biometricText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: authColors.primary,
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
+    marginTop: 28,
+    paddingHorizontal: 8,
     alignItems: 'center',
+    gap: 12,
   },
-  footerText: {
+  footerHint: {
+    fontSize: 13,
+    lineHeight: 20,
+    textAlign: 'center',
+    color: authColors.textOnDarkMuted,
+  },
+  signUpRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexWrap: 'wrap',
+  },
+  signUpLink: {
     fontSize: 14,
+    fontWeight: '700',
+    color: authColors.primary,
   },
 });
 

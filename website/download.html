@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Download TallyFin Desktop Agent for Windows — sync TallyPrime to your phone.">
+  <title>Download — TallyFin</title>
+  <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <div id="site-header-mount"></div>
+
+  <main>
+    <header class="download-hero">
+      <div class="container reveal is-visible">
+        <p class="eyebrow">Download</p>
+        <h1 class="display-lg">TallyFin Desktop Agent</h1>
+        <p class="subhead">The bridge between Tally on your PC and TallyFin on your phone.</p>
+
+        <div class="download-card reveal">
+          <div class="platform-icon" aria-hidden="true">🪟</div>
+          <h2 class="headline">Windows</h2>
+          <p class="text-secondary" style="margin-top:8px">
+            Version <span id="agent-version">1.0.3</span> · <span id="agent-size">~85 MB</span>
+          </p>
+          <a href="#" id="download-btn" class="btn btn-primary btn-lg" style="width:100%;margin-top:28px" download>
+            Download installer
+          </a>
+          <p class="caption" style="margin-top:16px" id="download-hint">
+            Place your installer at <code>website/downloads/TallyFin-Desktop-Agent-Setup.exe</code> or update <code>js/config.js</code>.
+          </p>
+        </div>
+
+        <div class="requirements reveal">
+          <h3>System requirements</h3>
+          <ul>
+            <li>Windows 10 or later (64-bit)</li>
+            <li>TallyPrime or Tally ERP 9 installed</li>
+            <li>Stable internet for sync</li>
+            <li>Administrator rights for first install</li>
+          </ul>
+        </div>
+
+        <div class="download-card reveal" style="margin-top:48px;max-width:480px">
+          <div class="platform-icon" aria-hidden="true">📱</div>
+          <h2 class="headline">Mobile app</h2>
+          <p class="text-secondary" style="margin-top:8px">Install after setting up the desktop agent.</p>
+          <a href="#" id="play-store-btn" class="btn btn-secondary" style="width:100%;margin-top:20px" target="_blank" rel="noopener">
+            Get it on Google Play
+          </a>
+        </div>
+      </div>
+    </header>
+  </main>
+
+  <div id="site-footer-mount"></div>
+  <script src="js/config.js"></script>
+  <script src="js/components.js"></script>
+  <script src="js/main.js"></script>
+  <script>
+    (function () {
+      var cfg = window.TALLYFIN_CONFIG || {};
+      var btn = document.getElementById('download-btn');
+      var url = cfg.agentDownloadUrl || 'downloads/TallyFin-Desktop-Agent-Setup.exe';
+      if (btn) {
+        btn.href = url;
+        btn.setAttribute('download', '');
+      }
+      var ver = document.getElementById('agent-version');
+      var size = document.getElementById('agent-size');
+      if (ver && cfg.agentVersion) ver.textContent = cfg.agentVersion;
+      if (size && cfg.agentFileSize) size.textContent = cfg.agentFileSize;
+      var play = document.getElementById('play-store-btn');
+      if (play && cfg.playStoreUrl) play.href = cfg.playStoreUrl;
+    })();
+  </script>
+</body>
+</html>

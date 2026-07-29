@@ -29,8 +29,11 @@ BACKEND_APP="finsync-backend"
 FRONTEND_APP="finsync-frontend"
 ML_APP="finsync-ml"
 
-# MongoDB Atlas URI
-MONGODB_URI="mongodb+srv://hhirawat5:o1qZfrL4ryEwgAll@finsync.xwmeuwe.mongodb.net/finsync360?retryWrites=true&w=majority"
+# Set MONGODB_URI in your environment before running — never commit credentials
+if [[ -z "$MONGODB_URI" ]]; then
+  print_error "Export MONGODB_URI before running this script."
+  exit 1
+fi
 
 # Deploy Backend
 print_status "Deploying Backend Service..."
@@ -45,6 +48,7 @@ fi
 # Set MongoDB URI
 print_status "Setting MongoDB Atlas URI..."
 heroku config:set MONGODB_URI="$MONGODB_URI" -a $BACKEND_APP
+heroku config:set LICENSE_ENFORCEMENT=true -a $BACKEND_APP
 
 # Add and commit changes
 git add .
@@ -57,9 +61,9 @@ git push heroku master --force
 print_success "Backend deployed successfully!"
 cd ..
 
-# Deploy Frontend
-print_status "Deploying Frontend Service..."
-cd frontend
+# Deploy Frontend (Next.js — frontend-nextjs/)
+print_status "Deploying Frontend Service (Next.js)..."
+cd frontend-nextjs
 
 # Initialize git if not already done
 if [ ! -d ".git" ]; then
@@ -69,9 +73,7 @@ fi
 
 # Set environment variables
 print_status "Setting frontend environment variables..."
-heroku config:set REACT_APP_API_URL="https://finsync-backend-d34180691b06.herokuapp.com/api" -a $FRONTEND_APP
-heroku config:set REACT_APP_APP_NAME="FinSync360" -a $FRONTEND_APP
-heroku config:set REACT_APP_VERSION="1.0.0" -a $FRONTEND_APP
+heroku config:set NEXT_PUBLIC_API_URL="https://finsync-backend-d34180691b06.herokuapp.com/api" -a $FRONTEND_APP
 
 # Add and commit changes
 git add .

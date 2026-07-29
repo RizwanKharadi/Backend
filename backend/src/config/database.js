@@ -1,94 +1,89 @@
-import mongoose from 'mongoose';
+import { Sequelize } from 'sequelize';
 import logger from '../utils/logger.js';
+import { defineAllModels } from '../db/defineModels.js';
 
-/** Drop legacy unique index on company+type+number; sync uses Tally GUID per company. */
-export async function migrateVoucherIndexes() {
-  if (mongoose.connection.readyState !== 1) return;
+let sequelize = null;
+let models = null;
+let sequelizeModels = null;
 
-  const coll = mongoose.connection.collection('vouchers');
-  try {
-    const indexes = await coll.indexes();
-    for (const idx of indexes) {
-      const keys = idx.key || {};
-      if (
-        idx.unique &&
-        keys.company === 1 &&
-        keys.voucherType === 1 &&
-        keys.voucherNumber === 1
-      ) {
-        await coll.dropIndex(idx.name);
-        logger.info(`Dropped legacy voucher unique index: ${idx.name}`);
-      }
-    }
-  } catch (error) {
-    if (error.code !== 27 && error.codeName !== 'IndexNotFound') {
-      logger.warn('Legacy voucher index migration skipped', { message: error.message });
-    }
-  }
-
-  try {
-    const Voucher = (await import('../models/Voucher.js')).default;
-    await Voucher.syncIndexes();
-    logger.info('Voucher indexes synchronized');
-  } catch (error) {
-    logger.warn('Voucher syncIndexes failed', { message: error.message });
-  }
+export function getSequelize() {
+  return sequelize;
 }
 
-export const connectDB = async () => {
+export function getModels() {
+  return models;
+}
+
+export async function connectDB() {
   try {
-    // Check if we're in development mode without MongoDB
-    if (process.env.NODE_ENV === 'development' && process.env.SKIP_MONGODB === 'true') {
-      logger.info('Skipping MongoDB connection in development mode');
+    if (process.env.NODE_ENV === 'development' && process.env.SKIP_MYSQL === 'true') {
+      logger.info('Skipping MySQL connection in development mode');
       return { connected: false, connection: { host: 'localhost (skipped)' } };
     }
 
-    const mongoURI = process.env.NODE_ENV === 'test'
-      ? process.env.MONGODB_TEST_URI
-      : process.env.MONGODB_URI;
+    const isTest = process.env.NODE_ENV === 'test';
+    const database =
+      (isTest ? process.env.MYSQL_TEST_DATABASE : process.env.MYSQL_DATABASE) ||
+      (isTest ? 'finsync360_test' : 'finsync360');
+    const host = process.env.MYSQL_HOST || '127.0.0.1';
+    const port = Number(process.env.MYSQL_PORT) || 3306;
+    const username = process.env.MYSQL_USER || 'finsync';
+    const password = process.env.MYSQL_PASSWORD || 'finsyncpass';
 
-    if (!mongoURI) {
-      throw new Error('MongoDB URI is not defined in environment variables');
+    // Support DATABASE_URL style: mysql://user:pass@host:port/db
+    const url = process.env.DATABASE_URL || process.env.MYSQL_URL;
+
+    if (url) {
+      sequelize = new Sequelize(url, {
+        logging: process.env.SQL_LOG === 'true' ? (msg) => logger.debug(msg) : false,
+        dialect: 'mysql',
+        pool: {
+          max: Number(process.env.MYSQL_POOL_MAX) || 10,
+          min: 0,
+          acquire: 30000,
+          idle: 10000,
+        },
+        define: {
+          timestamps: true,
+          underscored: false,
+        },
+      });
+    } else {
+      sequelize = new Sequelize(database, username, password, {
+        host,
+        port,
+        dialect: 'mysql',
+        logging: process.env.SQL_LOG === 'true' ? (msg) => logger.debug(msg) : false,
+        pool: {
+          max: Number(process.env.MYSQL_POOL_MAX) || 10,
+          min: 0,
+          acquire: 30000,
+          idle: 10000,
+        },
+        define: {
+          timestamps: true,
+          underscored: false,
+        },
+      });
     }
 
-    const options = {
-      maxPoolSize: 10, // Maintain up to 10 socket connections
-      serverSelectionTimeoutMS: 15000, // Allow more time for Atlas server selection
-      socketTimeoutMS: Number(process.env.MONGODB_SOCKET_TIMEOUT_MS) || 120000, // Allow long bulkWrite batches
-      bufferCommands: false, // Disable mongoose buffering
-    };
+    await sequelize.authenticate();
+    logger.info(`MySQL Connected: ${host}:${port}/${database}`);
 
-    const conn = await mongoose.connect(mongoURI, options);
+    const defined = defineAllModels(sequelize);
+    models = defined.models;
+    sequelizeModels = defined.sequelizeModels;
 
-    logger.info(`MongoDB Connected: ${conn.connection.host}`);
+    // Fresh start: sync schema (alter in dev for easier iteration)
+    const syncAlter = process.env.MYSQL_SYNC_ALTER === 'true';
+    const syncForce = process.env.MYSQL_SYNC_FORCE === 'true';
+    await sequelize.sync({ alter: syncAlter, force: syncForce });
+    logger.info('MySQL schema synchronized');
 
-    await migrateVoucherIndexes();
-
-    // Connection event listeners
-    mongoose.connection.on('connected', () => {
-      logger.info('Mongoose connected to MongoDB');
-    });
-
-    mongoose.connection.on('error', (err) => {
-      logger.error('Mongoose connection error:', err);
-    });
-
-    mongoose.connection.on('disconnected', () => {
-      logger.warn('Mongoose disconnected from MongoDB');
-    });
-
-    // Handle application termination
-    process.on('SIGINT', async () => {
-      await mongoose.connection.close();
-      logger.info('Mongoose connection closed due to application termination');
-      process.exit(0);
-    });
-
-    return { connected: true, connection: conn.connection };
+    return { connected: true, connection: { host, port, database }, models };
   } catch (error) {
     logger.error('Database connection failed:', error);
 
-    // In development mode, continue without database
     if (process.env.NODE_ENV === 'development') {
       logger.warn('Continuing in development mode without database...');
       return { connected: false, connection: { host: 'localhost (failed)' } };
@@ -96,14 +91,17 @@ export const connectDB = async () => {
 
     process.exit(1);
   }
-};
+}
 
-export const disconnectDB = async () => {
+export async function disconnectDB() {
   try {
-    await mongoose.connection.close();
-    logger.info('Database disconnected successfully');
+    if (sequelize) {
+      await sequelize.close();
+      logger.info('MySQL disconnected successfully');
+    }
   } catch (error) {
     logger.error('Error disconnecting from database:', error);
   }
-};
+}
 
+export { sequelize, models, sequelizeModels };

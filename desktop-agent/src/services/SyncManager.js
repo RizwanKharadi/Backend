@@ -27,7 +27,7 @@ class SyncManager extends EventEmitter {
       syncInterval: '0 * * * *', // Every hour
       batchSize: 100,
       /** Bump when performance defaults change so loadConfig can migrate stored configs. */
-      syncPipelineVersion: 2,
+      syncPipelineVersion: 3,
       /** Vouchers per WebSocket batch upload (larger safe defaults for faster full sync). */
       voucherUploadBatchSize: 200,
       voucherBatchTargetBytes: 6 * 1024 * 1024,
@@ -70,7 +70,9 @@ class SyncManager extends EventEmitter {
       tallySyncTs: {
         paginatedMasters: true,
         paginatedVouchersFallback: true,
-        recordsPerPage: 500
+        recordsPerPage: 500,
+        /** When false (default), paginated stock export is used without monolithic TDL balance enrichment. */
+        enrichStockBalances: false
       }
     };
     
@@ -119,6 +121,8 @@ class SyncManager extends EventEmitter {
     this.tallyService = tallyService;
     this.webSocketClient = webSocketClient;
     this.apiClient = apiClient;
+
+    this.applyTallySyncTsToTallyService();
 
     if (webSocketClient?.setRegisterPayloadProvider) {
       const { mapLicenseInfoForServer } = require('../utils/tallySyncTsExportMapper');
@@ -445,6 +449,7 @@ class SyncManager extends EventEmitter {
     this.config = { ...defaults, ...savedConfig };
     // Saved configs persist the whole object, so nested defaults must be re-merged.
     this.config.vouchers = { ...defaults.vouchers, ...(savedConfig.vouchers || {}) };
+    this.config.tallySyncTs = { ...defaults.tallySyncTs, ...(savedConfig.tallySyncTs || {}) };
     if (savedConfig.syncTypes) {
       this.config.syncTypes = this.normalizeSyncTypes({
         ...this.config.syncTypes,
@@ -470,6 +475,15 @@ class SyncManager extends EventEmitter {
         windowDaysInitial: this.config.vouchers.windowDaysInitial,
         windowDaysMax: this.config.vouchers.windowDaysMax
       });
+    }
+
+    if ((Number(savedConfig.syncPipelineVersion) || 1) < 3) {
+      if (savedConfig.tallySyncTs?.enrichStockBalances == null) {
+        this.config.tallySyncTs.enrichStockBalances = defaults.tallySyncTs.enrichStockBalances;
+      }
+      this.config.syncPipelineVersion = 3;
+      await this.saveConfig();
+      this.logger.info('Migrated sync config to pipeline v3 (paginated stock items without TDL enrichment)');
     }
 
     this.logger.info('Sync configuration loaded', {
@@ -1107,7 +1121,7 @@ class SyncManager extends EventEmitter {
     return { fromDateIso, toDateIso };
   }
 
-  getVoucherSyncRange(company, companyState) {
+  async getVoucherSyncRange(company, companyState) {
     const today = new Date();
     const toDateIso = this.formatDateIso(today);
 
@@ -1149,30 +1163,64 @@ class SyncManager extends EventEmitter {
     }
 
     // Incremental/partial sync after initial full sync.
-    // Keep a small overlap (2 days) to avoid missing late edits in Tally.
     const lastSynced = companyState.lastVoucherSyncDate && /^\d{4}-\d{2}-\d{2}$/.test(companyState.lastVoucherSyncDate)
       ? new Date(`${companyState.lastVoucherSyncDate}T00:00:00.000Z`)
       : null;
     const fallbackDays = Number(this.config?.dateRange?.vouchers || 30);
+    const overlapDays = Math.max(2, Number(this.config?.dateRange?.voucherIncrementalOverlapDays) || 7);
 
     let fromDate;
     if (lastSynced) {
-      fromDate = this.addDays(lastSynced, -2);
+      fromDate = this.addDays(lastSynced, -overlapDays);
     } else {
       fromDate = this.addDays(today, -Math.max(1, fallbackDays));
+    }
+
+    let widenReason = null;
+    try {
+      const tallyIds = await this.tallyService.getLastAlterIds(company.name);
+      const companyVoucherAlterId = Number(tallyIds?.vouchersLastId) || 0;
+      const storedCompanyAlterId = Number(companyState.lastTallyVouchersAlterId) || 0;
+      const widenDays = Math.max(overlapDays, Number(this.config?.dateRange?.vouchers) || 30);
+
+      // Tally company alter ID moved — widen beyond the short overlap so backdated vouchers
+      // (created today but dated earlier) are still included in the export window.
+      if (companyVoucherAlterId > storedCompanyAlterId) {
+        const wideFrom = this.addDays(today, -widenDays);
+        if (this.formatDateIso(wideFrom) < this.formatDateIso(fromDate)) {
+          fromDate = wideFrom;
+        }
+        const histFrom = companyState.historicalSyncFromIso;
+        if (histFrom && /^\d{4}-\d{2}-\d{2}$/.test(histFrom) && this.formatDateIso(fromDate) < histFrom) {
+          fromDate = new Date(`${histFrom}T00:00:00.000Z`);
+        }
+        widenReason = {
+          companyVoucherAlterId,
+          storedCompanyAlterId,
+          widenDays
+        };
+      }
+    } catch (error) {
+      this.logger.warn('Could not read Tally alter IDs for incremental range planning', {
+        companyName: company?.name,
+        error: error.message
+      });
     }
 
     this.logger.info('Planning incremental voucher sync', {
       companyName: company?.name,
       lastVoucherSyncDate: companyState.lastVoucherSyncDate,
       fromDate: this.formatDateIso(fromDate),
-      toDate: toDateIso
+      toDate: toDateIso,
+      overlapDays,
+      widenReason
     });
 
     return {
       mode: 'incremental',
       fromDateIso: this.formatDateIso(fromDate),
-      toDateIso
+      toDateIso,
+      widenReason
     };
   }
 
@@ -1271,27 +1319,12 @@ class SyncManager extends EventEmitter {
             maxVoucherResponseBytes: Number(this.config.vouchers?.maxVoucherResponseBytes) || 15_000_000,
             detailLevel: options.detailLevel || 'summary'
           });
+          const tallyExportCount = (fetchResult.vouchers || []).length;
           let vouchers = fetchResult.vouchers || [];
           const companyState = options.companyState;
           const rangeMode = options.rangeMode || 'full';
-          if (companyState && rangeMode === 'incremental') {
-            const watermark = Number(companyState.lastVoucherAlterId) || 0;
-            if (watermark > 0) {
-              const before = vouchers.length;
-              vouchers = vouchers.filter((v) => {
-                const aid = Number(v.alterId) || 0;
-                return aid > watermark;
-              });
-              if (before !== vouchers.length) {
-                this.logger.info('ALTERID incremental filter', {
-                  companyName,
-                  watermark,
-                  before,
-                  after: vouchers.length
-                });
-              }
-            }
-          }
+          // Do not drop rows by ALTERID here — backend upserts by Tally GUID. Filtering caused
+          // false "0 vouchers" when Tally still returned rows in the date window.
           if (companyState && vouchers.length > 0) {
             let maxAlter = Number(companyState.lastVoucherAlterId) || 0;
             for (const v of vouchers) {
@@ -1299,6 +1332,12 @@ class SyncManager extends EventEmitter {
               if (a > maxAlter) maxAlter = a;
             }
             companyState.lastVoucherAlterId = maxAlter;
+          }
+          if (rangeMode === 'incremental' && tallyExportCount > 0 && vouchers.length === 0) {
+            this.logger.warn('Tally returned vouchers but none remained after processing', {
+              companyName,
+              tallyExportCount
+            });
           }
           if (fetchResult.exportMethod && options.onExportMethod) {
             options.onExportMethod(fetchResult.exportMethod);
@@ -1308,11 +1347,12 @@ class SyncManager extends EventEmitter {
             companyName,
             windowStartIso,
             windowEndIso,
+            tallyExportCount,
             count: vouchers.length,
             exportMethod: fetchResult.exportMethod || preferredExport,
             attempt: fetchAttempt,
             rangeMode: options.rangeMode || 'full',
-            alterIdWatermark:
+            lastVoucherAlterId:
               options.companyState && options.rangeMode === 'incremental'
                 ? Number(options.companyState.lastVoucherAlterId) || 0
                 : null
@@ -1569,6 +1609,7 @@ class SyncManager extends EventEmitter {
 
     this.isSyncing = true;
     this.isRunning = true;
+    this.webSocketClient?.setSyncInProgress?.(true);
     
     const syncSession = {
       id: this.generateSyncId(),
@@ -1673,6 +1714,7 @@ class SyncManager extends EventEmitter {
         this.config.syncTypes = this.normalizeSyncTypes(alterIdContext.savedSyncTypes);
       }
       this.isSyncing = false;
+      this.webSocketClient?.setSyncInProgress?.(false);
       
       // Add to history
       this.syncHistory.push(syncSession);
@@ -1936,7 +1978,7 @@ class SyncManager extends EventEmitter {
 
         try {
           const companyState = this.getCompanySyncState(company);
-          const range = this.getVoucherSyncRange(company, companyState);
+          const range = await this.getVoucherSyncRange(company, companyState);
           const eta = this.estimateVoucherSyncDuration(range);
           this.voucherSyncLog.info('VOUCHER_SYNC_RANGE', {
             companyName: company.name,
@@ -3736,6 +3778,12 @@ class SyncManager extends EventEmitter {
     };
   }
 
+  applyTallySyncTsToTallyService() {
+    if (this.tallyService?.applySyncPipelineConfig && this.config.tallySyncTs) {
+      this.tallyService.applySyncPipelineConfig(this.config.tallySyncTs);
+    }
+  }
+
   updateConfig(newConfig) {
     const oldInterval = this.config.syncInterval;
     this.config = { ...this.config, ...newConfig };
@@ -3744,6 +3792,8 @@ class SyncManager extends EventEmitter {
     if (oldInterval !== this.config.syncInterval && this.config.autoSync) {
       this.setupScheduledSync();
     }
+
+    this.applyTallySyncTsToTallyService();
     
     this.saveConfig();
     this.logger.info('Sync configuration updated');

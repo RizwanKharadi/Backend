@@ -1,0 +1,54 @@
+# Shared office server stack for FinSync360 (MySQL + backend).
+# Runs on the office box at 192.168.1.99 so the whole team hits one API + one DB.
+#
+# Setup:  copy .env.office.example -> .env.office and fill in real secrets
+# Usage:  docker compose -f docker-compose.office.yml --env-file .env.office up -d --build
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: finsync360-mysql
+    restart: unless-stopped
+    # Only bound to the host loopback: the backend reaches it over the compose
+    # network. Change to "3306:3306" if the team needs Workbench/DBeaver access.
+    ports:
+      - "127.0.0.1:3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - finsync360_mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-u", "root", "-p${MYSQL_ROOT_PASSWORD}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ./backend
+    container_name: finsync360-backend
+    restart: unless-stopped
+    env_file: .env.office
+    environment:
+      # Container-network overrides — these win over anything in .env.office
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      PORT: 5000
+    ports:
+      - "5000:5000"
+    volumes:
+      - finsync360_uploads:/app/uploads
+      - finsync360_logs:/app/logs
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+volumes:
+  finsync360_mysql_data:
+  finsync360_uploads:
+  finsync360_logs:

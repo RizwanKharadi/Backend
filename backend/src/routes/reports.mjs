@@ -13,6 +13,7 @@ import {
   getOutstandingReceivable,
   getOutstandingReceivableLedger,
   getTop10Report,
+  getFastMovingItemsReport,
   getInactiveCustomersReport,
   getInactiveItemsReport,
   getProfitLossGroupLedgers,
@@ -81,6 +82,11 @@ router.get('/daybook', checkCompanyAccess, getDayBook);
 // @desc    Top 10 rankings report
 // @route   GET /api/reports/top-10
 router.get('/top-10', checkCompanyAccess, getTop10Report);
+
+// @desc    Fast moving items — best-selling stock items by qty sold
+// @route   GET /api/reports/fast-moving-items
+// @access  Private
+router.get('/fast-moving-items', checkCompanyAccess, getFastMovingItemsReport);
 
 // @desc    Inactive customers / items (days since last sale)
 router.get('/inactive-customers', checkCompanyAccess, getInactiveCustomersReport);

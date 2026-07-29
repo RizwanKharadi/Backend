@@ -203,10 +203,23 @@ export const inventoryService = {
     lowStockItems: number;
     categories: number;
   }>> {
-    const response = await api.get<ApiResponse<any>>('/api/inventory/summary', {
-      params: { company: companyId },
+    const response = await api.get<ApiResponse<{
+      total?: number;
+      lowStock?: number;
+      totalValue?: number;
+    }>>('/api/inventory/stats', {
+      params: { companyId },
     });
-    return response.data;
+    const d = response.data.data;
+    return {
+      ...response.data,
+      data: {
+        totalItems: d?.total ?? 0,
+        totalValue: d?.totalValue ?? 0,
+        lowStockItems: d?.lowStock ?? 0,
+        categories: 0,
+      },
+    };
   },
 
   // Sync with Tally

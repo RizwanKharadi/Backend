@@ -250,7 +250,7 @@ export const getBudgetSummary = async (req, res) => {
     }
 
     const summary = await Budget.aggregate([
-      { $match: { company: mongoose.Types.ObjectId(companyId), status: 'active' } },
+      { $match: { company: String(companyId), status: 'active' } },
       {
         $group: {
           _id: '$category',

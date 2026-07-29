@@ -2,8 +2,6 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import {
   Appbar,
-  Title,
-  Subtitle,
   IconButton,
   Badge,
   useTheme,
@@ -45,17 +43,13 @@ const Header: React.FC<HeaderProps> = ({
       {showBack && (
         <Appbar.BackAction onPress={onBackPress} />
       )}
-      
-      <View style={styles.titleContainer}>
-        <Title style={[styles.title, { color: theme.colors.onSurface }]}>
-          {title}
-        </Title>
-        {subtitle && (
-          <Subtitle style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-            {subtitle}
-          </Subtitle>
-        )}
-      </View>
+
+      <Appbar.Content
+        title={title}
+        subtitle={subtitle}
+        titleStyle={[styles.title, { color: theme.colors.onSurface }]}
+        subtitleStyle={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}
+      />
 
       <View style={styles.actions}>
         {showSync && (
@@ -118,10 +112,6 @@ const styles = StyleSheet.create({
     },
     shadowOpacity: 0.1,
     shadowRadius: 3.84,
-  },
-  titleContainer: {
-    flex: 1,
-    marginLeft: 8,
   },
   title: {
     fontSize: 20,

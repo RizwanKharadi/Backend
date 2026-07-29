@@ -111,6 +111,10 @@ heroku config:set JWT_SECRET=$(openssl rand -base64 32) -a $BACKEND_APP
 heroku config:set ENCRYPTION_KEY=$(openssl rand -base64 32 | cut -c1-32) -a $BACKEND_APP
 heroku config:set BCRYPT_ROUNDS=12 -a $BACKEND_APP
 heroku config:set LOG_LEVEL=info -a $BACKEND_APP
+heroku config:set LICENSE_ENFORCEMENT=true -a $BACKEND_APP
+heroku config:set DEVICE_TOKEN_EXPIRE=30d -a $BACKEND_APP
+print_status "Set RAZORPAY_* and BILLING_* vars manually after deploy (see docs/LICENSING.md)"
+print_status "Billing webhook URL: https://${BACKEND_APP}.herokuapp.com/api/billing/webhook"
 
 # Get MongoDB URI from addon
 MONGODB_URI=$(heroku config:get MONGODB_URI -a $BACKEND_APP)
@@ -134,9 +138,9 @@ print_success "Backend URL: $BACKEND_URL"
 
 cd ..
 
-# Deploy Frontend
-print_status "Deploying Frontend..."
-cd frontend
+# Deploy Frontend (Next.js — frontend-nextjs/)
+print_status "Deploying Frontend (Next.js)..."
+cd frontend-nextjs
 
 # Add Heroku remote if not exists
 if ! git remote get-url heroku-frontend &> /dev/null; then
@@ -145,9 +149,7 @@ fi
 
 # Set environment variables for frontend
 print_status "Setting environment variables for frontend..."
-heroku config:set REACT_APP_API_URL="${BACKEND_URL}api" -a $FRONTEND_APP
-heroku config:set REACT_APP_APP_NAME="FinSync360" -a $FRONTEND_APP
-heroku config:set REACT_APP_VERSION="1.0.0" -a $FRONTEND_APP
+heroku config:set NEXT_PUBLIC_API_URL="${BACKEND_URL}api" -a $FRONTEND_APP
 
 # Add Node.js buildpack
 heroku buildpacks:set heroku/nodejs -a $FRONTEND_APP

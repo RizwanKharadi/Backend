@@ -18,6 +18,7 @@ import {
   IconButton,
   Divider,
   useTheme,
+  ActivityIndicator,
 } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -28,10 +29,11 @@ import Header from '../components/common/Header';
 // Store
 import { AppDispatch } from '../store';
 import { useVoucher } from '../store/hooks';
-import { fetchVouchers, deleteVoucher, clearError } from '../store/slices/voucherSlice';
+import { fetchVouchers, deleteVoucher, clearError, setFilters } from '../store/slices/voucherSlice';
 
 // Types
-import { MainTabScreenProps } from '../types/navigation';
+import { NativeStackScreenProps } from '@react-navigation/native-stack';
+import { ReportsStackParamList } from '../types/navigation';
 import { Voucher } from '../types';
 
 interface VoucherFilters {
@@ -41,21 +43,22 @@ interface VoucherFilters {
   search: string;
 }
 
-type Props = MainTabScreenProps<'Vouchers'>;
+type Props = NativeStackScreenProps<ReportsStackParamList, 'VouchersList'>;
 
 const VouchersScreen: React.FC<Props> = ({ navigation }) => {
-  const parentNavigation = navigation.getParent();
+  const rootNavigation = navigation.getParent()?.getParent() ?? navigation.getParent();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
 
-  const { vouchers, error } = useVoucher();
+  const { vouchers, error, pagination, isLoading } = useVoucher();
 
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [menuVisible, setMenuVisible] = useState(false);
   const [selectedVoucher, setSelectedVoucher] = useState<string | null>(null);
-  const [filters, setFilters] = useState<VoucherFilters>({
+  const [filters, setLocalFilters] = useState<VoucherFilters>({
     type: 'all',
     status: 'all',
     dateRange: 'all',
@@ -89,12 +92,40 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSearch = useCallback((query: string) => {
     setSearchQuery(query);
-    setFilters(prev => ({ ...prev, search: query }));
-  }, []);
+    setLocalFilters(prev => ({ ...prev, search: query }));
+    dispatch(setFilters({ ...filters, search: query }));
+  }, [dispatch, filters]);
+
+  const handleLoadMore = useCallback(async () => {
+    if (isLoading || refreshing || !pagination.hasMore) {
+      return;
+    }
+
+    setLoadingMore(true);
+    try {
+      await dispatch(fetchVouchers({ page: pagination.page + 1 })).unwrap();
+    } catch (error) {
+      console.error('Failed to load more vouchers:', error);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [dispatch, isLoading, refreshing, pagination.hasMore, pagination.page]);
+
+  const renderFooter = () => {
+    if (!loadingMore) {
+      return null;
+    }
+
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator animating size="small" />
+      </View>
+    );
+  };
 
   const handleVoucherPress = useCallback((voucherId: string) => {
-    parentNavigation?.navigate('VoucherDetail', { voucherId });
-  }, [parentNavigation]);
+    rootNavigation?.navigate('VoucherDetail', { voucherId });
+  }, [rootNavigation]);
 
   const handleDeleteVoucher = useCallback(async (voucherId: string) => {
     Alert.alert(
@@ -216,7 +247,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
                 onPress={() => {
                   setMenuVisible(false);
                   setSelectedVoucher(null);
-                  parentNavigation?.navigate('CreateVoucher', { type: 'edit', voucherId: item.id });
+                  rootNavigation?.navigate('CreateVoucher', { type: 'edit', voucherId: item.id });
                 }}
                 title="Edit"
                 leadingIcon="pencil"
@@ -245,9 +276,12 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
     <View style={styles.container}>
       <Header
         title="Vouchers"
-        subtitle={`${vouchers.length} vouchers`}
+        subtitle={`${pagination.total || vouchers.length} vouchers`}
+        showBack
         showSync
-        onSettingsPress={() => parentNavigation?.navigate('Settings')}
+        onBackPress={() => navigation.goBack()}
+        onSettingsPress={() => rootNavigation?.navigate('Settings')}
+        onSyncPress={() => rootNavigation?.navigate('Sync')}
       />
 
       <View style={styles.content}>
@@ -281,6 +315,9 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
           }
           contentContainerStyle={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          onEndReached={handleLoadMore}
+          onEndReachedThreshold={0.5}
+          ListFooterComponent={renderFooter}
           ListEmptyComponent={
             <View style={styles.emptyContainer}>
               <Icon
@@ -303,7 +340,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
               {!searchQuery && (
                 <Button
                   mode="contained"
-                  onPress={() => parentNavigation?.navigate('CreateVoucher')}
+                  onPress={() => rootNavigation?.navigate('CreateNewVoucher')}
                   icon="plus"
                   style={styles.emptyButton}
                 >
@@ -319,7 +356,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
       <FAB
         icon="plus"
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        onPress={() => parentNavigation?.navigate('CreateVoucher')}
+        onPress={() => rootNavigation?.navigate('CreateNewVoucher')}
         label="New Voucher"
       />
     </View>
@@ -355,6 +392,9 @@ const styles = StyleSheet.create({
   },
   listContainer: {
     paddingBottom: 100,
+  },
+  footerLoader: {
+    paddingVertical: 16,
   },
   voucherCard: {
     borderRadius: 12,

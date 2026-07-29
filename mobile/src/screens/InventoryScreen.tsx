@@ -1,70 +1,131 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import {
   View,
   FlatList,
   StyleSheet,
   RefreshControl,
   Alert,
+  TouchableOpacity,
+  TextInput,
 } from 'react-native';
-import {
-  Surface,
-  List,
-  Chip,
-  FAB,
-  Searchbar,
-  Text,
-  Button,
-  Menu,
-  IconButton,
-  Divider,
-  useTheme,
-} from 'react-native-paper';
+import { Text, FAB, ActivityIndicator } from 'react-native-paper';
 import { useDispatch } from 'react-redux';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useFocusEffect, useRoute } from '@react-navigation/native';
 
-// Components
-import Header from '../components/common/Header';
+import InventoryHeader from '../components/inventory/InventoryHeader';
+import { dashboardColors } from '../components/dashboard/dashboardTheme';
 
-// Store
 import { AppDispatch } from '../store';
-import { useInventory } from '../store/hooks';
-import { fetchInventoryItems, deleteItem, clearError } from '../store/slices/inventorySlice';
+import { useInventory, useCompany } from '../store/hooks';
+import {
+  fetchInventoryItems,
+  fetchInventoryStats,
+  deleteItem,
+  clearError,
+  setFilters,
+} from '../store/slices/inventorySlice';
 
-// Types
 import { MainTabScreenProps } from '../types/navigation';
 import { InventoryItem } from '../types';
+import { MDI } from '../utils/mdiIcons';
 
-interface InventoryFilters {
-  category: string;
-  status: string;
-  stockLevel: string;
-  search: string;
-}
+type StockFilter = 'all' | 'low' | 'out' | 'ok';
 
 type Props = MainTabScreenProps<'Inventory'>;
 
+const MIN_RELOAD_MS = 45_000;
+
+const STOCK_FILTERS: { id: StockFilter; label: string }[] = [
+  { id: 'all', label: 'All' },
+  { id: 'ok', label: 'In stock' },
+  { id: 'low', label: 'Low stock' },
+  { id: 'out', label: 'Out of stock' },
+];
+
 const InventoryScreen: React.FC<Props> = ({ navigation }) => {
   const parentNavigation = navigation.getParent();
-  const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
 
-  const { items, error } = useInventory();
+  const { items, error, pagination, isLoading, stats, lastFetchedAt, statsFetchedAt } =
+    useInventory();
+  const { selectedCompany } = useCompany();
+
+  const route = useRoute<any>();
+  const initialFilter = route.params?.initialFilter as StockFilter | undefined;
 
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  const [menuVisible, setMenuVisible] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<string | null>(null);
-  const [filters, setFilters] = useState<InventoryFilters>({
-    category: 'all',
-    status: 'all',
-    stockLevel: 'all',
-    search: '',
-  });
+  const [stockFilter, setStockFilter] = useState<StockFilter>(initialFilter ?? 'all');
+  const searchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const didInitFilter = useRef(false);
 
+  const stackNav = parentNavigation ?? navigation;
+
+  const applyFilters = useCallback(
+    (search: string, stock: StockFilter) => {
+      dispatch(
+        setFilters({
+          search: search.trim() || undefined,
+          lowStock: stock === 'low' ? true : undefined,
+          outOfStock: stock === 'out' ? true : undefined,
+        })
+      );
+    },
+    [dispatch]
+  );
+
+  const loadItems = useCallback(
+    async (refresh = true) => {
+      if (!selectedCompany?.id) return;
+      try {
+        await dispatch(fetchInventoryItems({ refresh })).unwrap();
+      } catch (e) {
+        console.error('Failed to load items:', e);
+      }
+    },
+    [dispatch, selectedCompany?.id]
+  );
+
+  const loadStats = useCallback(
+    async (force = false) => {
+      if (!selectedCompany?.id) return;
+      const now = Date.now();
+      if (!force && statsFetchedAt && now - statsFetchedAt < MIN_RELOAD_MS) {
+        return;
+      }
+      try {
+        await dispatch(fetchInventoryStats(selectedCompany.id)).unwrap();
+      } catch {
+        // Stats are optional; list still works
+      }
+    },
+    [dispatch, selectedCompany?.id, statsFetchedAt]
+  );
+
+  useFocusEffect(
+    useCallback(() => {
+      if (!selectedCompany?.id) return;
+      const now = Date.now();
+      const listStale = !lastFetchedAt || now - lastFetchedAt > MIN_RELOAD_MS;
+      if (listStale || items.length === 0) {
+        loadItems(true);
+      }
+      loadStats(false);
+    }, [selectedCompany?.id, lastFetchedAt, items.length, loadItems, loadStats])
+  );
+
+  // Apply an initial stock filter passed via route params
+  // (from the Inventory Warehouse Overview tiles).
   useEffect(() => {
-    loadItems();
-  }, [dispatch, filters]);
+    if (didInitFilter.current || !selectedCompany?.id) return;
+    didInitFilter.current = true;
+    if (initialFilter && initialFilter !== 'all') {
+      applyFilters('', initialFilter);
+      loadItems(true);
+    }
+  }, [selectedCompany?.id, initialFilter, applyFilters, loadItems]);
 
   useEffect(() => {
     if (error) {
@@ -73,253 +134,305 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
     }
   }, [error, dispatch]);
 
-  const loadItems = useCallback(async () => {
-    try {
-      await dispatch(fetchInventoryItems({ refresh: true })).unwrap();
-    } catch (error) {
-      console.error('Failed to load items:', error);
-    }
-  }, [dispatch]);
-
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await loadItems();
+    applyFilters(searchQuery, stockFilter);
+    await Promise.all([loadItems(true), loadStats(true)]);
     setRefreshing(false);
-  }, [loadItems]);
+  }, [applyFilters, searchQuery, stockFilter, loadItems, loadStats]);
 
-  const handleSearch = useCallback((query: string) => {
-    setSearchQuery(query);
-    setFilters(prev => ({ ...prev, search: query }));
-  }, []);
+  const handleLoadMore = useCallback(async () => {
+    if (isLoading || refreshing || loadingMore || !pagination.hasMore) {
+      return;
+    }
+    setLoadingMore(true);
+    try {
+      await dispatch(fetchInventoryItems({ page: pagination.page + 1 })).unwrap();
+    } catch (e) {
+      console.error('Failed to load more items:', e);
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [dispatch, isLoading, refreshing, loadingMore, pagination.hasMore, pagination.page]);
 
-  const handleItemPress = useCallback((itemId: string) => {
-    parentNavigation?.navigate('ItemDetail', { itemId });
-  }, [parentNavigation]);
+  const handleSearchChange = useCallback(
+    (query: string) => {
+      setSearchQuery(query);
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+      searchDebounceRef.current = setTimeout(() => {
+        applyFilters(query, stockFilter);
+        loadItems(true);
+      }, 400);
+    },
+    [applyFilters, stockFilter, loadItems]
+  );
 
-  const handleDeleteItem = useCallback(async (itemId: string) => {
-    Alert.alert(
-      'Delete Item',
-      'Are you sure you want to delete this item? This action cannot be undone.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await dispatch(deleteItem(itemId)).unwrap();
-              Alert.alert('Success', 'Item deleted successfully');
-            } catch (error) {
-              Alert.alert('Error', 'Failed to delete item');
-            }
-          },
-        },
-      ]
-    );
-  }, [dispatch]);
+  const handleStockFilter = useCallback(
+    (filter: StockFilter) => {
+      setStockFilter(filter);
+      applyFilters(searchQuery, filter);
+      loadItems(true);
+    },
+    [applyFilters, searchQuery, loadItems]
+  );
 
-  const getStockStatusIcon = (stockLevel: number, minStock: number): string => {
-    if (stockLevel <= 0) return 'alert-circle';
-    if (stockLevel <= minStock) return 'alert';
-    return 'check-circle';
-  };
+  const displayItems = useMemo(() => {
+    if (stockFilter === 'ok') {
+      return items.filter(
+        (i) => i.currentStock > 0 && i.currentStock > (i.reorderLevel || 0)
+      );
+    }
+    return items;
+  }, [items, stockFilter]);
 
-  const getStockStatusColor = (stockLevel: number, minStock: number): string => {
-    if (stockLevel <= 0) return theme.colors.error;
-    if (stockLevel <= minStock) return theme.colors.tertiary;
-    return theme.colors.primary;
-  };
+  const handleItemPress = useCallback(
+    (itemId: string) => {
+      stackNav.navigate('ItemDetail', { itemId });
+    },
+    [stackNav]
+  );
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-IN', {
+  const handleScanBarcode = useCallback(() => {
+    stackNav.navigate('BarcodeScanner', {
+      title: 'Scan item barcode',
+      onScanned: async (barcode: string) => {
+        try {
+          const res = await inventoryService.getItemByBarcode(barcode);
+          stackNav.navigate('ItemDetail', { itemId: res.data.id });
+        } catch (e: any) {
+          stackNav.navigate('CreateItem', { barcode });
+        }
+      },
+    });
+  }, [stackNav]);
+
+  const formatCurrency = (amount: number): string =>
+    new Intl.NumberFormat('en-IN', {
       style: 'currency',
       currency: 'INR',
-      minimumFractionDigits: 2,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
     }).format(amount);
+
+  const getStockMeta = (item: InventoryItem) => {
+    if (item.currentStock <= 0) {
+      return { label: 'Out', color: dashboardColors.negative, icon: 'alert-circle' as const };
+    }
+    if (item.currentStock <= item.reorderLevel) {
+      return { label: 'Low', color: dashboardColors.warning, icon: MDI.alert as const };
+    }
+    return { label: 'OK', color: dashboardColors.positive, icon: 'check-circle' as const };
   };
 
-  const renderInventoryItem = ({ item }: { item: InventoryItem }) => (
-    <Surface style={[styles.itemCard, { backgroundColor: theme.colors.surface }]} elevation={1}>
-      <List.Item
-        title={item.name}
-        description={`${item.category} • ${item.unit}`}
-        left={() => (
-          <View style={styles.iconContainer}>
-            <Icon
-              name="package-variant"
-              size={24}
-              color={theme.colors.primary}
-            />
+  const displayTotal = pagination.total || stats.total || items.length;
+
+  const subtitle = selectedCompany?.name
+    ? `${selectedCompany.name} · ${displayTotal} items`
+    : `${displayTotal} items`;
+
+  const renderItem = useCallback(
+    ({ item }: { item: InventoryItem }) => {
+      const meta = getStockMeta(item);
+      return (
+        <TouchableOpacity
+          style={styles.itemCard}
+          onPress={() => handleItemPress(item.id)}
+          activeOpacity={0.75}
+        >
+          <View style={[styles.itemIconWrap, { backgroundColor: `${meta.color}18` }]}>
+            <Icon name="package-variant" size={22} color={meta.color} />
           </View>
-        )}
-        right={() => (
-          <View style={styles.rightContainer}>
-            <View style={styles.stockInfo}>
-              <Text
-                variant="titleMedium"
-                style={[styles.stockLevel, { color: getStockStatusColor(item.currentStock, item.reorderLevel) }]}
-              >
-                {item.currentStock} {item.unit}
-              </Text>
-              <Text
-                variant="bodySmall"
-                style={[styles.price, { color: theme.colors.onSurfaceVariant }]}
-              >
-                {formatCurrency(item.rate)}
-              </Text>
+          <View style={styles.itemBody}>
+            <Text style={styles.itemName} numberOfLines={1}>
+              {item.name}
+            </Text>
+            <Text style={styles.itemMeta} numberOfLines={1}>
+              {item.category} · {item.unit}
+              {item.code ? ` · ${item.code}` : ''}
+            </Text>
+          </View>
+          <View style={styles.itemRight}>
+            <Text style={styles.itemStock}>
+              {item.currentStock} {item.unit}
+            </Text>
+            <Text style={styles.itemRate}>{formatCurrency(item.rate)}</Text>
+            <View style={[styles.statusPill, { backgroundColor: `${meta.color}18` }]}>
+              <Icon name={meta.icon} size={12} color={meta.color} />
+              <Text style={[styles.statusPillText, { color: meta.color }]}>{meta.label}</Text>
             </View>
-            <View style={styles.statusRow}>
-              <Icon
-                name={getStockStatusIcon(item.currentStock, item.reorderLevel)}
-                size={16}
-                color={getStockStatusColor(item.currentStock, item.reorderLevel)}
-              />
-              {item.currentStock <= item.reorderLevel && (
-                <Chip
-                  mode="outlined"
-                  compact
-                  style={[styles.statusChip, { borderColor: theme.colors.error }]}
-                  textStyle={[styles.statusChipText, { color: theme.colors.error }]}
-                >
-                  Low Stock
-                </Chip>
-              )}
-            </View>
-            <Menu
-              visible={menuVisible && selectedItem === item.id}
-              onDismiss={() => {
-                setMenuVisible(false);
-                setSelectedItem(null);
+          </View>
+          <Icon name="chevron-right" size={20} color={dashboardColors.muted} />
+        </TouchableOpacity>
+      );
+    },
+    [handleItemPress]
+  );
+
+  const renderFooter = () => {
+    if (!loadingMore) return <View style={styles.listFooter} />;
+    return (
+      <View style={styles.footerLoader}>
+        <ActivityIndicator animating size="small" color={dashboardColors.accent} />
+        <Text style={styles.footerText}>Loading more…</Text>
+      </View>
+    );
+  };
+
+  const ListHeader = useMemo(
+    () => (
+      <View style={styles.listHeader}>
+        {/* Stats row */}
+        <View style={styles.statsRow}>
+          <View style={styles.statCard}>
+            <Icon name="package-variant-closed" size={20} color={dashboardColors.accent} />
+            <Text style={styles.statValue}>{stats.total || displayTotal}</Text>
+            <Text style={styles.statLabel}>Total items</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Icon name="alert" size={20} color={dashboardColors.warning} />
+            <Text style={styles.statValue}>{stats.lowStock ?? 0}</Text>
+            <Text style={styles.statLabel}>Low stock</Text>
+          </View>
+          <View style={styles.statCard}>
+            <Icon name="currency-inr" size={20} color={dashboardColors.positive} />
+            <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
+              {formatCurrency(stats.totalValue ?? 0)}
+            </Text>
+            <Text style={styles.statLabel}>Stock value</Text>
+          </View>
+        </View>
+
+        {/* Search */}
+        <View style={styles.searchWrap}>
+          <Icon name="magnify" size={20} color={dashboardColors.muted} style={styles.searchIcon} />
+          <TextInput
+            placeholder="Search by name or code…"
+            placeholderTextColor={dashboardColors.muted}
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            style={styles.searchInput}
+            returnKeyType="search"
+            autoCorrect={false}
+          />
+          {searchQuery.length === 0 ? (
+            <TouchableOpacity onPress={handleScanBarcode} hitSlop={8} style={styles.scanBtn}>
+              <Icon name="barcode-scan" size={20} color={dashboardColors.muted} />
+            </TouchableOpacity>
+          ) : null}
+          {searchQuery.length > 0 ? (
+            <TouchableOpacity
+              onPress={() => {
+                setSearchQuery('');
+                applyFilters('', stockFilter);
+                loadItems(true);
               }}
-              anchor={
-                <IconButton
-                  icon="dots-vertical"
-                  size={20}
-                  onPress={() => {
-                    setSelectedItem(item.id);
-                    setMenuVisible(true);
-                  }}
-                />
-              }
+              hitSlop={8}
             >
-              <Menu.Item
-                onPress={() => {
-                  setMenuVisible(false);
-                  setSelectedItem(null);
-                  handleItemPress(item.id);
-                }}
-                title="View Details"
-                leadingIcon="eye"
-              />
-              <Menu.Item
-                onPress={() => {
-                  setMenuVisible(false);
-                  setSelectedItem(null);
-                  parentNavigation?.navigate('CreateItem', { type: 'edit', itemId: item.id });
-                }}
-                title="Edit"
-                leadingIcon="pencil"
-              />
-              <Divider />
-              <Menu.Item
-                onPress={() => {
-                  setMenuVisible(false);
-                  setSelectedItem(null);
-                  handleDeleteItem(item.id);
-                }}
-                title="Delete"
-                leadingIcon="delete"
-                titleStyle={{ color: theme.colors.error }}
-              />
-            </Menu>
-          </View>
+              <Icon name="close-circle" size={18} color={dashboardColors.muted} />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        {/* Stock filters */}
+        <View style={styles.chipRow}>
+          {STOCK_FILTERS.map((f) => {
+            const active = stockFilter === f.id;
+            return (
+              <TouchableOpacity
+                key={f.id}
+                style={[styles.chip, active && styles.chipActive]}
+                onPress={() => handleStockFilter(f.id)}
+              >
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+
+        <Text style={styles.listHint}>
+          Showing {displayItems.length} of {displayTotal}
+          {pagination.hasMore ? ' · scroll for more' : ''}
+        </Text>
+      </View>
+    ),
+    [
+      stats,
+      displayTotal,
+      displayItems.length,
+      pagination.hasMore,
+      searchQuery,
+      stockFilter,
+      handleSearchChange,
+      handleStockFilter,
+      applyFilters,
+      loadItems,
+    ]
+  );
+
+  const ListEmpty = useMemo(
+    () => (
+      <View style={styles.emptyContainer}>
+        {isLoading && items.length === 0 ? (
+          <ActivityIndicator size="large" color={dashboardColors.accent} />
+        ) : (
+          <>
+            <Icon name="package-variant-closed" size={56} color={dashboardColors.muted} />
+            <Text style={styles.emptyTitle}>No items found</Text>
+            <Text style={styles.emptySubtitle}>
+              {searchQuery || stockFilter !== 'all'
+                ? 'Try a different search or filter'
+                : 'Sync from Tally or add your first item'}
+            </Text>
+          </>
         )}
-        onPress={() => handleItemPress(item.id)}
-        style={styles.listItem}
-      />
-    </Surface>
+      </View>
+    ),
+    [isLoading, displayItems.length, searchQuery, stockFilter]
   );
 
   return (
     <View style={styles.container}>
-      <Header
-        title="Inventory"
-        subtitle={`${items.length} items`}
-        showSync
-        onSettingsPress={() => parentNavigation?.navigate('Settings')}
+      <InventoryHeader
+        subtitle={subtitle}
+        onSyncPress={() => stackNav.navigate('Sync')}
       />
 
-      <View style={styles.content}>
-        {/* Search and Filters */}
-        <Surface style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]} elevation={1}>
-          <Searchbar
-            placeholder="Search items..."
-            onChangeText={handleSearch}
-            value={searchQuery}
-            style={styles.searchbar}
-            inputStyle={styles.searchInput}
+      <FlatList
+        style={styles.list}
+        data={displayItems}
+        renderItem={renderItem}
+        keyExtractor={(item) => item.id}
+        ListHeaderComponent={ListHeader}
+        ListEmptyComponent={ListEmpty}
+        ListFooterComponent={renderFooter}
+        contentContainerStyle={
+          displayItems.length === 0 ? styles.listEmptyContent : styles.listContent
+        }
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={dashboardColors.accent}
+            colors={[dashboardColors.accent]}
           />
-          <Button
-            mode="outlined"
-            onPress={() => setShowFilters(!showFilters)}
-            icon="filter"
-            compact
-            style={styles.filterButton}
-          >
-            Filters
-          </Button>
-        </Surface>
+        }
+        onEndReached={handleLoadMore}
+        onEndReachedThreshold={0.35}
+        showsVerticalScrollIndicator={false}
+        initialNumToRender={15}
+        maxToRenderPerBatch={20}
+        windowSize={11}
+        removeClippedSubviews
+      />
 
-        {/* Items List */}
-        <FlatList
-          data={items}
-          renderItem={renderInventoryItem}
-          keyExtractor={(item) => item.id}
-          refreshControl={
-            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-          }
-          contentContainerStyle={styles.listContainer}
-          showsVerticalScrollIndicator={false}
-          ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Icon
-                name="package-variant-closed"
-                size={64}
-                color={theme.colors.onSurfaceVariant}
-              />
-              <Text
-                variant="headlineSmall"
-                style={[styles.emptyTitle, { color: theme.colors.onSurface }]}
-              >
-                No Items Found
-              </Text>
-              <Text
-                variant="bodyMedium"
-                style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}
-              >
-                {searchQuery ? 'Try adjusting your search criteria' : 'Add your first inventory item to get started'}
-              </Text>
-              {!searchQuery && (
-                <Button
-                  mode="contained"
-                  onPress={() => parentNavigation?.navigate('CreateItem')}
-                  icon="plus"
-                  style={styles.emptyButton}
-                >
-                  Add Item
-                </Button>
-              )}
-            </View>
-          }
-        />
-      </View>
-
-      {/* Floating Action Button */}
       <FAB
         icon="plus"
-        style={[styles.fab, { backgroundColor: theme.colors.primary }]}
-        onPress={() => parentNavigation?.navigate('CreateItem')}
-        label="Add Item"
+        style={styles.fab}
+        color="#fff"
+        onPress={() => stackNav.navigate('CreateItem')}
+        label="Add item"
       />
     </View>
   );
@@ -328,99 +441,210 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#f8fafc',
+    backgroundColor: dashboardColors.pageBg,
   },
-  content: {
+  list: {
     flex: 1,
-    padding: 16,
   },
-  searchContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 16,
-    gap: 12,
-  },
-  searchbar: {
-    flex: 1,
-    elevation: 0,
-  },
-  searchInput: {
-    fontSize: 16,
-  },
-  filterButton: {
-    minWidth: 80,
-  },
-  listContainer: {
+  listContent: {
+    paddingHorizontal: 16,
     paddingBottom: 100,
   },
-  itemCard: {
-    borderRadius: 12,
-    marginBottom: 8,
-    overflow: 'hidden',
+  listEmptyContent: {
+    flexGrow: 1,
+    paddingHorizontal: 16,
+    paddingBottom: 100,
   },
-  listItem: {
-    paddingVertical: 8,
+  listHeader: {
+    paddingTop: 12,
+    paddingBottom: 8,
   },
-  iconContainer: {
-    justifyContent: 'center',
+  statsRow: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 14,
+  },
+  statCard: {
+    flex: 1,
+    backgroundColor: dashboardColors.cardBg,
+    borderRadius: 14,
+    padding: 12,
     alignItems: 'center',
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: 'rgba(37, 99, 235, 0.1)',
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  rightContainer: {
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    gap: 4,
+  statValue: {
+    fontSize: 16,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: 6,
   },
-  stockInfo: {
-    alignItems: 'flex-end',
+  statLabel: {
+    fontSize: 10,
+    color: dashboardColors.muted,
+    marginTop: 2,
+    textAlign: 'center',
   },
-  stockLevel: {
-    fontWeight: '600',
-  },
-  price: {
-    fontSize: 12,
-  },
-  statusRow: {
+  searchWrap: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 4,
+    backgroundColor: dashboardColors.cardBg,
+    borderRadius: 14,
+    paddingHorizontal: 12,
+    marginBottom: 12,
+    height: 48,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 1,
   },
-  statusChip: {
-    height: 24,
+  searchIcon: {
+    marginRight: 8,
   },
-  statusChipText: {
+  searchInput: {
+    flex: 1,
+    fontSize: 15,
+    color: '#0f172a',
+    paddingVertical: 0,
+  },
+  scanBtn: {
+    marginRight: 6,
+    padding: 2,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 10,
+  },
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    backgroundColor: dashboardColors.cardBg,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  chipActive: {
+    backgroundColor: '#eff6ff',
+    borderColor: dashboardColors.accent,
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: dashboardColors.muted,
+  },
+  chipTextActive: {
+    color: dashboardColors.accent,
+  },
+  listHint: {
     fontSize: 12,
-    lineHeight: 16,
+    color: dashboardColors.muted,
+    marginBottom: 8,
+  },
+  itemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: dashboardColors.cardBg,
+    borderRadius: 14,
+    padding: 12,
+    marginBottom: 8,
+    shadowColor: '#0f172a',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  itemIconWrap: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10,
+  },
+  itemBody: {
+    flex: 1,
+    minWidth: 0,
+    marginRight: 8,
+  },
+  itemName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  itemMeta: {
+    fontSize: 11,
+    color: dashboardColors.muted,
+    marginTop: 3,
+  },
+  itemRight: {
+    alignItems: 'flex-end',
+    marginRight: 4,
+  },
+  itemStock: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  itemRate: {
+    fontSize: 11,
+    color: dashboardColors.muted,
+    marginTop: 2,
+  },
+  statusPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    marginTop: 4,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  statusPillText: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  listFooter: {
+    height: 8,
+  },
+  footerLoader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingVertical: 16,
+  },
+  footerText: {
+    fontSize: 13,
+    color: dashboardColors.muted,
   },
   emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
     alignItems: 'center',
-    paddingVertical: 64,
-    paddingHorizontal: 32,
+    paddingVertical: 48,
+    paddingHorizontal: 24,
   },
   emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
     marginTop: 16,
-    marginBottom: 8,
-    textAlign: 'center',
   },
   emptySubtitle: {
+    fontSize: 14,
+    color: dashboardColors.muted,
+    marginTop: 8,
     textAlign: 'center',
-    marginBottom: 24,
-  },
-  emptyButton: {
-    minWidth: 160,
   },
   fab: {
     position: 'absolute',
-    margin: 16,
-    right: 0,
-    bottom: 0,
+    right: 16,
+    bottom: 16,
+    backgroundColor: dashboardColors.accent,
   },
 });
 

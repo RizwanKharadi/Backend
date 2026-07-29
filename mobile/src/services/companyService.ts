@@ -31,6 +31,23 @@ export interface CompanyStatsResponse {
 class CompanyService {
   private readonly baseURL = '/companies';
 
+  private mapCompany(company: any): Company {
+    return {
+      id: company._id || company.id,
+      name: company.displayName || company.name,
+      email: company.contact?.email || company.email || '',
+      phone: company.contact?.phone || company.phone || '',
+      address: company.fullAddress || company.address || '',
+      gstNumber: company.gstin || company.gstNumber,
+      panNumber: company.pan || company.panNumber,
+      isActive: company.isActive ?? true,
+      settings: company.settings || {},
+      createdAt: company.createdAt,
+      updatedAt: company.updatedAt,
+      tallyIntegration: company.tallyIntegration,
+    };
+  }
+
   /**
    * Get all companies for the current user
    */
@@ -41,7 +58,12 @@ class CompanyService {
     isActive?: boolean;
   }): Promise<CompanyListResponse> {
     const response = await apiClient.get(this.baseURL, { params });
-    return response.data;
+    const companies = response.data?.data?.companies || [];
+
+    return {
+      success: !!response.data?.success,
+      data: companies.map((company: any) => this.mapCompany(company)),
+    };
   }
 
   /**
@@ -49,7 +71,10 @@ class CompanyService {
    */
   async getCompanyById(companyId: string): Promise<CompanyResponse> {
     const response = await apiClient.get(`${this.baseURL}/${companyId}`);
-    return response.data;
+    return {
+      success: !!response.data?.success,
+      data: this.mapCompany(response.data?.data?.company || response.data?.data),
+    };
   }
 
   /**
@@ -57,7 +82,10 @@ class CompanyService {
    */
   async createCompany(companyData: CreateCompanyData): Promise<CompanyResponse> {
     const response = await apiClient.post(this.baseURL, companyData);
-    return response.data;
+    return {
+      success: !!response.data?.success,
+      data: this.mapCompany(response.data?.data?.company || response.data?.data),
+    };
   }
 
   /**
@@ -65,7 +93,10 @@ class CompanyService {
    */
   async updateCompany(companyId: string, companyData: UpdateCompanyData): Promise<CompanyResponse> {
     const response = await apiClient.put(`${this.baseURL}/${companyId}`, companyData);
-    return response.data;
+    return {
+      success: !!response.data?.success,
+      data: this.mapCompany(response.data?.data?.company || response.data?.data),
+    };
   }
 
   /**

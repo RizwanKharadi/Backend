@@ -79,7 +79,7 @@ FIREBASE_CONFIG=your_firebase_config_here
 
 ### 1. Xcode Configuration
 
-1. Open `ios/FinSync360.xcworkspace` in Xcode
+1. Open `ios/FinSync360Mobile.xcworkspace` in Xcode
 2. Select your development team
 3. Configure bundle identifier
 4. Set deployment target (iOS 12.0+)

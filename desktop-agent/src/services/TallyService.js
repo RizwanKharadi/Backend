@@ -85,6 +85,40 @@ class TallyService extends EventEmitter {
     return this.useTallySyncTs && this.config.tallySyncTs?.paginatedVouchersFallback !== false;
   }
 
+  shouldEnrichStockBalances() {
+    return this.config.tallySyncTs?.enrichStockBalances === true;
+  }
+
+  applySyncPipelineConfig(tallySyncTs = {}) {
+    this.config.tallySyncTs = { ...(this.config.tallySyncTs || {}), ...tallySyncTs };
+  }
+
+  yieldToEventLoop() {
+    return new Promise((resolve) => setImmediate(resolve));
+  }
+
+  async parseXmlResponseAsync(xmlString) {
+    await this.yieldToEventLoop();
+    const parsed = this.parseXmlResponse(xmlString);
+    await this.yieldToEventLoop();
+    return parsed;
+  }
+
+  async extractNodesAsync(response, nodeKey, parseFn, batchSize = 150) {
+    const nodes = this.findNodesByKey(response, nodeKey);
+    const results = [];
+    for (let i = 0; i < nodes.length; i++) {
+      const row = parseFn(nodes[i]);
+      if (row) {
+        results.push(row);
+      }
+      if (i > 0 && i % batchSize === 0) {
+        await this.yieldToEventLoop();
+      }
+    }
+    return results;
+  }
+
   sanitizePreview(value, maxLength = 500) {
     if (value == null) {
       return '';
@@ -306,7 +340,10 @@ class TallyService extends EventEmitter {
         );
       }
 
-      const parsedResponse = this.parseXmlResponse(responseText);
+      const useAsyncParse = responseText.length > 5_000_000;
+      const parsedResponse = useAsyncParse
+        ? await this.parseXmlResponseAsync(responseText)
+        : this.parseXmlResponse(responseText);
       if (this.isImportPromptResponse(parsedResponse)) {
         const error = new Error('Tally returned an import prompt response instead of export data');
         error.responseText = responseText;
@@ -725,6 +762,22 @@ class TallyService extends EventEmitter {
     return vouchers;
   }
 
+  async extractVoucherSummariesFromResponseAsync(response) {
+    try {
+      return await this.extractNodesAsync(response, 'VOUCHER', (voucher) => {
+        if (!voucher || typeof voucher !== 'object') return null;
+        const row = this.parseVoucherSummary(voucher);
+        if (row.voucherNumber || row.guid) {
+          return row;
+        }
+        return null;
+      });
+    } catch (error) {
+      this.logger.error('Failed to extract voucher summaries from response:', error);
+      return [];
+    }
+  }
+
   /**
    * Fetch one full voucher by GUID (lazy detail — Level 3).
    */
@@ -1131,11 +1184,19 @@ class TallyService extends EventEmitter {
       collection: 'CUSTOMVOUCHERCOL',
       returnMeta: true
     });
-    const extract =
+    const extractSync =
       (options.detailLevel || 'summary') === 'full'
         ? this.extractVouchersFromResponse.bind(this)
         : this.extractVoucherSummariesFromResponse.bind(this);
-    let vouchers = this.filterVouchersByDateRange(extract(response), fromDate, toDate);
+    const extractAsync =
+      (options.detailLevel || 'summary') === 'full'
+        ? this.extractVouchersFromResponseAsync.bind(this)
+        : this.extractVoucherSummariesFromResponseAsync.bind(this);
+    const useAsyncExtract = responseLength > 5_000_000;
+    const rawRows = useAsyncExtract
+      ? await extractAsync(response)
+      : extractSync(response);
+    let vouchers = this.filterVouchersByDateRange(rawRows, fromDate, toDate);
 
     const responseTooLarge = responseLength > maxResponseBytes;
     if (
@@ -1848,13 +1909,16 @@ class TallyService extends EventEmitter {
         );
         const items = raw.map(mapStockItemRow).filter(Boolean);
         if (items.length > 0) {
-          /**
-           * We still prefer a single TDL export for stock balance native methods (ClosingBalance, etc.),
-           * because tally-sync-ts does not expose those computed quantity fields reliably.
-           */
-          this.logger.info(
-            `Retrieved ${items.length} stock items from Tally (tally-sync-ts paginated); enriching via TDL for stock balances`
-          );
+          if (this.shouldEnrichStockBalances()) {
+            this.logger.info(
+              `Retrieved ${items.length} stock items (tally-sync-ts paginated); enriching via TDL for stock balances`
+            );
+          } else {
+            this.logger.info(
+              `Retrieved ${items.length} stock items from Tally (tally-sync-ts paginated)`
+            );
+            return items;
+          }
         }
       } catch (error) {
         this.logger.warn('getStockItems via tally-sync-ts failed; using TDL export', {
@@ -1874,7 +1938,7 @@ class TallyService extends EventEmitter {
       const response = await this.sendRawXml(xmlRequest, { requestType: 'EXPORT', collection: 'StockItems' });
 
       if (response && response.ENVELOPE && response.ENVELOPE.BODY) {
-        const items = this.extractStockItemsFromResponse(response);
+        const items = await this.extractStockItemsFromResponseAsync(response);
         this.logger.info(`Retrieved ${items.length} stock items from Tally`);
         return items;
       }
@@ -1921,7 +1985,7 @@ class TallyService extends EventEmitter {
       });
 
       if (response?.ENVELOPE?.BODY) {
-        const rows = this.extractLedgersForPartySyncFromResponse(response);
+        const rows = await this.extractLedgersForPartySyncFromResponseAsync(response);
         const partyCount = rows.filter((r) => r.recordType === 'party').length;
         this.logger.info(
           `Retrieved ${rows.length} ledgers for party sync (${partyCount} sundry, ${rows.length - partyCount} other ledgers)`
@@ -2228,6 +2292,22 @@ ${nativeLines}
     return items;
   }
 
+  async extractStockItemsFromResponseAsync(response) {
+    try {
+      return await this.extractNodesAsync(
+        response,
+        'STOCKITEM',
+        (item) => {
+          const row = this.parseStockItemData(item);
+          return row?.name ? row : null;
+        }
+      );
+    } catch (error) {
+      this.logger.error('Failed to extract stock items from response:', error);
+      return [];
+    }
+  }
+
   findNodesByKey(node, keyName) {
     const result = [];
 
@@ -2241,8 +2321,7 @@ ${nativeLines}
       Object.entries(current).forEach(([key, value]) => {
         if (key === keyName) {
           if (Array.isArray(value)) {
-            // Filter out empty objects
-            const filtered = value.filter(item => item && Object.keys(item).length > 0);
+            const filtered = value.filter((item) => item && Object.keys(item).length > 0);
             result.push(...filtered);
           } else if (value && Object.keys(value).length > 0) {
             result.push(value);
@@ -2254,6 +2333,22 @@ ${nativeLines}
 
     walk(node);
     return result;
+  }
+
+  async extractVouchersFromResponseAsync(response) {
+    try {
+      return await this.extractNodesAsync(response, 'VOUCHER', (voucher) => {
+        if (!voucher || typeof voucher !== 'object') return null;
+        const row = this.parseVoucherData(voucher);
+        if (row.voucherNumber || row.guid || row.tallyId) {
+          return row;
+        }
+        return null;
+      });
+    } catch (error) {
+      this.logger.error('Failed to extract vouchers from response:', error);
+      return [];
+    }
   }
 
   parseVoucherData(voucher) {
@@ -3085,6 +3180,19 @@ ${nativeLines}
     }
 
     return rows;
+  }
+
+  async extractLedgersForPartySyncFromResponseAsync(response) {
+    try {
+      return await this.extractNodesAsync(response, 'LEDGER', (ledger) => {
+        if (!ledger || typeof ledger !== 'object') return null;
+        const row = this.parseLedgerForPartySyncUpload(ledger);
+        return row?.name ? row : null;
+      });
+    } catch (error) {
+      this.logger.error('Failed to extract ledgers for party sync:', error);
+      return [];
+    }
   }
 
   /**

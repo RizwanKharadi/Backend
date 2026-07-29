@@ -5,7 +5,10 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useTheme } from 'react-native-paper';
 
-import DashboardScreen from '../screens/DashboardScreen';
+// Legacy dashboard kept for fallback: import DashboardScreen from '../screens/DashboardScreen';
+import PremiumDashboardScreen from '../screens/PremiumDashboardScreen';
+import PremiumTransactionsScreen from '../screens/PremiumTransactionsScreen';
+import PremiumInventoryScreen from '../screens/PremiumInventoryScreen';
 import InventoryScreen from '../screens/InventoryScreen';
 import SyncScreen from '../screens/SyncScreen';
 import SettingsScreen from '../screens/SettingsScreen';
@@ -105,23 +108,40 @@ const TabNavigator: React.FC = () => {
     >
       <Tab.Screen
         name="Dashboard"
-        component={DashboardScreen}
-        options={{ tabBarLabel: 'Dashboard' }}
+        component={PremiumDashboardScreen}
+        options={{
+          tabBarLabel: 'Dashboard',
+          // The premium dashboard renders its own BottomNavigation + FAB,
+          // so hide the default tab bar on this screen.
+          tabBarStyle: { display: 'none' },
+        }}
       />
       <Tab.Screen
         name="Transactions"
-        component={VoucherTypesScreen}
-        options={{ tabBarLabel: 'Transactions' }}
+        component={PremiumTransactionsScreen}
+        options={{
+          tabBarLabel: 'Transactions',
+          // Premium screen renders its own BottomNavigation + FAB.
+          tabBarStyle: { display: 'none' },
+        }}
       />
       <Tab.Screen
         name="Inventory"
-        component={InventoryScreen}
-        options={{ tabBarLabel: 'Inventory' }}
+        component={PremiumInventoryScreen}
+        options={{
+          tabBarLabel: 'Inventory',
+          // Premium command center renders its own BottomNavigation + FAB.
+          tabBarStyle: { display: 'none' },
+        }}
       />
       <Tab.Screen
         name="Reports"
         component={ReportsNavigator}
-        options={{ tabBarLabel: 'Reports' }}
+        options={{
+          tabBarLabel: 'Reports',
+          // Premium Reports home renders its own BottomNavigation.
+          tabBarStyle: { display: 'none' },
+        }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
             const state = navigation.getState();
@@ -178,6 +198,7 @@ const MainNavigator: React.FC = () => {
       <Stack.Screen name="AddInvoiceItem" component={AddSalesItemScreen} />
       <Stack.Screen name="AddSalesItem" component={AddSalesItemScreen} />
       <Stack.Screen name="CreateVoucher" component={CreateVoucherScreen} />
+      <Stack.Screen name="InventoryList" component={InventoryScreen} />
       <Stack.Screen name="ItemDetail" component={ItemDetailScreen} />
       <Stack.Screen name="CreateItem" component={CreateItemScreen} />
       <Stack.Screen name="BarcodeScanner" component={BarcodeScannerScreen} />

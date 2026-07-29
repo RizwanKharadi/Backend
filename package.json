@@ -5,21 +5,28 @@
   "main": "index.js",
   "scripts": {
     "dev": "concurrently \"npm run backend:dev\" \"npm run frontend:dev\"",
+    "sync:dev": "concurrently \"npm run backend:dev\" \"npm run desktop-agent:dev\"",
+    "verify:sync-stack": "node scripts/verify-sync-stack.js",
     "backend:dev": "cd backend && npm run dev",
-    "frontend:dev": "cd frontend && npm start",
-    "mobile:dev": "cd mobile && npm start",
+    "frontend:setup": "npm run install:frontend && node scripts/ensure-frontend-nextjs-env.js",
+    "frontend:dev": "cd frontend-nextjs && npm run dev",
+    "frontend-legacy:dev": "cd frontend && npm start",
+    "mobile:dev": "cd mobile && npm run start",
+    "mobile:android": "cd mobile && npm run android",
+    "mobile:reset": "cd mobile && npm run start:clean",
     "desktop:dev": "cd desktop && npm run electron:dev",
     "desktop-agent:dev": "cd desktop-agent && npm run electron:dev",
-    "ml-service:dev": "cd ml-service && python -m uvicorn main:app --reload",
+    "ml-service:dev": "cd ml-service && npm run dev",
     "build": "npm run backend:build && npm run frontend:build",
     "backend:build": "cd backend && npm run build",
-    "frontend:build": "cd frontend && npm run build",
+    "frontend:build": "cd frontend-nextjs && npm run build",
     "test": "npm run backend:test && npm run frontend:test",
     "backend:test": "cd backend && npm test",
-    "frontend:test": "cd frontend && npm test",
+    "frontend:test": "cd frontend-nextjs && npm run lint",
     "install:all": "npm install && npm run install:backend && npm run install:frontend && npm run install:mobile && npm run install:desktop && npm run install:desktop-agent && npm run install:ml-service",
     "install:backend": "cd backend && npm install",
-    "install:frontend": "cd frontend && npm install",
+    "install:frontend": "cd frontend-nextjs && npm install",
+    "install:frontend-legacy": "cd frontend && npm install",
     "install:mobile": "cd mobile && npm install",
     "install:desktop": "cd desktop && npm install",
     "install:desktop-agent": "cd desktop-agent && npm install",
@@ -45,11 +52,16 @@
   },
   "workspaces": [
     "backend",
-    "frontend",
+    "frontend-nextjs",
     "mobile",
     "desktop",
     "desktop-agent",
     "ml-service",
     "shared"
-  ]
+  ],
+  "overrides": {
+    "react": "18.2.0",
+    "react-dom": "18.2.0",
+    "react-native-config": "1.5.3"
+  }
 }

@@ -143,13 +143,8 @@ async def forecast_inventory_demand(
 ):
     """Forecast inventory demand for items"""
     try:
+        # Mobile allows empty input to forecast all items.
         item_ids = request.item_ids or ([request.item_id] if request.item_id else [])
-        
-        if not item_ids:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="item_id or item_ids is required"
-            )
         
         results = await prediction_service.forecast_inventory_demand(
             item_ids=item_ids,

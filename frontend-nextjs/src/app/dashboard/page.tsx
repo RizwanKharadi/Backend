@@ -16,7 +16,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useDashboardStats, useRecentActivities, useDashboardAlerts } from '@/hooks/useDashboard';
-import { useInventorySummary } from '@/hooks/useInventory';
+import { useInventorySummary, useLowStockItems } from '@/hooks/useInventory';
 import StatsCard from '@/components/ui/StatsCard';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -35,6 +35,7 @@ export default function DashboardPage() {
   const { data: recentActivities, isLoading: activitiesLoading } = useRecentActivities(5);
   const { data: alerts, isLoading: alertsLoading } = useDashboardAlerts();
   const { data: inventorySummary, isLoading: inventoryLoading } = useInventorySummary();
+  const { data: lowStockItems, isLoading: lowStockLoading } = useLowStockItems();
 
   if (!currentCompany) {
     return (
@@ -48,47 +49,37 @@ export default function DashboardPage() {
     );
   }
 
-  // Mock data for demonstration (replace with real data when backend is ready)
-  const mockStats = {
-    totalRevenue: 2500000,
-    totalVouchers: 156,
-    inventoryItems: inventorySummary?.totalItems || 89,
-    overduePayments: 12,
-    revenueChange: 12.5,
-    vouchersChange: 8.3,
-    inventoryChange: -2.1,
-    overdueChange: -15.2,
-  };
-
   const statsCards = [
     {
       title: "Total Revenue",
-      value: formatCurrency(mockStats.totalRevenue),
-      change: { value: mockStats.revenueChange, type: "increase" as const, period: "vs last month" },
+      value: stats ? formatCurrency(stats.totalRevenue) : '—',
+      change: stats?.revenueChange
+        ? { value: Math.abs(stats.revenueChange), type: stats.revenueChange >= 0 ? "increase" as const : "decrease" as const, period: "vs last month" }
+        : undefined,
       icon: <BanknotesIcon className="h-5 w-5" />,
       color: "primary" as const,
+      loading: statsLoading,
     },
     {
       title: "Total Vouchers",
-      value: formatNumber(mockStats.totalVouchers),
-      change: { value: mockStats.vouchersChange, type: "increase" as const, period: "vs last month" },
+      value: stats ? formatNumber(stats.totalVouchers) : '—',
       icon: <ClipboardDocumentListIcon className="h-5 w-5" />,
       color: "success" as const,
+      loading: statsLoading,
     },
     {
       title: "Inventory Items",
-      value: formatNumber(mockStats.inventoryItems),
-      change: { value: Math.abs(mockStats.inventoryChange), type: "decrease" as const, period: "vs last month" },
+      value: formatNumber(inventorySummary?.totalItems ?? 0),
       icon: <ArchiveBoxIcon className="h-5 w-5" />,
       color: "warning" as const,
       loading: inventoryLoading,
     },
     {
       title: "Overdue Payments",
-      value: formatNumber(mockStats.overduePayments),
-      change: { value: Math.abs(mockStats.overdueChange), type: "decrease" as const, period: "vs last month" },
+      value: stats ? formatCurrency(stats.overduePayments) : '—',
       icon: <ExclamationTriangleIcon className="h-5 w-5" />,
       color: "error" as const,
+      loading: statsLoading,
     },
   ];
 
@@ -248,23 +239,18 @@ export default function DashboardPage() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {inventoryLoading ? (
+            {inventoryLoading || lowStockLoading ? (
               <div className="flex items-center justify-center h-32">
                 <LoadingSpinner />
               </div>
-            ) : (
+            ) : lowStockItems && lowStockItems.length > 0 ? (
               <div className="space-y-3">
-                {/* Mock low stock items - replace with real data */}
-                {[
-                  { name: "Office Supplies", stock: 5, reorderLevel: 20 },
-                  { name: "Printer Paper", stock: 2, reorderLevel: 10 },
-                  { name: "Ink Cartridges", stock: 1, reorderLevel: 5 },
-                ].map((item, index) => (
+                {lowStockItems.slice(0, 5).map((item, index) => (
                   <div key={index} className="flex items-center justify-between p-3 bg-warning-50 rounded-lg">
                     <div>
                       <p className="text-sm font-medium text-gray-900">{item.name}</p>
                       <p className="text-xs text-gray-500">
-                        Stock: {item.stock} (Reorder at: {item.reorderLevel})
+                        Stock: {formatNumber(item.stock?.quantity ?? 0)} (Reorder at: {formatNumber(item.stock?.reorderLevel ?? 0)})
                       </p>
                     </div>
                     <Badge variant="warning" size="sm">
@@ -272,11 +258,10 @@ export default function DashboardPage() {
                     </Badge>
                   </div>
                 ))}
-                {inventorySummary?.lowStockItems === 0 && (
-                  <div className="text-center py-8">
-                    <p className="text-sm text-gray-500">All items are well stocked</p>
-                  </div>
-                )}
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-sm text-gray-500">All items are well stocked</p>
               </div>
             )}
           </CardContent>

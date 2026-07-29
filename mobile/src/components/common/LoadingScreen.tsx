@@ -31,7 +31,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
             variant="headlineMedium"
             style={[styles.appName, { color: theme.colors.primary }]}
           >
-            FinSync360
+            TallyFin
           </Text>
         </View>
       )}

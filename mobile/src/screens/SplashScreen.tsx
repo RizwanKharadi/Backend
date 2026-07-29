@@ -1,32 +1,23 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
-import {
-  Text,
-  useTheme,
-  ActivityIndicator,
-} from 'react-native-paper';
+import { Text, useTheme, ActivityIndicator } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { useDispatch } from 'react-redux';
-
-// Store
-import { AppDispatch } from '../store';
-import { useAuth } from '../store/hooks';
-
-// Types
-import { RootStackScreenProps } from '../types/navigation';
 
 // Services
 import { initializeServices } from '../services';
 
-type Props = RootStackScreenProps<'Splash'>;
+const BRAND = {
+  deepBlue: '#002147',
+  royalBlue: '#0b3f7a',
+  emerald: '#1B8A3E',
+  neonGreen: '#39B54A',
+};
 
-const SplashScreen: React.FC<Props> = ({ navigation }) => {
+const SplashScreen: React.FC = () => {
   const theme = useTheme();
-  const dispatch = useDispatch<AppDispatch>();
-  const { isAuthenticated } = useAuth();
 
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
-  const scaleAnim = React.useRef(new Animated.Value(0.8)).current;
+  const scaleAnim = React.useRef(new Animated.Value(0.92)).current;
 
   useEffect(() => {
     // Start animations
@@ -38,8 +29,8 @@ const SplashScreen: React.FC<Props> = ({ navigation }) => {
       }),
       Animated.spring(scaleAnim, {
         toValue: 1,
-        tension: 50,
-        friction: 7,
+        tension: 45,
+        friction: 8,
         useNativeDriver: true,
       }),
     ]).start();
@@ -52,32 +43,22 @@ const SplashScreen: React.FC<Props> = ({ navigation }) => {
     try {
       // Initialize services
       await initializeServices();
-
-      // Wait for minimum splash duration
-      await new Promise(resolve => setTimeout(resolve, 2000));
-
-      // Navigate based on authentication status
-      if (isAuthenticated) {
-        navigation.replace('Main');
-      } else {
-        // Check if user has seen onboarding
-        const hasSeenOnboarding = false; // You can check AsyncStorage here
-
-        if (hasSeenOnboarding) {
-          navigation.replace('Auth');
-        } else {
-          navigation.replace('Onboarding');
-        }
-      }
+      
+      // Note: We don't call navigation.replace here anymore.
+      // The AppNavigator will automatically switch screens once the 
+      // initialization is complete and Redux state updates.
+      console.log('Services initialized from SplashScreen');
     } catch (error) {
-      console.error('App initialization failed:', error);
-      // Navigate to auth on error
-      navigation.replace('Auth');
+      console.error('App initialization failed in SplashScreen:', error);
     }
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.primary }]}>
+    <View style={[styles.container, { backgroundColor: BRAND.deepBlue }]}>
+      <View style={[styles.bgCircle, styles.bgCircleOne]} />
+      <View style={[styles.bgCircle, styles.bgCircleTwo]} />
+      <View style={[styles.bgCircle, styles.bgCircleThree]} />
+
       <Animated.View
         style={[
           styles.content,
@@ -87,43 +68,35 @@ const SplashScreen: React.FC<Props> = ({ navigation }) => {
           },
         ]}
       >
-        {/* App Logo */}
         <View style={styles.logoContainer}>
-          <Icon
-            name="sync"
-            size={80}
-            color={theme.colors.onPrimary}
-          />
+          <View style={styles.brandRing}>
+            <Icon name="swap-horizontal-bold" size={58} color={BRAND.neonGreen} />
+          </View>
           <Text
             variant="headlineLarge"
             style={[styles.appName, { color: theme.colors.onPrimary }]}
           >
-            Tally Sync
+            TallyFin
           </Text>
           <Text
             variant="bodyLarge"
             style={[styles.tagline, { color: theme.colors.onPrimary }]}
           >
-            ERP Management Made Simple
+            Smart ERP sync for growing businesses
           </Text>
         </View>
 
-        {/* Loading Indicator */}
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator
-            size="large"
-            color={theme.colors.onPrimary}
-          />
+        <View style={styles.loadingCard}>
+          <ActivityIndicator size="small" color={BRAND.neonGreen} />
           <Text
             variant="bodyMedium"
             style={[styles.loadingText, { color: theme.colors.onPrimary }]}
           >
-            Initializing...
+            Initializing your workspace...
           </Text>
         </View>
       </Animated.View>
 
-      {/* Version Info */}
       <View style={styles.footer}>
         <Text
           variant="bodySmall"
@@ -135,7 +108,7 @@ const SplashScreen: React.FC<Props> = ({ navigation }) => {
           variant="bodySmall"
           style={[styles.copyright, { color: theme.colors.onPrimary }]}
         >
-          © 2024 Tally Sync
+          © 2026 TallyFin
         </Text>
       </View>
     </View>
@@ -147,6 +120,35 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  bgCircle: {
+    position: 'absolute',
+    borderRadius: 999,
+  },
+  bgCircleOne: {
+    width: 280,
+    height: 280,
+    top: -120,
+    right: -70,
+    backgroundColor: BRAND.royalBlue,
+    opacity: 0.6,
+  },
+  bgCircleTwo: {
+    width: 210,
+    height: 210,
+    bottom: 110,
+    left: -90,
+    backgroundColor: BRAND.emerald,
+    opacity: 0.35,
+  },
+  bgCircleThree: {
+    width: 120,
+    height: 120,
+    bottom: -30,
+    right: 40,
+    backgroundColor: BRAND.neonGreen,
+    opacity: 0.22,
   },
   content: {
     flex: 1,
@@ -156,23 +158,39 @@ const styles = StyleSheet.create({
   },
   logoContainer: {
     alignItems: 'center',
-    marginBottom: 60,
+    marginBottom: 50,
+  },
+  brandRing: {
+    width: 108,
+    height: 108,
+    borderRadius: 54,
+    borderWidth: 3,
+    borderColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.06)',
   },
   appName: {
-    marginTop: 20,
-    fontWeight: 'bold',
+    marginTop: 18,
+    fontWeight: '800',
     textAlign: 'center',
+    letterSpacing: 0.4,
   },
   tagline: {
     marginTop: 8,
     textAlign: 'center',
-    opacity: 0.9,
+    opacity: 0.85,
   },
-  loadingContainer: {
+  loadingCard: {
+    paddingHorizontal: 18,
+    paddingVertical: 12,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    flexDirection: 'row',
     alignItems: 'center',
   },
   loadingText: {
-    marginTop: 16,
+    marginLeft: 10,
     opacity: 0.8,
   },
   footer: {

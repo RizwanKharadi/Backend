@@ -2,11 +2,11 @@ import { MD3LightTheme, MD3DarkTheme } from 'react-native-paper';
 
 // Custom color palette
 const colors = {
-  primary: '#2563eb',
-  primaryContainer: '#dbeafe',
-  secondary: '#7c3aed',
-  secondaryContainer: '#ede9fe',
-  tertiary: '#059669',
+  primary: '#002147',
+  primaryContainer: '#e6ebf0',
+  secondary: '#1B8A3E',
+  secondaryContainer: '#d4e8dc',
+  tertiary: '#39B54A',
   tertiaryContainer: '#d1fae5',
   surface: '#ffffff',
   surfaceVariant: '#f8fafc',

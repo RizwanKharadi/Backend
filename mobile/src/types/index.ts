@@ -10,6 +10,7 @@ export interface User {
   companies: string[];
   createdAt: string;
   updatedAt: string;
+  lastLogin?: string | null;
 }
 
 export interface LoginCredentials {
@@ -23,7 +24,8 @@ export interface RegisterData {
   email: string;
   phone: string;
   password: string;
-  companyName: string;
+  /** Omit or leave empty — real books come from Tally via desktop sync */
+  companyName?: string;
 }
 
 export interface AuthResponse {
@@ -46,44 +48,126 @@ export interface Company {
   settings: CompanySettings;
   createdAt: string;
   updatedAt: string;
+  tallyIntegration?: {
+    enabled?: boolean;
+    companyPath?: string;
+    companyName?: string;
+    lastSyncDate?: string;
+  };
 }
 
 export interface CompanySettings {
-  currency: string;
-  timezone: string;
-  dateFormat: string;
-  fiscalYearStart: string;
-  gstEnabled: boolean;
-  inventoryEnabled: boolean;
-  multiCurrencyEnabled: boolean;
+  currency?: string;
+  timezone?: string;
+  dateFormat?: string;
+  fiscalYearStart?: string;
+  gstEnabled?: boolean;
+  inventoryEnabled?: boolean;
+  multiCurrencyEnabled?: boolean;
+  [key: string]: any;
 }
 
 // Voucher Types
+export interface VoucherTotals {
+  subtotal?: number;
+  discount?: number;
+  taxableAmount?: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
+  cess?: number;
+  totalTax?: number;
+  roundOff?: number;
+  grandTotal?: number;
+}
+
+export interface VoucherTerms {
+  paymentTerms?: string;
+  deliveryTerms?: string;
+  otherTerms?: string;
+}
+
+export type TallyVoucherEntryMode =
+  | 'item_invoice'
+  | 'accounting_invoice'
+  | 'as_voucher';
+
 export interface Voucher {
   id: string;
   voucherNumber: string;
   voucherType: VoucherType;
+  /** Tally parent type (ZVOUCHERPARENT) when synced from agent */
+  tallyVoucherTypeParent?: string;
+  /** Tally display type name (VOUCHERTYPENAME) */
+  tallyVoucherTypeName?: string;
   date: string;
-  reference?: string;
+  dueDate?: string;
+  partyName?: string;
+  partyGstin?: string;
+  salesLedgerName?: string;
+  reference?: string | { number?: string; date?: string };
   narration?: string;
   amount: number;
-  status: 'draft' | 'posted' | 'cancelled';
+  status: 'draft' | 'posted' | 'cancelled' | 'pending' | 'approved' | 'paid' | 'partially_paid';
+  items?: VoucherItem[];
   entries: VoucherEntry[];
+  /** Tally PERSISTEDVIEW — Accounting Voucher View | Invoice Voucher View */
+  tallyPersistedView?: string;
+  tallyEntryMode?: TallyVoucherEntryMode;
+  totals?: VoucherTotals;
+  terms?: VoucherTerms;
   companyId: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
   tallyId?: string;
   lastSyncedAt?: string;
+  tallySyncError?: string;
+  salesLedgerName?: string;
+  purchaseLedgerName?: string;
+  tallyVoucherTypeName?: string;
+  placeOfSupply?: string;
+  isSummaryOnly?: boolean;
+  detailCached?: boolean;
+}
+
+export interface VoucherItem {
+  id: string;
+  itemId?: string;
+  itemName: string;
+  description?: string;
+  quantity: number;
+  unit?: string;
+  rate: number;
+  amount: number;
+  hsnCode?: string;
+  gst?: {
+    cgst?: number;
+    sgst?: number;
+    igst?: number;
+    cess?: number;
+  };
+}
+
+export interface VoucherEntrySubLine {
+  text: string;
+  billType?: string;
+  amount?: number;
+  side?: string;
+  isNarration?: boolean;
 }
 
 export interface VoucherEntry {
   id: string;
-  accountId: string;
+  accountId?: string;
   accountName: string;
   debitAmount: number;
   creditAmount: number;
   narration?: string;
+  /** From Tally INVENTORYENTRIES → ACCOUNTINGALLOCATIONS.LIST (hide on item invoices) */
+  isAccountingAllocation?: boolean;
+  /** Tally bill refs / sub-lines under a ledger (As Voucher mode) */
+  subLines?: VoucherEntrySubLine[];
 }
 
 export type VoucherType = 
@@ -94,7 +178,11 @@ export type VoucherType =
   | 'journal' 
   | 'contra' 
   | 'debit_note' 
-  | 'credit_note';
+  | 'credit_note'
+  | 'sales_order'
+  | 'purchase_order'
+  | 'receipt_note'
+  | 'delivery_note';
 
 // Inventory Types
 export interface InventoryItem {
@@ -107,6 +195,13 @@ export interface InventoryItem {
   rate: number;
   openingStock: number;
   currentStock: number;
+  tallyStock?: {
+    unit?: string;
+    openingBalance?: number;
+    inwardQuantity?: number;
+    outwardQuantity?: number;
+    closingBalance?: number;
+  };
   reorderLevel: number;
   maxLevel?: number;
   location?: string;
@@ -151,6 +246,7 @@ export interface SyncSession {
   processedItems: number;
   errors: SyncError[];
   summary: SyncSummary;
+  conflicts?: SyncConflict[];
 }
 
 export interface SyncError {
@@ -165,6 +261,17 @@ export interface SyncSummary {
   vouchers?: { total: number; processed: number; errors: number };
   items?: { total: number; processed: number; errors: number };
   parties?: { total: number; processed: number; errors: number };
+}
+
+export interface SyncConflict {
+  id: string;
+  entityType: 'voucher' | 'item' | 'company' | 'party';
+  entityId: string;
+  conflictType: 'data_mismatch' | 'duplicate' | 'missing';
+  localData: Record<string, any>;
+  remoteData: Record<string, any>;
+  status: 'pending' | 'resolved';
+  createdAt: string;
 }
 
 // Network Types
@@ -333,6 +440,31 @@ export interface UpdateCompanyData {
   settings?: Partial<CompanySettings>;
 }
 
+/** Line item for mobile sales invoice → Tally import */
+export interface SalesVoucherItemLine {
+  itemId?: string;
+  itemName: string;
+  description?: string;
+  quantity: number;
+  unit: string;
+  rate: number;
+  amount: number;
+  godownName?: string;
+  hsnCode?: string;
+  taxType: 'IGST' | 'CGST/SGST';
+  taxPercent: number;
+  discountPercent?: number;
+  igstLedgerName?: string;
+  cgstLedgerName?: string;
+  sgstLedgerName?: string;
+}
+
+export interface SalesExtraLedgerLine {
+  ledgerName: string;
+  amount: number;
+  isPercent?: boolean;
+}
+
 export interface CreateVoucherData {
   voucherNumber?: string;
   voucherType: VoucherType;
@@ -340,9 +472,53 @@ export interface CreateVoucherData {
   reference?: string;
   narration?: string;
   amount?: number;
-  entries: VoucherEntry[];
+  entries?: VoucherEntry[];
   companyId: string;
   createdBy?: string;
+  tallyCompanyName?: string;
+  bankLedgerName?: string;
+  paymentMode?: string;
+  /** Sales → Tally */
+  party?: string;
+  partyName?: string;
+  items?: Array<{
+    item?: string;
+    itemName: string;
+    description?: string;
+    quantity: number;
+    unit?: string;
+    rate: number;
+    amount: number;
+    hsnCode?: string;
+    godownName?: string;
+    taxType?: string;
+    taxPercent?: number;
+    gst?: { cgst?: number; sgst?: number; igst?: number };
+  }>;
+  ledgerEntries?: Array<{
+    ledger: string;
+    debit?: number;
+    credit?: number;
+    amount?: number;
+  }>;
+  salesLedgerName?: string;
+  tallyVoucherTypeName?: string;
+  isOptional?: boolean;
+  placeOfSupply?: string;
+  partyGstin?: string;
+}
+
+export interface TallyPushResult {
+  status: 'completed' | 'failed' | 'skipped' | 'queued';
+  message?: string;
+  tallyGuid?: string;
+  voucherNumber?: string;
+}
+
+export interface CreateVoucherResponse {
+  success: boolean;
+  data: Voucher;
+  tallyPush?: TallyPushResult;
 }
 
 export interface UpdateVoucherData {

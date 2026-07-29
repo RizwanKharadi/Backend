@@ -121,10 +121,21 @@ mobile/
    npm install
    ```
 
-2. **iOS Setup**
+2. **iOS Setup** (macOS only)
+
    ```bash
-   cd ios && pod install
+   bash scripts/setup-ios.sh
+   # Opens ios/FinSync360Mobile.xcworkspace in Xcode for signing
+   npm run ios
    ```
+
+   Verify scaffold on any OS:
+
+   ```bash
+   npm run verify:ios
+   ```
+
+   See [docs/IOS_QA_CHECKLIST.md](docs/IOS_QA_CHECKLIST.md) for feature parity testing.
 
 3. **Environment Configuration**
 

@@ -1,51 +1,25 @@
-import NetInfo from '@react-native-community/netinfo';
-import { store } from '../store';
-import { setOnlineStatus } from '../store/slices/syncSlice';
+import {
+  setupConnectivityListener,
+  refreshConnectivity,
+  refreshConnectivityAndBackend,
+} from './connectivity';
 
 /**
- * Setup network listener to monitor connectivity
+ * Setup network listener — updates Redux network / offline / sync online flags.
  */
 export const setupNetworkListener = (): void => {
-  const unsubscribe = NetInfo.addEventListener(state => {
-    const isConnected = state.isConnected && state.isInternetReachable;
-    
-    console.log('Network state changed:', {
-      isConnected: state.isConnected,
-      isInternetReachable: state.isInternetReachable,
-      type: state.type,
-    });
-
-    // Update sync state
-    store.dispatch(setOnlineStatus(!!isConnected));
-  });
-
-  // Store unsubscribe function for cleanup
+  const unsubscribe = setupConnectivityListener();
   (global as any).networkUnsubscribe = unsubscribe;
+  void refreshConnectivityAndBackend();
 };
 
-/**
- * Get current network state
- */
-export const getNetworkState = async () => {
-  const state = await NetInfo.fetch();
-  return {
-    isConnected: state.isConnected,
-    isInternetReachable: state.isInternetReachable,
-    type: state.type,
-  };
-};
+export { refreshConnectivity as getNetworkState };
 
-/**
- * Check if device is online
- */
 export const isOnline = async (): Promise<boolean> => {
-  const state = await NetInfo.fetch();
-  return !!(state.isConnected && state.isInternetReachable);
+  const { refreshConnectivity: refresh } = await import('./connectivity');
+  return refresh();
 };
 
-/**
- * Cleanup network listener
- */
 export const cleanupNetworkListener = (): void => {
   const unsubscribe = (global as any).networkUnsubscribe;
   if (unsubscribe) {

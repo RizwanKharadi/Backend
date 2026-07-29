@@ -52,9 +52,9 @@ npm install
 print_status "Installing backend dependencies..."
 cd backend && npm install && cd ..
 
-# Frontend dependencies
-print_status "Installing frontend dependencies..."
-cd frontend && npm install && cd ..
+# Frontend dependencies (Next.js — production web UI)
+print_status "Installing frontend-nextjs dependencies..."
+cd frontend-nextjs && npm install && cd ..
 
 # Mobile dependencies
 print_status "Installing mobile dependencies..."
@@ -113,10 +113,11 @@ echo "  4. For production deployment, see docs/DEPLOYMENT.md"
 echo ""
 echo "🌐 Local Development Access Points:"
 echo "  - Frontend: http://localhost:3000"
-echo "  - Backend API: http://localhost:5002"
+echo "  - Backend API: http://localhost:5000"
 echo "  - ML Service: http://localhost:8000"
-echo "  - API Documentation (Swagger): http://localhost:5002/api-docs"
-echo "  - Health Check: http://localhost:5002/health"
+echo "  - API Documentation (Swagger): http://localhost:5000/api-docs"
+echo "  - Health Check: http://localhost:5000/health"
+echo "  - Tally sync checklist: docs/SYNC_STACK_VERIFICATION.md"
 echo ""
 echo "📖 API Documentation:"
 echo "  - 87 documented endpoints with interactive Swagger UI"
@@ -126,7 +127,9 @@ echo ""
 echo "🔧 Available commands:"
 echo "  npm run dev              - Start all services in development"
 echo "  npm run backend:dev      - Start only backend"
-echo "  npm run frontend:dev     - Start only frontend"
+echo "  npm run frontend:dev     - Start Next.js web UI"
+echo "  npm run sync:dev         - Backend + desktop-agent (Tally sync)"
+echo "  npm run verify:sync-stack - Verify Tally sync stack config"
 echo "  npm run mobile:dev       - Start mobile app"
 echo "  npm run desktop:dev      - Start desktop app"
 echo "  npm run ml-service:dev   - Start ML service"

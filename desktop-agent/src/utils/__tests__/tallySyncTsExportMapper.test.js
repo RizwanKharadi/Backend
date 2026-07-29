@@ -18,10 +18,14 @@ describe('tallySyncTsExportMapper', () => {
       name: 'Widget',
       baseUnit: 'Nos',
       guid: 'g1',
-      openingBalance: 10
+      openingBalance: 10,
+      closingBalance: 5
     });
     expect(row.name).toBe('Widget');
     expect(row.baseUnits).toBe('Nos');
+    expect(row.stockBalances.openingBalance).toBe(10);
+    expect(row.stockBalances.closingBalance).toBe(5);
+    expect(row.stockBalances.unit).toBe('Nos');
   });
 
   test('maps sundry ledger to party row', () => {

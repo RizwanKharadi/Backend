@@ -9,6 +9,7 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import JSONResponse
 import uvicorn
 import logging
+import os
 from contextlib import asynccontextmanager
 
 # Import configuration and database
@@ -54,10 +55,13 @@ async def lifespan(app: FastAPI):
         await prediction_service.load_models()
         logger.info("ML models loaded successfully")
         
-        # Start background training scheduler
-        await training_service.start_scheduler()
-        logger.info("Training scheduler started")
-        
+        # Background training can block the asyncio loop on Windows — skip in dev if needed
+        if os.getenv("SKIP_ML_SCHEDULER", "").lower() in ("1", "true", "yes"):
+            logger.info("SKIP_ML_SCHEDULER set — training scheduler not started")
+        else:
+            await training_service.start_scheduler()
+            logger.info("Training scheduler started")
+
         logger.info("FinSync360 ML Service started successfully")
         
     except Exception as e:
@@ -100,16 +104,18 @@ def create_app() -> FastAPI:
     # Add middleware
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_origins=settings.allowed_origins_list(),
         allow_credentials=True,
         allow_methods=["GET", "POST", "PUT", "DELETE"],
         allow_headers=["*"],
     )
     
-    app.add_middleware(
-        TrustedHostMiddleware,
-        allowed_hosts=settings.ALLOWED_HOSTS
-    )
+    # TrustedHost + uvicorn --reload on Windows can leave a zombie listener on the port
+    if os.getenv("ENVIRONMENT", "development").lower() == "production":
+        app.add_middleware(
+            TrustedHostMiddleware,
+            allowed_hosts=settings.allowed_hosts_list(),
+        )
     
     # Include API routes
     app.include_router(health.router, prefix="/api/v1", tags=["Health"])

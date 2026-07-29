@@ -10,6 +10,7 @@ const path = require('path');
 
 const environments = {
   development: '.env.development',
+  office: '.env.office',
   production: '.env.production'
 };
 

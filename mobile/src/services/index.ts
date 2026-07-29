@@ -2,50 +2,60 @@ import { databaseService } from './databaseService';
 import { webSocketService } from './webSocketService';
 import { syncService } from './syncService';
 import { authService } from './authService';
+import { userService } from './userService';
 import { mlService } from './mlService';
 import { companyService } from './companyService';
 import { voucherService } from './voucherService';
+import { partyService } from './partyService';
 import { inventoryService } from './inventoryService';
 import { paymentService } from './paymentService';
 import { reportService } from './reportService';
 import { notificationService } from './notificationService';
 import { tallyService } from './tallyService';
+import { billingService } from './billingService';
 import { offlineManager } from './offlineManager';
+import { offlineCacheService } from './offlineCacheService';
 import { biometricService } from './biometricService';
 import { realTimeManager } from './realTimeManager';
 import { collaborativeEditingService } from './collaborativeEditingService';
+import { configurePushNotifications } from './pushNotificationSetup';
 
 /**
- * Initialize all services
+ * Core startup (database only). Real-time services run after company bootstrap.
  */
 export const initializeServices = async (): Promise<void> => {
   try {
-    console.log('Initializing services...');
-    
-    // Initialize database first
+    console.log('Initializing core services...');
+    configurePushNotifications();
     await databaseService.initialize();
     console.log('✓ Database service initialized');
-    
-    // Check if user is authenticated
-    const isAuthenticated = await authService.isAuthenticated();
-    
-    if (isAuthenticated) {
-      // Initialize WebSocket connection
-      await webSocketService.initialize();
-      console.log('✓ WebSocket service initialized');
-
-      // Initialize real-time manager
-      await realTimeManager.initialize();
-      console.log('✓ Real-time manager initialized');
-
-      // Sync service will be initialized automatically when WebSocket connects
-      console.log('✓ Sync service ready');
-    }
-    
-    console.log('All services initialized successfully');
   } catch (error) {
     console.error('Failed to initialize services:', error);
     throw error;
+  }
+};
+
+/**
+ * WebSocket / real-time — call only after auth + company context are ready.
+ */
+export const initializeRealtimeServices = async (): Promise<void> => {
+  try {
+    const isAuthenticated = await authService.isAuthenticated();
+    if (!isAuthenticated) {
+      return;
+    }
+
+    await webSocketService.initialize();
+    await realTimeManager.initialize();
+    if (webSocketService.connected) {
+      console.log('✓ Real-time services connected');
+    } else if (__DEV__) {
+      console.log('✓ App ready (real-time sync optional, not connected)');
+    }
+  } catch (error) {
+    if (__DEV__) {
+      console.warn('Real-time services skipped:', error);
+    }
   }
 };
 
@@ -84,15 +94,19 @@ export {
   webSocketService,
   syncService,
   authService,
+  userService,
   mlService,
   companyService,
   voucherService,
+  partyService,
   inventoryService,
   paymentService,
   reportService,
   notificationService,
   tallyService,
+  billingService,
   offlineManager,
+  offlineCacheService,
   biometricService,
   realTimeManager,
   collaborativeEditingService,

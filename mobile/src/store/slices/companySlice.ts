@@ -138,10 +138,15 @@ const companySlice = createSlice({
         state.error = null;
       })
       .addCase(fetchCompanies.fulfilled, (state, action) => {
-        state.isLoading = false;
-        state.companies = action.payload;
-        state.error = null;
-      })
+  state.isLoading = false;
+
+  state.companies = action.payload.map((company: any) => ({
+    ...company,
+    id: company.id || company._id,
+  }));
+
+  state.error = null;
+})
       .addCase(fetchCompanies.rejected, (state, action) => {
         state.isLoading = false;
         state.error = action.payload as string;

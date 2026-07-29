@@ -160,6 +160,26 @@ export interface InactiveItemRow {
   billCount: number;
 }
 
+export interface FastMovingItemRow {
+  rank: number;
+  itemId: string | null;
+  name: string;
+  unit: string;
+  qtySold: number;
+  totalAmount: number;
+}
+
+export interface FastMovingItemsData {
+  period: {
+    periodKey: ReportPeriodKey;
+    label: string;
+    startDate: string;
+    endDate: string;
+  };
+  summary: { totalQtySold: number };
+  items: FastMovingItemRow[];
+}
+
 export interface ProfitLossGroup {
   name: string;
   amount: number;
@@ -760,6 +780,17 @@ class ReportService {
     }
     const response = await apiClient.get(`${this.baseURL}/inactive-items`, {
       params: query,
+    });
+    return response.data;
+  }
+
+  async getFastMovingItems(params: {
+    companyId: string;
+    periodKey: ReportPeriodKey;
+    limit?: number;
+  }): Promise<{ success: boolean; data: FastMovingItemsData }> {
+    const response = await apiClient.get(`${this.baseURL}/fast-moving-items`, {
+      params,
     });
     return response.data;
   }

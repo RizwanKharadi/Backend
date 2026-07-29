@@ -1,10 +1,8 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors';
 import helmet from 'helmet';
 import compression from 'compression';
 import rateLimit from 'express-rate-limit';
-import mongoSanitize from 'express-mongo-sanitize';
 import xss from 'xss';
 import hpp from 'hpp';
 import dotenv from 'dotenv';
@@ -51,6 +49,7 @@ import {
   getDashboardSummary,
   getDayBook,
   getTop10Report,
+  getFastMovingItemsReport,
   getInactiveCustomersReport,
   getInactiveItemsReport,
   getSalesReport,
@@ -136,7 +135,6 @@ app.use('/api/ml', createMlProxy());
 app.use('/ml', createMlProxy());
 
 // Data sanitization
-app.use(mongoSanitize());
 app.use(hpp());
 
 // Compression
@@ -275,6 +273,7 @@ const startServer = async () => {
       ['get', '/dashboard', getDashboardSummary],
       ['get', '/daybook', getDayBook],
       ['get', '/top-10', getTop10Report],
+      ['get', '/fast-moving-items', getFastMovingItemsReport],
       ['get', '/inactive-customers', getInactiveCustomersReport],
       ['get', '/inactive-items', getInactiveItemsReport],
       ['get', '/sales', getSalesReport],
@@ -349,11 +348,11 @@ const startServer = async () => {
       tallyWebSocketService.initialize(server, '/tally-agent');
       logger.info('Tally WebSocket service initialized');
     } else {
-      logger.warn('Skipping Tally WebSocket service because MongoDB is not connected.');
+      logger.warn('Skipping Tally WebSocket service because MySQL is not connected.');
     }
 
     // Graceful shutdown
-    const gracefulShutdown = () => {
+    const gracefulShutdown = async () => {
       logger.info('Shutting down gracefully...');
 
       // Stop Tally sync service
@@ -363,12 +362,16 @@ const startServer = async () => {
       tallyWebSocketService.shutdown();
       io.close();
 
-      server.close(() => {
+      server.close(async () => {
         logger.info('HTTP server closed');
-        mongoose.connection.close(() => {
+        try {
+          const { disconnectDB } = await import('./config/database.js');
+          await disconnectDB();
           logger.info('Database connection closed');
-          process.exit(0);
-        });
+        } catch (e) {
+          logger.warn('Database disconnect error', { message: e.message });
+        }
+        process.exit(0);
       });
     };
 

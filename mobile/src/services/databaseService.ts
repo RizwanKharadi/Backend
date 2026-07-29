@@ -681,6 +681,52 @@ class DatabaseService {
   }
 
   /**
+   * Ensure SQLite is open (e.g. before settings read from Settings screen).
+   */
+  private async ensureInitialized(): Promise<void> {
+    if (!this.db) {
+      await this.initialize();
+    }
+  }
+
+  /**
+   * App key-value settings (biometric flag, etc.)
+   */
+  async getSetting(key: string): Promise<string | null> {
+    await this.ensureInitialized();
+    if (!this.db) return null;
+
+    const [results] = await this.db.executeSql(
+      'SELECT value FROM settings WHERE key = ?',
+      [key]
+    );
+
+    if (results.rows.length === 0) {
+      return null;
+    }
+
+    return results.rows.item(0).value as string;
+  }
+
+  async setSetting(key: string, value: string): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) throw new Error('Database not initialized');
+
+    const updatedAt = new Date().toISOString();
+    await this.db.executeSql(
+      `INSERT OR REPLACE INTO settings (key, value, updatedAt) VALUES (?, ?, ?)`,
+      [key, value, updatedAt]
+    );
+  }
+
+  async deleteSetting(key: string): Promise<void> {
+    await this.ensureInitialized();
+    if (!this.db) return;
+
+    await this.db.executeSql('DELETE FROM settings WHERE key = ?', [key]);
+  }
+
+  /**
    * Database maintenance
    */
   async vacuum(): Promise<void> {

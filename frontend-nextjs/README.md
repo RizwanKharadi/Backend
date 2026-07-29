@@ -1,10 +1,22 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# FinSync360 Web (Next.js)
+
+Production web UI for FinSync360: dashboard, vouchers, inventory, companies, reports, **superadmin** (`/admin`), and **billing** (`/settings/billing`).
+
+**Not required for Tally sync.** Data flows: TallyPrime → desktop-agent → backend → MongoDB → mobile. See [docs/SYNC_STACK_VERIFICATION.md](../docs/SYNC_STACK_VERIFICATION.md).
 
 ## Getting Started
 
-First, run the development server:
+From repo root:
 
 ```bash
+npm run frontend:dev
+```
+
+Or from this folder:
+
+```bash
+cp .env.example .env.local
+npm install
 npm run dev
 # or
 yarn dev

@@ -7,6 +7,8 @@ interface AuthState {
   token: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  /** True after startup token validation (or no stored token) */
+  sessionChecked: boolean;
   error: string | null;
   biometricEnabled: boolean;
   lastLoginTime: string | null;
@@ -17,6 +19,7 @@ const initialState: AuthState = {
   token: null,
   isAuthenticated: false,
   isLoading: false,
+  sessionChecked: false,
   error: null,
   biometricEnabled: false,
   lastLoginTime: null,
@@ -25,9 +28,17 @@ const initialState: AuthState = {
 // Async thunks
 export const login = createAsyncThunk(
   'auth/login',
-  async (credentials: LoginCredentials, { rejectWithValue }) => {
+  async (credentials: LoginCredentials, { rejectWithValue, getState }) => {
     try {
       const response = await authService.login(credentials);
+      const state = getState() as { settings?: { biometricEnabled?: boolean } };
+      if (state.settings?.biometricEnabled) {
+        try {
+          await authService.refreshBiometricCredentials(credentials);
+        } catch (error) {
+          console.warn('Biometric credential refresh failed:', error);
+        }
+      }
       return response;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Login failed');
@@ -71,6 +82,23 @@ export const refreshToken = createAsyncThunk(
   }
 );
 
+export const validateSession = createAsyncThunk(
+  'auth/validateSession',
+  async (_, { rejectWithValue }) => {
+    try {
+      const result = await authService.validateSession();
+      if (result.valid && result.user && result.token) {
+        return result;
+      }
+      await authService.clearLocalSession();
+      return { valid: false as const };
+    } catch (error: any) {
+      await authService.clearLocalSession();
+      return rejectWithValue(error.message || 'Session validation failed');
+    }
+  }
+);
+
 export const verifyBiometric = createAsyncThunk(
   'auth/verifyBiometric',
   async (_, { rejectWithValue }) => {
@@ -79,6 +107,17 @@ export const verifyBiometric = createAsyncThunk(
       return result;
     } catch (error: any) {
       return rejectWithValue(error.message || 'Biometric verification failed');
+    }
+  }
+);
+
+export const biometricLogin = createAsyncThunk(
+  'auth/biometricLogin',
+  async (_, { rejectWithValue }) => {
+    try {
+      return await authService.biometricSignIn();
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Biometric login failed');
     }
   }
 );
@@ -99,6 +138,22 @@ const authSlice = createSlice({
     },
     updateLastLoginTime: (state) => {
       state.lastLoginTime = new Date().toISOString();
+    },
+    restoreSession: (
+      state,
+      action: PayloadAction<{ user: User; token: string }>
+    ) => {
+      state.isAuthenticated = true;
+      state.user = action.payload.user;
+      state.token = action.payload.token;
+      state.error = null;
+    },
+    forceLogout: (state) => {
+      state.isAuthenticated = false;
+      state.user = null;
+      state.token = null;
+      state.error = null;
+      state.isLoading = false;
     },
   },
   extraReducers: (builder) => {
@@ -170,16 +225,65 @@ const authSlice = createSlice({
         state.token = null;
       });
 
-    // Biometric verification
+    // Biometric login (fingerprint/face + stored credentials)
     builder
-      .addCase(verifyBiometric.fulfilled, (state, action) => {
-        if (action.payload.success) {
+      .addCase(biometricLogin.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(biometricLogin.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.isAuthenticated = true;
+        state.user = action.payload.user;
+        state.token = action.payload.token;
+        state.lastLoginTime = new Date().toISOString();
+        state.error = null;
+      })
+      .addCase(biometricLogin.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload as string;
+      });
+
+    // Startup session validation
+    builder
+      .addCase(validateSession.pending, (state) => {
+        state.isLoading = true;
+      })
+      .addCase(validateSession.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.sessionChecked = true;
+        const payload = action.payload as {
+          valid?: boolean;
+          user?: User;
+          token?: string;
+        };
+        if (payload?.valid && payload.user && payload.token) {
           state.isAuthenticated = true;
-          state.lastLoginTime = new Date().toISOString();
+          state.user = payload.user;
+          state.token = payload.token;
+          state.error = null;
+        } else {
+          state.isAuthenticated = false;
+          state.user = null;
+          state.token = null;
         }
+      })
+      .addCase(validateSession.rejected, (state) => {
+        state.isLoading = false;
+        state.sessionChecked = true;
+        state.isAuthenticated = false;
+        state.user = null;
+        state.token = null;
       });
   },
 });
 
-export const { clearError, setUser, setBiometricEnabled, updateLastLoginTime } = authSlice.actions;
+export const {
+  clearError,
+  setUser,
+  setBiometricEnabled,
+  updateLastLoginTime,
+  restoreSession,
+  forceLogout,
+} = authSlice.actions;
 export default authSlice.reducer;

@@ -21,6 +21,7 @@ import {
   ClipboardDocumentListIcon,
   ArchiveBoxIcon,
   ExclamationTriangleIcon,
+  ShieldCheckIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -77,6 +78,13 @@ const navigation = [
     description: 'App configuration'
   },
 ];
+
+const adminNavigation = {
+  name: 'Admin',
+  href: '/admin',
+  icon: ShieldCheckIcon,
+  description: 'Platform licensing & customers'
+};
 
 export default function DashboardLayout({
   children,
@@ -246,7 +254,7 @@ export default function DashboardLayout({
 
           {/* Navigation */}
           <nav className="flex-1 px-2 space-y-1">
-            {navigation.map((item) => {
+            {[...(user?.role === 'superadmin' ? [adminNavigation] : []), ...navigation].map((item) => {
               const isActive = pathname === item.href || pathname.startsWith(item.href + '/');
               const isExpanded = expandedItems.includes(item.name);
               const hasChildren = item.children && item.children.length > 0;

@@ -63,7 +63,8 @@ export const checkMLServiceHealth = createAsyncThunk(
   'ml/checkHealth',
   async (_, { rejectWithValue }) => {
     try {
-      const health = await mlService.getDetailedHealth();
+      // Lightweight check (no DB); detailed health can fail if Mongo is down on ML side only
+      const health = await mlService.getHealth();
       return health;
     } catch (error: any) {
       return rejectWithValue(error.message || 'ML Service unavailable');
@@ -145,7 +146,13 @@ export const predictPaymentDelay = createAsyncThunk(
 
 export const assessCustomerRisk = createAsyncThunk(
   'ml/assessCustomerRisk',
-  async (params: { customer_id: string; assessment_type?: string }, { rejectWithValue }) => {
+  async (
+    params: {
+      customer_id: string;
+      assessment_type?: 'credit' | 'payment' | 'overall';
+    },
+    { rejectWithValue }
+  ) => {
     try {
       const assessment = await mlService.assessCustomerRisk(params);
       return { customerId: params.customer_id, assessment };

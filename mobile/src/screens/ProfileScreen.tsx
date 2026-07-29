@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
   StyleSheet,
+  Alert,
 } from 'react-native';
 import {
   Surface,
@@ -12,28 +13,109 @@ import {
   List,
   Chip,
   useTheme,
+  ActivityIndicator,
 } from 'react-native-paper';
-import { useSelector } from 'react-redux';
+import { useSelector, useDispatch } from 'react-redux';
 
-// Components
 import Header from '../components/common/Header';
-
-// Store
-import { RootState } from '../store';
-
-// Types
+import { RootState, AppDispatch } from '../store';
+import { setUser } from '../store/slices/authSlice';
+import { userService } from '../services/userService';
 import { MainStackScreenProps } from '../types/navigation';
+import { User } from '../types';
 
 type Props = MainStackScreenProps<'Profile'>;
 
+function formatDate(value?: string | null): string {
+  if (!value) return 'Not available';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Not available';
+  return d.toLocaleDateString(undefined, {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+function formatDateTime(value?: string | null): string {
+  if (!value) return 'Not available';
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return 'Not available';
+  return d.toLocaleString(undefined, {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
-  const { user } = useSelector((state: RootState) => state.auth);
+  const dispatch = useDispatch<AppDispatch>();
+  const { user: storeUser } = useSelector((state: RootState) => state.auth);
+  const [profile, setProfile] = useState<User | null>(storeUser);
+  const [loading, setLoading] = useState(true);
+  const [verificationBusy, setVerificationBusy] = useState(false);
+
+  const loadProfile = useCallback(async () => {
+    setLoading(true);
+    try {
+      const fresh = await userService.getProfile();
+      setProfile(fresh);
+      dispatch(setUser(fresh));
+    } catch (error: unknown) {
+      const err = error as { message?: string };
+      if (storeUser) {
+        setProfile(storeUser);
+      }
+      console.warn('Profile load failed:', err?.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [dispatch, storeUser]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [loadProfile]);
+
+  const user = profile || storeUser;
+
+  const handleEmailVerification = async () => {
+    if (user?.isEmailVerified) {
+      Alert.alert('Verified', 'Your email address is already verified.');
+      return;
+    }
+
+    setVerificationBusy(true);
+    try {
+      const result = await userService.resendEmailVerification();
+      let message =
+        result.message ||
+        'If email delivery is configured, a verification link has been sent.';
+
+      if (result.verificationToken) {
+        message += `\n\nDevelopment token (for testing):\n${result.verificationToken}`;
+      }
+
+      Alert.alert('Verification email', message);
+    } catch (error: unknown) {
+      const err = error as { response?: { data?: { message?: string } }; message?: string };
+      Alert.alert(
+        'Failed',
+        err?.response?.data?.message ||
+          err?.message ||
+          'Could not send verification email.'
+      );
+    } finally {
+      setVerificationBusy(false);
+    }
+  };
 
   const getInitials = (name: string): string => {
     return name
       .split(' ')
-      .map(word => word.charAt(0))
+      .map((word) => word.charAt(0))
       .join('')
       .toUpperCase()
       .slice(0, 2);
@@ -45,12 +127,12 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         return theme.colors.error;
       case 'admin':
         return theme.colors.primary;
-      case 'user':
-        return theme.colors.tertiary;
       default:
-        return theme.colors.onSurfaceVariant;
+        return theme.colors.tertiary;
     }
   };
+
+  const accountActive = user?.isActive !== false;
 
   return (
     <View style={styles.container}>
@@ -61,172 +143,115 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         onBackPress={() => navigation.goBack()}
       />
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {/* Profile Header */}
-        <Surface style={styles.profileHeader} elevation={2}>
-          <View style={styles.avatarContainer}>
+      {loading && !user ? (
+        <ActivityIndicator style={{ marginTop: 40 }} />
+      ) : (
+        <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+          <Surface style={styles.profileHeader} elevation={2}>
             <Avatar.Text
               size={80}
               label={getInitials(user?.name || 'U')}
               style={[styles.avatar, { backgroundColor: theme.colors.primary }]}
             />
-          </View>
-          
-          <View style={styles.userInfo}>
             <Title style={styles.userName}>{user?.name || 'Unknown User'}</Title>
             <Paragraph style={styles.userEmail}>{user?.email || 'No email'}</Paragraph>
-            
             <View style={styles.roleContainer}>
               <Chip
                 mode="outlined"
                 style={[styles.roleChip, { borderColor: getRoleColor(user?.role || 'user') }]}
                 textStyle={[styles.roleChipText, { color: getRoleColor(user?.role || 'user') }]}
               >
-                {user?.role?.toUpperCase() || 'USER'}
+                {(user?.role || 'user').toUpperCase()}
               </Chip>
-              
-              {user?.isEmailVerified && (
-                <Chip
-                  mode="outlined"
-                  style={[styles.statusChip, { borderColor: theme.colors.primary }]}
-                  textStyle={[styles.statusChipText, { color: theme.colors.primary }]}
-                  icon="check-circle"
-                >
-                  Verified
-                </Chip>
-              )}
+              <Chip
+                mode="outlined"
+                style={[
+                  styles.statusChip,
+                  { borderColor: accountActive ? theme.colors.primary : theme.colors.error },
+                ]}
+                textStyle={[
+                  styles.statusChipText,
+                  { color: accountActive ? theme.colors.primary : theme.colors.error },
+                ]}
+                icon={accountActive ? 'check-circle' : 'close-circle'}
+              >
+                {accountActive ? 'Active' : 'Inactive'}
+              </Chip>
             </View>
-          </View>
-        </Surface>
+          </Surface>
 
-        {/* Account Information */}
-        <Surface style={styles.section} elevation={2}>
-          <Title style={styles.sectionTitle}>Account Information</Title>
-          
-          <List.Item
-            title="User ID"
-            description={user?.id || 'N/A'}
-            left={(props) => <List.Icon {...props} icon="identifier" />}
-          />
-          
-          <List.Item
-            title="Phone"
-            description={user?.phone || 'Not provided'}
-            left={(props) => <List.Icon {...props} icon="phone" />}
-          />
-          
-          <List.Item
-            title="Account Status"
-            description={user?.isActive ? 'Active' : 'Inactive'}
-            left={(props) => <List.Icon {...props} icon="account-check" />}
-            right={() => (
-              <Chip
-                mode="outlined"
-                compact
-                style={[
-                  styles.statusChip,
-                  { borderColor: user?.isActive ? theme.colors.primary : theme.colors.error }
-                ]}
-                textStyle={[
-                  styles.statusChipText,
-                  { color: user?.isActive ? theme.colors.primary : theme.colors.error }
-                ]}
-              >
-                {user?.isActive ? 'Active' : 'Inactive'}
-              </Chip>
-            )}
-          />
-          
-          <List.Item
-            title="Member Since"
-            description={user?.createdAt ? new Date(user.createdAt).toLocaleDateString() : 'N/A'}
-            left={(props) => <List.Icon {...props} icon="calendar" />}
-          />
-        </Surface>
+          <Surface style={styles.section} elevation={2}>
+            <Title style={styles.sectionTitle}>Account Information</Title>
+            <List.Item
+              title="Phone"
+              description={user?.phone || 'Not provided'}
+              left={(props) => <List.Icon {...props} icon="phone" />}
+            />
+            <List.Item
+              title="Account Status"
+              description={accountActive ? 'Your account is active on the server' : 'Account deactivated — contact support'}
+              left={(props) => <List.Icon {...props} icon="account-check" />}
+            />
+            <List.Item
+              title="Member Since"
+              description={formatDate(user?.createdAt)}
+              left={(props) => <List.Icon {...props} icon="calendar" />}
+            />
+            <List.Item
+              title="Companies"
+              description={`Access to ${user?.companies?.length || 0} workspace(s)`}
+              left={(props) => <List.Icon {...props} icon="office-building" />}
+              onPress={() => navigation.navigate('CompanySelection')}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            />
+          </Surface>
 
-        {/* Company Access */}
-        <Surface style={styles.section} elevation={2}>
-          <Title style={styles.sectionTitle}>Company Access</Title>
-          
-          <List.Item
-            title="Companies"
-            description={`Access to ${user?.companies?.length || 0} companies`}
-            left={(props) => <List.Icon {...props} icon="office-building" />}
-            onPress={() => navigation.navigate('CompanySelection')}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          />
-        </Surface>
+          <Surface style={styles.section} elevation={2}>
+            <Title style={styles.sectionTitle}>Security</Title>
+            <List.Item
+              title="Email Verification"
+              description={
+                user?.isEmailVerified
+                  ? 'Your email is verified'
+                  : 'Tap to resend verification link'
+              }
+              left={(props) => <List.Icon {...props} icon="email-check" />}
+              onPress={user?.isEmailVerified ? undefined : handleEmailVerification}
+              disabled={verificationBusy || user?.isEmailVerified}
+            />
+            <List.Item
+              title="Change Password"
+              description="Update your password"
+              left={(props) => <List.Icon {...props} icon="lock" />}
+              onPress={() => navigation.navigate('ChangePassword')}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            />
+          </Surface>
 
-        {/* Security */}
-        <Surface style={styles.section} elevation={2}>
-          <Title style={styles.sectionTitle}>Security</Title>
-          
-          <List.Item
-            title="Email Verification"
-            description={user?.isEmailVerified ? 'Verified' : 'Not verified'}
-            left={(props) => <List.Icon {...props} icon="email-check" />}
-            right={() => (
-              <Chip
-                mode="outlined"
-                compact
-                style={[
-                  styles.statusChip,
-                  { borderColor: user?.isEmailVerified ? theme.colors.primary : theme.colors.error }
-                ]}
-                textStyle={[
-                  styles.statusChipText,
-                  { color: user?.isEmailVerified ? theme.colors.primary : theme.colors.error }
-                ]}
-              >
-                {user?.isEmailVerified ? 'Verified' : 'Unverified'}
-              </Chip>
-            )}
-          />
-          
-          <List.Item
-            title="Change Password"
-            description="Update your password"
-            left={(props) => <List.Icon {...props} icon="lock" />}
-            onPress={() => {
-              // TODO: Navigate to change password screen
-            }}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          />
-          
-          <List.Item
-            title="Two-Factor Authentication"
-            description="Enable 2FA for extra security"
-            left={(props) => <List.Icon {...props} icon="shield-check" />}
-            onPress={() => {
-              // TODO: Navigate to 2FA setup
-            }}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          />
-        </Surface>
+          <Surface style={styles.section} elevation={2}>
+            <Title style={styles.sectionTitle}>Activity</Title>
+            <List.Item
+              title="Last Updated"
+              description={formatDateTime(user?.updatedAt)}
+              left={(props) => <List.Icon {...props} icon="clock-outline" />}
+            />
+            <List.Item
+              title="Last Sign-in"
+              description={formatDateTime(user?.lastLogin)}
+              left={(props) => <List.Icon {...props} icon="login" />}
+            />
+            <List.Item
+              title="Login History"
+              description="View sign-in and account timeline"
+              left={(props) => <List.Icon {...props} icon="history" />}
+              onPress={() => navigation.navigate('LoginHistory')}
+              right={(props) => <List.Icon {...props} icon="chevron-right" />}
+            />
+          </Surface>
 
-        {/* Activity */}
-        <Surface style={styles.section} elevation={2}>
-          <Title style={styles.sectionTitle}>Activity</Title>
-          
-          <List.Item
-            title="Last Updated"
-            description={user?.updatedAt ? new Date(user.updatedAt).toLocaleString() : 'N/A'}
-            left={(props) => <List.Icon {...props} icon="clock" />}
-          />
-          
-          <List.Item
-            title="Login History"
-            description="View recent login activity"
-            left={(props) => <List.Icon {...props} icon="history" />}
-            onPress={() => {
-              // TODO: Navigate to login history
-            }}
-            right={(props) => <List.Icon {...props} icon="chevron-right" />}
-          />
-        </Surface>
-
-        <View style={styles.bottomSpacing} />
-      </ScrollView>
+          <View style={styles.bottomSpacing} />
+        </ScrollView>
+      )}
     </View>
   );
 };
@@ -246,14 +271,8 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     alignItems: 'center',
   },
-  avatarContainer: {
-    marginBottom: 16,
-  },
   avatar: {
-    marginBottom: 8,
-  },
-  userInfo: {
-    alignItems: 'center',
+    marginBottom: 12,
   },
   userName: {
     fontSize: 24,
@@ -267,6 +286,8 @@ const styles = StyleSheet.create({
   },
   roleContainer: {
     flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
     gap: 8,
   },
   roleChip: {

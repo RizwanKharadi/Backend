@@ -1,113 +1,87 @@
-const mongoose = require('mongoose');
-require('dotenv').config();
+/**
+ * Seed an admin user into MySQL (fresh start).
+ * Credentials MUST come from env — no hardcoded emails/passwords.
+ *
+ * Required:
+ *   ADMIN_EMAIL
+ *   ADMIN_PASSWORD
+ * Optional:
+ *   ADMIN_NAME (default: Admin)
+ *   ADMIN_PHONE (default: +910000000000)
+ *   ADMIN_ROLE  (default: superadmin)
+ *
+ * Usage:
+ *   set ADMIN_EMAIL=you@example.com
+ *   set ADMIN_PASSWORD=your-strong-password
+ *   node scripts/create-single-admin.js
+ */
+import dotenv from 'dotenv';
+import { connectDB, disconnectDB, getModels } from '../src/config/database.js';
 
-// Import User model
-const User = require('../src/models/User');
+dotenv.config();
 
-// Connect to database
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGODB_URI);
-    console.log('✅ Connected to MongoDB');
-  } catch (error) {
-    console.error('❌ Database connection failed:', error);
+async function main() {
+  const email = process.env.ADMIN_EMAIL?.trim();
+  const password = process.env.ADMIN_PASSWORD;
+  const name = process.env.ADMIN_NAME?.trim() || 'Admin';
+  const phone = process.env.ADMIN_PHONE?.trim() || '+910000000000';
+  const role = process.env.ADMIN_ROLE?.trim() || 'superadmin';
+
+  if (!email || !password) {
+    console.error('Set ADMIN_EMAIL and ADMIN_PASSWORD in backend/.env (or the environment) before running this script.');
     process.exit(1);
   }
-};
 
-// Create a single admin user
-const createSingleAdmin = async () => {
-  try {
-    await connectDB();
-    
-    console.log('🚀 Creating single admin user...');
-    
-    // Check if admin already exists
-    const existingAdmin = await User.findOne({ email: 'admin@finsync360.com' });
-    if (existingAdmin) {
-      console.log('⚠️  Admin user already exists');
-      console.log('📧 Email:', existingAdmin.email);
-      console.log('🎭 Role:', existingAdmin.role);
-      console.log('✅ Active:', existingAdmin.isActive);
-      
-      // Test password
-      const isPasswordValid = await existingAdmin.matchPassword('Admin@123456');
-      console.log('🔑 Password valid:', isPasswordValid);
-      
-      if (!isPasswordValid) {
-        console.log('🔄 Updating password...');
-        existingAdmin.password = 'Admin@123456';
-        await existingAdmin.save();
-        console.log('✅ Password updated');
-      }
-      
-      return;
-    }
-    
-    // Create new admin user
-    const adminUser = new User({
-      name: 'Super Admin',
-      email: 'admin@finsync360.com',
-      phone: '+919999999999',
-      password: 'Admin@123456',
-      role: 'superadmin',
-      isActive: true,
-      isEmailVerified: true,
-      permissions: {
-        vouchers: { create: true, read: true, update: true, delete: true },
-        inventory: { create: true, read: true, update: true, delete: true },
-        reports: { financial: true, inventory: true, gst: true, analytics: true },
-        settings: { company: true, users: true, integrations: true }
-      }
-    });
-    
-    await adminUser.save();
-    console.log('✅ Admin user created successfully!');
-    
-    // Verify the user was created
-    const createdUser = await User.findOne({ email: 'admin@finsync360.com' });
-    console.log('📋 Created user details:');
-    console.log('   📧 Email:', createdUser.email);
-    console.log('   👤 Name:', createdUser.name);
-    console.log('   📱 Phone:', createdUser.phone);
-    console.log('   🎭 Role:', createdUser.role);
-    console.log('   ✅ Active:', createdUser.isActive);
-    console.log('   📧 Email Verified:', createdUser.isEmailVerified);
-    
-    // Test password
-    const isPasswordValid = await createdUser.matchPassword('Admin@123456');
-    console.log('   🔑 Password test:', isPasswordValid ? 'PASS' : 'FAIL');
-    
-    console.log('\n🎉 Admin user setup complete!');
-    console.log('\n📋 Login Credentials:');
-    console.log('==========================================');
-    console.log('📧 Email: admin@finsync360.com');
-    console.log('🔑 Password: Admin@123456');
-    console.log('🎭 Role: superadmin');
-    console.log('==========================================');
-    
-    console.log('\n🧪 Test login with curl:');
-    console.log('curl -X POST https://finsync-backend-d34180691b06.herokuapp.com/api/auth/login \\');
-    console.log('  -H "Content-Type: application/json" \\');
-    console.log('  -d \'{"email": "admin@finsync360.com", "password": "Admin@123456"}\'');
-    
-  } catch (error) {
-    console.error('❌ Error creating admin user:', error);
-    if (error.errors) {
-      Object.keys(error.errors).forEach(key => {
-        console.error(`   ${key}: ${error.errors[key].message}`);
-      });
-    }
-  } finally {
-    await mongoose.connection.close();
-    console.log('\n✅ Database connection closed');
-    process.exit(0);
+  if (email.toLowerCase().includes('finsync360.com') || email.toLowerCase() === 'admin@finsync360.com') {
+    console.error('Refusing to seed placeholder/demo emails. Use your real ADMIN_EMAIL.');
+    process.exit(1);
   }
-};
 
-// Run the script
-if (require.main === module) {
-  createSingleAdmin();
+  const result = await connectDB();
+  if (!result.connected) {
+    console.error('MySQL not connected. Check MYSQL_* env vars and that mysqld is running.');
+    process.exit(1);
+  }
+
+  const { User } = getModels();
+
+  // Remove any leftover placeholder admin if present
+  await User.deleteMany({ email: 'admin@finsync360.com' });
+
+  let existing = await User.findOne({ email }).select('+password');
+  if (existing) {
+    console.log('Admin already exists for', email);
+    const valid = await existing.matchPassword(password);
+    if (!valid) {
+      existing.password = password;
+      await existing.save();
+      console.log('Password updated from ADMIN_PASSWORD');
+    }
+    await disconnectDB();
+    return;
+  }
+
+  const adminUser = await User.create({
+    name,
+    email,
+    phone,
+    password,
+    role,
+    isActive: true,
+    isEmailVerified: true,
+    permissions: {
+      vouchers: { create: true, read: true, update: true, delete: true },
+      inventory: { create: true, read: true, update: true, delete: true },
+      reports: { financial: true, inventory: true, gst: true, analytics: true },
+      settings: { company: true, users: true, integrations: true },
+    },
+  });
+
+  console.log('Admin created:', adminUser.email, adminUser.id);
+  await disconnectDB();
 }
 
-module.exports = { createSingleAdmin };
+main().catch((err) => {
+  console.error(err);
+  process.exit(1);
+});

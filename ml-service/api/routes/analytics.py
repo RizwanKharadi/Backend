@@ -140,24 +140,14 @@ async def get_inventory_analytics(
 ):
     """Get inventory analytics and recommendations"""
     try:
-        # Get inventory data
-        inventory_collection = await get_collection("inventory")
-        
-        # Total items count
-        total_items = await inventory_collection.count_documents({})
-        
-        # Low stock items
+        items_collection = await get_collection("items")
+        total_items = await items_collection.count_documents({"isActive": True})
+
         low_stock_items = await _get_low_stock_items()
-        
-        # Overstock items
         overstock_items = await _get_overstock_items()
-        
-        # Demand trends
         demand_trends = await _get_demand_trends()
-        
-        # Reorder recommendations
         reorder_recommendations = await _get_reorder_recommendations()
-        
+
         return InventoryAnalyticsResponse(
             total_items=total_items,
             low_stock_items=low_stock_items,
@@ -165,7 +155,7 @@ async def get_inventory_analytics(
             demand_trends=demand_trends,
             reorder_recommendations=reorder_recommendations
         )
-        
+
     except Exception as e:
         logger.error(f"Failed to get inventory analytics: {e}")
         raise HTTPException(
@@ -177,47 +167,89 @@ async def get_inventory_analytics(
 async def get_payment_trends(
     days_back: int = Query(default=90, ge=1, le=365)
 ):
-    """Get payment trends and patterns"""
+    """Get payment trends and patterns from vouchers"""
     try:
         end_date = datetime.now()
         start_date = end_date - timedelta(days=days_back)
-        
-        # Payment trends pipeline
-        pipeline = [
+        now = datetime.now()
+
+        # Monthly trends grouped by year-month with status breakdown
+        monthly_pipeline = [
             {
                 "$match": {
-                    "paymentDate": {
-                        "$gte": start_date,
-                        "$lte": end_date
-                    }
+                    "voucherType": "sales",
+                    "date": {"$gte": start_date, "$lte": end_date}
                 }
             },
             {
                 "$group": {
                     "_id": {
-                        "year": {"$year": "$paymentDate"},
-                        "month": {"$month": "$paymentDate"},
-                        "day": {"$dayOfMonth": "$paymentDate"}
+                        "year": {"$year": "$date"},
+                        "month": {"$month": "$date"}
                     },
-                    "total_amount": {"$sum": "$amount"},
-                    "payment_count": {"$sum": 1},
-                    "avg_amount": {"$avg": "$amount"}
+                    "total_amount": {"$sum": "$totals.grandTotal"},
+                    "total_payments": {"$sum": 1},
+                    "paid_count": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "paid"]}, 1, 0]}
+                    },
+                    "pending_count": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "pending"]}, 1, 0]}
+                    }
+                }
+            },
+            {"$sort": {"_id": 1}}
+        ]
+        monthly_raw = await aggregate_pipeline("vouchers", monthly_pipeline)
+
+        monthly_trends = []
+        for m in monthly_raw:
+            yr = m["_id"]["year"]
+            mo = m["_id"]["month"]
+            month_str = f"{yr}-{mo:02d}"
+            total = m["total_payments"]
+            paid = m["paid_count"]
+            pending = m["pending_count"]
+            overdue = total - paid - pending
+            monthly_trends.append({
+                "month": month_str,
+                "total_payments": total,
+                "on_time_payments": paid,
+                "delayed_payments": pending,
+                "overdue_payments": max(0, overdue),
+                "total_amount": m["total_amount"]
+            })
+
+        # Daily trends
+        daily_pipeline = [
+            {
+                "$match": {
+                    "voucherType": "sales",
+                    "date": {"$gte": start_date, "$lte": end_date}
                 }
             },
             {
-                "$sort": {"_id": 1}
-            }
+                "$group": {
+                    "_id": {
+                        "year": {"$year": "$date"},
+                        "month": {"$month": "$date"},
+                        "day": {"$dayOfMonth": "$date"}
+                    },
+                    "total_amount": {"$sum": "$totals.grandTotal"},
+                    "payment_count": {"$sum": 1},
+                    "avg_amount": {"$avg": "$totals.grandTotal"}
+                }
+            },
+            {"$sort": {"_id": 1}}
         ]
-        
-        trends = await aggregate_pipeline("payments", pipeline)
-        
-        # Calculate additional metrics
-        total_payments = sum(t["payment_count"] for t in trends)
-        total_amount = sum(t["total_amount"] for t in trends)
-        avg_daily_amount = total_amount / len(trends) if trends else 0
-        
+        daily_trends = await aggregate_pipeline("vouchers", daily_pipeline)
+
+        total_payments = sum(t["payment_count"] for t in daily_trends)
+        total_amount = sum(t["total_amount"] for t in daily_trends)
+        avg_daily_amount = total_amount / len(daily_trends) if daily_trends else 0
+
         return {
-            "trends": trends,
+            "monthly_trends": monthly_trends,
+            "trends": daily_trends,
             "summary": {
                 "total_payments": total_payments,
                 "total_amount": total_amount,
@@ -225,7 +257,7 @@ async def get_payment_trends(
                 "period_days": days_back
             }
         }
-        
+
     except Exception as e:
         logger.error(f"Failed to get payment trends: {e}")
         raise HTTPException(
@@ -268,79 +300,147 @@ async def get_risk_dashboard():
 async def _get_revenue_forecast(start_date: datetime, end_date: datetime) -> Dict[str, Any]:
     """Get revenue forecast data"""
     try:
-        # Historical revenue
+        # Current period revenue from sales vouchers
         pipeline = [
             {
                 "$match": {
                     "date": {"$gte": start_date, "$lte": end_date},
-                    "voucherType": "Sales"
+                    "voucherType": "sales"
                 }
             },
             {
                 "$group": {
                     "_id": None,
-                    "total_revenue": {"$sum": "$amount"},
+                    "total_revenue": {"$sum": "$totals.grandTotal"},
                     "transaction_count": {"$sum": 1},
-                    "avg_transaction": {"$avg": "$amount"}
+                    "avg_transaction": {"$avg": "$totals.grandTotal"}
                 }
             }
         ]
-        
         revenue_data = await aggregate_pipeline("vouchers", pipeline)
         current_revenue = revenue_data[0] if revenue_data else {
             "total_revenue": 0, "transaction_count": 0, "avg_transaction": 0
         }
-        
-        # Simple forecast (placeholder for more sophisticated forecasting)
-        days_in_period = (end_date - start_date).days
-        daily_avg = current_revenue["total_revenue"] / max(days_in_period, 1)
-        
+
+        # Previous period revenue for growth rate calculation
+        period_days = (end_date - start_date).days
+        prev_end = start_date
+        prev_start = prev_end - timedelta(days=period_days)
+        prev_pipeline = [
+            {
+                "$match": {
+                    "date": {"$gte": prev_start, "$lte": prev_end},
+                    "voucherType": "sales"
+                }
+            },
+            {
+                "$group": {
+                    "_id": None,
+                    "total_revenue": {"$sum": "$totals.grandTotal"}
+                }
+            }
+        ]
+        prev_data = await aggregate_pipeline("vouchers", prev_pipeline)
+        prev_revenue = prev_data[0]["total_revenue"] if prev_data else 0
+
+        current_total = current_revenue.get("total_revenue", 0)
+        if prev_revenue > 0:
+            growth_rate = (current_total - prev_revenue) / prev_revenue
+        else:
+            growth_rate = 0.0
+
+        # Daily breakdown for chart
+        daily_pipeline = [
+            {
+                "$match": {
+                    "date": {"$gte": start_date, "$lte": end_date},
+                    "voucherType": "sales"
+                }
+            },
+            {
+                "$group": {
+                    "_id": {
+                        "year": {"$year": "$date"},
+                        "month": {"$month": "$date"},
+                        "day": {"$dayOfMonth": "$date"}
+                    },
+                    "actual_revenue": {"$sum": "$totals.grandTotal"},
+                    "count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"_id": 1}}
+        ]
+        daily_data = await aggregate_pipeline("vouchers", daily_pipeline)
+
+        daily_avg = current_total / max(period_days, 1)
+        daily_forecast = []
+        for d in daily_data:
+            date_str = f"{d['_id']['year']}-{d['_id']['month']:02d}-{d['_id']['day']:02d}"
+            daily_forecast.append({
+                "date": date_str,
+                "actual_revenue": d["actual_revenue"],
+                "predicted_revenue": daily_avg
+            })
+
         return {
             "current_period": current_revenue,
             "forecast_next_30_days": daily_avg * 30,
-            "growth_rate": 0.05,  # Placeholder
-            "confidence": 0.75
+            "growth_rate": round(growth_rate, 4),
+            "confidence": 0.75,
+            "daily_forecast": daily_forecast
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting revenue forecast: {e}")
-        return {"error": str(e)}
+        return {"error": str(e), "daily_forecast": []}
 
 async def _get_payment_insights(start_date: datetime, end_date: datetime) -> Dict[str, Any]:
-    """Get payment insights"""
+    """Get payment insights from sales vouchers"""
     try:
-        # Payment status distribution
         pipeline = [
             {
                 "$match": {
-                    "dueDate": {"$gte": start_date, "$lte": end_date}
+                    "date": {"$gte": start_date, "$lte": end_date},
+                    "voucherType": "sales"
                 }
             },
             {
                 "$group": {
                     "_id": "$status",
                     "count": {"$sum": 1},
-                    "total_amount": {"$sum": "$amount"}
+                    "total_amount": {"$sum": "$totals.grandTotal"}
                 }
             }
         ]
-        
-        payment_status = await aggregate_pipeline("payments", pipeline)
-        
-        # Calculate metrics
+        payment_status = await aggregate_pipeline("vouchers", pipeline)
+
         total_payments = sum(p["count"] for p in payment_status)
-        on_time_payments = next((p["count"] for p in payment_status if p["_id"] == "paid"), 0)
-        overdue_payments = next((p["count"] for p in payment_status if p["_id"] == "overdue"), 0)
-        
-        on_time_rate = (on_time_payments / total_payments * 100) if total_payments > 0 else 0
-        
+        paid_count = next((p["count"] for p in payment_status if p["_id"] == "paid"), 0)
+        overdue_count_val = next((p["count"] for p in payment_status if p["_id"] in ("overdue", "pending")), 0)
+        on_time_rate = (paid_count / total_payments * 100) if total_payments > 0 else 0
+
+        # Count vouchers past due date and not paid
+        now = datetime.now()
+        overdue_pipeline = [
+            {
+                "$match": {
+                    "voucherType": "sales",
+                    "dueDate": {"$lt": now},
+                    "status": {"$nin": ["paid", "cancelled"]}
+                }
+            },
+            {"$count": "overdue_count"}
+        ]
+        overdue_data = await aggregate_pipeline("vouchers", overdue_pipeline)
+        overdue_count_val = overdue_data[0]["overdue_count"] if overdue_data else 0
+
         return {
             "total_payments": total_payments,
-            "on_time_rate": on_time_rate,
-            "overdue_count": overdue_payments,
+            "on_time_rate": round(on_time_rate, 2),
+            "overdue_count": overdue_count_val,
             "status_distribution": payment_status
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting payment insights: {e}")
         return {"error": str(e)}
@@ -348,33 +448,33 @@ async def _get_payment_insights(start_date: datetime, end_date: datetime) -> Dic
 async def _get_customer_analytics(start_date: datetime, end_date: datetime) -> Dict[str, Any]:
     """Get customer analytics"""
     try:
-        customers_collection = await get_collection("customers")
-        total_customers = await customers_collection.count_documents({})
-        
-        # Active customers (with recent transactions)
+        parties_collection = await get_collection("parties")
+        total_customers = await parties_collection.count_documents({"type": {"$in": ["customer", "both"]}})
+
+        # Active customers with recent sales transactions
         pipeline = [
             {
                 "$match": {
-                    "date": {"$gte": start_date, "$lte": end_date}
+                    "date": {"$gte": start_date, "$lte": end_date},
+                    "voucherType": "sales"
                 }
             },
             {
                 "$group": {
                     "_id": "$partyName",
                     "transaction_count": {"$sum": 1},
-                    "total_amount": {"$sum": "$amount"}
+                    "total_amount": {"$sum": "$totals.grandTotal"}
                 }
             }
         ]
-        
         active_customers = await aggregate_pipeline("vouchers", pipeline)
-        
+
         return {
             "total_customers": total_customers,
             "active_customers": len(active_customers),
-            "top_customers": sorted(active_customers, key=lambda x: x["total_amount"], reverse=True)[:10]
+            "top_customers": sorted(active_customers, key=lambda x: x.get("total_amount", 0), reverse=True)[:10]
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting customer analytics: {e}")
         return {"error": str(e)}
@@ -382,35 +482,44 @@ async def _get_customer_analytics(start_date: datetime, end_date: datetime) -> D
 async def _get_inventory_insights() -> Dict[str, Any]:
     """Get inventory insights"""
     try:
-        inventory_collection = await get_collection("inventory")
-        
-        # Low stock items
-        low_stock_count = await inventory_collection.count_documents({
-            "stockLevel": {"$lt": 10}  # Assuming 10 is low stock threshold
-        })
-        
-        # Total inventory value
+        items_collection = await get_collection("items")
+        total_items = await items_collection.count_documents({"inventory.trackInventory": True})
+
+        # Aggregate stock totals and low-stock count
         pipeline = [
+            {"$match": {"inventory.trackInventory": True}},
+            {
+                "$addFields": {
+                    "totalStock": {"$sum": "$inventory.currentStock.quantity"}
+                }
+            },
             {
                 "$group": {
                     "_id": None,
                     "total_items": {"$sum": 1},
-                    "total_stock": {"$sum": "$stockLevel"},
-                    "avg_stock": {"$avg": "$stockLevel"}
+                    "total_stock": {"$sum": "$totalStock"},
+                    "avg_stock": {"$avg": "$totalStock"},
+                    "low_stock_count": {
+                        "$sum": {
+                            "$cond": [
+                                {"$lte": ["$totalStock", "$inventory.stockLevels.reorderLevel"]},
+                                1, 0
+                            ]
+                        }
+                    }
                 }
             }
         ]
-        
-        inventory_stats = await aggregate_pipeline("inventory", pipeline)
+        inventory_stats = await aggregate_pipeline("items", pipeline)
         stats = inventory_stats[0] if inventory_stats else {}
-        
+
         return {
-            "total_items": stats.get("total_items", 0),
+            "total_items": stats.get("total_items", total_items),
             "total_stock_units": stats.get("total_stock", 0),
-            "low_stock_items": low_stock_count,
-            "average_stock_level": stats.get("avg_stock", 0)
+            "low_stock_items": stats.get("low_stock_count", 0),
+            "average_stock_level": round(stats.get("avg_stock", 0), 2)
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting inventory insights: {e}")
         return {"error": str(e)}
@@ -418,19 +527,21 @@ async def _get_inventory_insights() -> Dict[str, Any]:
 async def _get_risk_summary() -> Dict[str, Any]:
     """Get risk summary"""
     try:
-        # High credit utilization customers
-        customers_collection = await get_collection("customers")
-        
         pipeline = [
             {
                 "$match": {
-                    "creditLimit": {"$gt": 0}
+                    "type": {"$in": ["customer", "both"]},
+                    "creditLimit.amount": {"$gt": 0}
                 }
             },
             {
                 "$addFields": {
                     "utilization_ratio": {
-                        "$divide": ["$outstandingAmount", "$creditLimit"]
+                        "$cond": [
+                            {"$gt": ["$creditLimit.amount", 0]},
+                            {"$divide": ["$balances.current.amount", "$creditLimit.amount"]},
+                            0
+                        ]
                     }
                 }
             },
@@ -443,15 +554,30 @@ async def _get_risk_summary() -> Dict[str, Any]:
                 "$count": "high_utilization_count"
             }
         ]
-        
-        high_utilization = await aggregate_pipeline("customers", pipeline)
+        high_utilization = await aggregate_pipeline("parties", pipeline)
         high_utilization_count = high_utilization[0]["high_utilization_count"] if high_utilization else 0
-        
+
+        # Count overdue vouchers
+        now = datetime.now()
+        overdue_pipeline = [
+            {
+                "$match": {
+                    "voucherType": "sales",
+                    "dueDate": {"$lt": now},
+                    "status": {"$nin": ["paid", "cancelled"]}
+                }
+            },
+            {"$count": "overdue_count"}
+        ]
+        overdue_data = await aggregate_pipeline("vouchers", overdue_pipeline)
+        overdue_count = overdue_data[0]["overdue_count"] if overdue_data else 0
+
         return {
             "high_credit_utilization": high_utilization_count,
-            "risk_level": "Medium" if high_utilization_count > 5 else "Low"
+            "overdue_vouchers": overdue_count,
+            "risk_level": "High" if high_utilization_count > 10 else ("Medium" if high_utilization_count > 3 else "Low")
         }
-        
+
     except Exception as e:
         logger.error(f"Error getting risk summary: {e}")
         return {"error": str(e)}
@@ -493,36 +619,277 @@ async def _generate_customer_recommendations(customer, risk_assessment, payment_
     return recommendations
 
 async def _get_low_stock_items() -> List[Dict[str, Any]]:
-    """Get low stock items"""
-    # Placeholder implementation
-    return []
+    """Get low stock items from items collection"""
+    try:
+        pipeline = [
+            {"$match": {"inventory.trackInventory": True, "isActive": True}},
+            {
+                "$addFields": {
+                    "totalStock": {"$sum": "$inventory.currentStock.quantity"}
+                }
+            },
+            {
+                "$match": {
+                    "$expr": {"$lte": ["$totalStock", "$inventory.stockLevels.reorderLevel"]}
+                }
+            },
+            {
+                "$project": {
+                    "item_name": {"$ifNull": ["$displayName", "$name"]},
+                    "current_stock": "$totalStock",
+                    "reorder_level": "$inventory.stockLevels.reorderLevel",
+                    "reorder_quantity": "$inventory.stockLevels.reorderQuantity",
+                    "unit": "$units.primary.name"
+                }
+            },
+            {"$limit": 50}
+        ]
+        return await aggregate_pipeline("items", pipeline)
+    except Exception as e:
+        logger.error(f"Error getting low stock items: {e}")
+        return []
 
 async def _get_overstock_items() -> List[Dict[str, Any]]:
-    """Get overstock items"""
-    # Placeholder implementation
-    return []
+    """Get overstock items (stock > maximum level)"""
+    try:
+        pipeline = [
+            {
+                "$match": {
+                    "inventory.trackInventory": True,
+                    "isActive": True,
+                    "inventory.stockLevels.maximum": {"$gt": 0}
+                }
+            },
+            {
+                "$addFields": {
+                    "totalStock": {"$sum": "$inventory.currentStock.quantity"}
+                }
+            },
+            {
+                "$match": {
+                    "$expr": {"$gt": ["$totalStock", "$inventory.stockLevels.maximum"]}
+                }
+            },
+            {
+                "$project": {
+                    "item_name": {"$ifNull": ["$displayName", "$name"]},
+                    "current_stock": "$totalStock",
+                    "maximum_level": "$inventory.stockLevels.maximum",
+                    "unit": "$units.primary.name"
+                }
+            },
+            {"$limit": 50}
+        ]
+        return await aggregate_pipeline("items", pipeline)
+    except Exception as e:
+        logger.error(f"Error getting overstock items: {e}")
+        return []
 
 async def _get_demand_trends() -> List[Dict[str, Any]]:
-    """Get demand trends"""
-    # Placeholder implementation
-    return []
+    """Get demand trends from recent sales voucher items"""
+    try:
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=90)
+        pipeline = [
+            {
+                "$match": {
+                    "voucherType": "sales",
+                    "date": {"$gte": start_date, "$lte": end_date}
+                }
+            },
+            {"$unwind": "$items"},
+            {
+                "$group": {
+                    "_id": "$items.itemName",
+                    "total_quantity": {"$sum": "$items.quantity"},
+                    "total_revenue": {"$sum": "$items.amount"},
+                    "order_count": {"$sum": 1}
+                }
+            },
+            {"$sort": {"total_quantity": -1}},
+            {
+                "$project": {
+                    "item_name": "$_id",
+                    "total_quantity": 1,
+                    "total_revenue": 1,
+                    "order_count": 1,
+                    "predicted_demand": {"$round": [{"$divide": ["$total_quantity", 3]}, 0]}
+                }
+            },
+            {"$limit": 20}
+        ]
+        return await aggregate_pipeline("vouchers", pipeline)
+    except Exception as e:
+        logger.error(f"Error getting demand trends: {e}")
+        return []
 
 async def _get_reorder_recommendations() -> List[Dict[str, Any]]:
-    """Get reorder recommendations"""
-    # Placeholder implementation
-    return []
+    """Get reorder recommendations for items near or below reorder level"""
+    try:
+        pipeline = [
+            {
+                "$match": {
+                    "inventory.trackInventory": True,
+                    "isActive": True,
+                    "inventory.stockLevels.reorderLevel": {"$gt": 0}
+                }
+            },
+            {
+                "$addFields": {
+                    "totalStock": {"$sum": "$inventory.currentStock.quantity"}
+                }
+            },
+            {
+                "$match": {
+                    "$expr": {"$lte": ["$totalStock", {"$multiply": ["$inventory.stockLevels.reorderLevel", 1.2]}]}
+                }
+            },
+            {
+                "$project": {
+                    "item_name": {"$ifNull": ["$displayName", "$name"]},
+                    "current_stock": "$totalStock",
+                    "reorder_level": "$inventory.stockLevels.reorderLevel",
+                    "reorder_quantity": "$inventory.stockLevels.reorderQuantity",
+                    "unit": "$units.primary.name",
+                    "urgency": {
+                        "$cond": [
+                            {"$lte": ["$totalStock", "$inventory.stockLevels.minimum"]},
+                            "urgent", "normal"
+                        ]
+                    }
+                }
+            },
+            {"$sort": {"current_stock": 1}},
+            {"$limit": 20}
+        ]
+        return await aggregate_pipeline("items", pipeline)
+    except Exception as e:
+        logger.error(f"Error getting reorder recommendations: {e}")
+        return []
 
 async def _get_high_risk_customers() -> List[Dict[str, Any]]:
-    """Get high risk customers"""
-    # Placeholder implementation
-    return []
+    """Get high-risk customers based on credit utilization and overdue payments"""
+    try:
+        pipeline = [
+            {
+                "$match": {
+                    "type": {"$in": ["customer", "both"]},
+                    "isActive": True,
+                    "creditLimit.amount": {"$gt": 0}
+                }
+            },
+            {
+                "$addFields": {
+                    "utilization_ratio": {
+                        "$cond": [
+                            {"$gt": ["$creditLimit.amount", 0]},
+                            {"$divide": ["$balances.current.amount", "$creditLimit.amount"]},
+                            0
+                        ]
+                    }
+                }
+            },
+            {
+                "$match": {"utilization_ratio": {"$gt": 0.7}}
+            },
+            {
+                "$project": {
+                    "customer_name": {"$ifNull": ["$displayName", "$name"]},
+                    "outstanding_amount": "$balances.current.amount",
+                    "credit_limit": "$creditLimit.amount",
+                    "utilization_ratio": {"$round": ["$utilization_ratio", 2]},
+                    "risk_level": {
+                        "$cond": [
+                            {"$gte": ["$utilization_ratio", 0.9]}, "High",
+                            {"$cond": [{"$gte": ["$utilization_ratio", 0.7]}, "Medium", "Low"]}
+                        ]
+                    }
+                }
+            },
+            {"$sort": {"utilization_ratio": -1}},
+            {"$limit": 20}
+        ]
+        return await aggregate_pipeline("parties", pipeline)
+    except Exception as e:
+        logger.error(f"Error getting high risk customers: {e}")
+        return []
 
 async def _get_overdue_payments() -> List[Dict[str, Any]]:
-    """Get overdue payments"""
-    # Placeholder implementation
-    return []
+    """Get overdue sales vouchers"""
+    try:
+        now = datetime.now()
+        pipeline = [
+            {
+                "$match": {
+                    "voucherType": "sales",
+                    "dueDate": {"$lt": now},
+                    "status": {"$nin": ["paid", "cancelled"]}
+                }
+            },
+            {
+                "$addFields": {
+                    "days_overdue": {
+                        "$divide": [
+                            {"$subtract": [now, "$dueDate"]},
+                            86400000
+                        ]
+                    }
+                }
+            },
+            {
+                "$project": {
+                    "party_name": "$partyName",
+                    "voucher_number": "$voucherNumber",
+                    "amount": "$totals.grandTotal",
+                    "due_date": "$dueDate",
+                    "days_overdue": {"$round": ["$days_overdue", 0]},
+                    "status": 1
+                }
+            },
+            {"$sort": {"days_overdue": -1}},
+            {"$limit": 50}
+        ]
+        return await aggregate_pipeline("vouchers", pipeline)
+    except Exception as e:
+        logger.error(f"Error getting overdue payments: {e}")
+        return []
 
 async def _get_credit_utilization_alerts() -> List[Dict[str, Any]]:
-    """Get credit utilization alerts"""
-    # Placeholder implementation
-    return []
+    """Get customers with credit utilization above 90%"""
+    try:
+        pipeline = [
+            {
+                "$match": {
+                    "type": {"$in": ["customer", "both"]},
+                    "isActive": True,
+                    "creditLimit.amount": {"$gt": 0}
+                }
+            },
+            {
+                "$addFields": {
+                    "utilization_ratio": {
+                        "$cond": [
+                            {"$gt": ["$creditLimit.amount", 0]},
+                            {"$divide": ["$balances.current.amount", "$creditLimit.amount"]},
+                            0
+                        ]
+                    }
+                }
+            },
+            {"$match": {"utilization_ratio": {"$gte": 0.9}}},
+            {
+                "$project": {
+                    "customer_name": {"$ifNull": ["$displayName", "$name"]},
+                    "outstanding_amount": "$balances.current.amount",
+                    "credit_limit": "$creditLimit.amount",
+                    "utilization_pct": {"$round": [{"$multiply": ["$utilization_ratio", 100]}, 1]},
+                    "alert_level": "Critical"
+                }
+            },
+            {"$sort": {"utilization_ratio": -1}},
+            {"$limit": 20}
+        ]
+        return await aggregate_pipeline("parties", pipeline)
+    except Exception as e:
+        logger.error(f"Error getting credit utilization alerts: {e}")
+        return []

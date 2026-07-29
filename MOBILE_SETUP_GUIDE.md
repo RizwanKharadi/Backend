@@ -450,3 +450,88 @@ For additional help:
 - React Native Documentation: https://reactnative.dev/
 - iOS Distribution: https://developer.apple.com/
 - Android Distribution: https://developer.android.com/
+
+## 🎯 Voucher Type Filtering Feature
+
+### Overview
+The mobile app includes a dedicated **"Transactions"** tab that provides categorized access to vouchers and daybook functionality. This feature helps users quickly access specific types of financial transactions without scrolling through all vouchers.
+
+### Features Included
+
+#### 1. Transactions Tab
+- **Location**: Bottom navigation bar (positioned between Vouchers and Inventory)
+- **Icon**: Swap horizontal icon (↔️)
+- **Purpose**: Provides categorized access to financial transactions
+
+#### 2. Voucher Type Categories
+The Transactions screen displays the following voucher types as interactive cards:
+
+- **Sales**: Sales invoices and customer transactions
+- **Purchase**: Purchase invoices and supplier transactions
+- **Receipt**: Payment receipts and collections
+- **Payment**: Payment vouchers and disbursements
+- **Sales Order**: Sales order entries
+- **Purchase Order**: Purchase order entries
+- **Debit Note**: Debit notes for adjustments
+- **Credit Note**: Credit notes for adjustments
+
+#### 3. DayBook Functionality
+- **Separate Card**: DayBook appears as a full-width card at the bottom
+- **Date Range Selection**: Users can select custom from/to dates
+- **Default Behavior**: Defaults to today's date when opened
+- **Real-time Data**: Shows all transactions for the selected date range
+- **Summary Display**: Shows total debit, credit, and net balance
+
+#### 4. Filtered Voucher Lists
+When clicking any voucher type:
+- **Same Interface**: Uses the same voucher list interface as the main Vouchers tab
+- **Type-specific Filtering**: Shows only vouchers of the selected type
+- **Search Functionality**: Includes search bar for filtering within the type
+- **Create New**: FAB button allows creating new vouchers of that type
+- **Real-time Updates**: Automatic refresh and sync capabilities
+
+### Technical Implementation
+
+#### Navigation Structure
+```typescript
+// New navigation types added
+Transactions: undefined;
+FilteredVouchers: { voucherType: string; title: string };
+DayBook: { fromDate?: string; toDate?: string };
+```
+
+#### API Integration
+- **Existing Endpoints Used**: Leverages existing `/api/vouchers` endpoint with `voucherType` parameter
+- **New Endpoint**: `/api/reports/daybook` for daybook functionality
+- **Backend Support**: Full backend support for voucher type filtering
+
+#### Screen Components
+- `VoucherTypesScreen`: Main transactions overview with type selection
+- `FilteredVouchersScreen`: Type-specific voucher list (reuses voucher card components)
+- `DayBookScreen`: Date-range daybook with transaction summary
+
+### User Experience Flow
+
+1. **Access Transactions**: Tap "Transactions" tab in bottom navigation
+2. **Select Type**: Tap any voucher type card (Sales, Purchase, etc.)
+3. **View Filtered List**: See only vouchers of selected type with search and create options
+4. **Access DayBook**: Tap DayBook card for date-range transaction summary
+5. **Date Selection**: Use date pickers to customize daybook date range
+
+### Benefits
+
+- **Improved Performance**: No need to load all vouchers at once
+- **Better Organization**: Logical grouping of financial transactions
+- **Quick Access**: Direct access to specific transaction types
+- **DayBook Integration**: Comprehensive daily transaction overview
+- **Consistent UI**: Maintains same look and feel as main voucher screens
+
+### Backend API Support
+
+The feature relies on existing backend capabilities:
+- Voucher type filtering via query parameters
+- DayBook report generation with date ranges
+- Real-time data synchronization
+- Search and pagination support
+
+This implementation provides a scalable solution for handling large numbers of vouchers while maintaining excellent user experience and performance.

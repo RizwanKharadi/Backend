@@ -108,9 +108,14 @@ curl https://finsync-ml-2bba4152b555.herokuapp.com/api/v1/health
 heroku git:remote -a finsync-frontend-nextjs -r heroku-frontend
 ```
 
-#### 2. Deploy Frontend
+#### 2. Configure Frontend Environment
 ```bash
-git push heroku-frontend `git subtree split --prefix=frontend HEAD`:refs/heads/master --force
+heroku config:set NEXT_PUBLIC_API_URL="https://YOUR-BACKEND.herokuapp.com/api" --app finsync-frontend-nextjs
+```
+
+#### 3. Deploy Frontend (Next.js)
+```bash
+git push heroku-frontend `git subtree split --prefix=frontend-nextjs HEAD`:refs/heads/master --force
 ```
 
 ## 🗄️ Database Configuration

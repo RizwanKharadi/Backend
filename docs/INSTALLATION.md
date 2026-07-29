@@ -71,7 +71,9 @@ npm run dev
 
 # Or start services individually
 npm run backend:dev    # Backend API (port 5000)
-npm run frontend:dev   # Frontend Web App (port 3000)
+npm run frontend:dev   # Next.js Web App (port 3000)
+npm run sync:dev       # Backend + desktop-agent (Tally sync, no web)
+npm run verify:sync-stack
 ```
 
 ### Method 2: Docker Deployment
@@ -140,14 +142,20 @@ TALLY_SERVER_HOST=localhost
 TALLY_SERVER_PORT=9000
 ```
 
-### Frontend Configuration
+### Frontend Configuration (frontend-nextjs)
 
-Edit `frontend/.env` with your settings:
+Copy and edit `frontend-nextjs/.env.local`:
+
+```bash
+cp frontend-nextjs/.env.example frontend-nextjs/.env.local
+```
 
 ```env
-REACT_APP_API_URL=http://localhost:5000/api
-REACT_APP_APP_NAME=FinSync360
+NEXT_PUBLIC_API_URL=http://localhost:5000/api
+NEXT_PUBLIC_ML_SERVICE_URL=http://localhost:8000/api/v1
 ```
+
+The legacy `frontend/` Create React App folder is deprecated. See [frontend/README.md](../frontend/README.md).
 
 ## Database Setup
 

@@ -49,8 +49,9 @@ class RealTimeManager {
       
       console.log('Real-time manager initialized');
     } catch (error) {
-      console.error('Failed to initialize real-time manager:', error);
-      throw error;
+      if (__DEV__) {
+        console.warn('Real-time manager optional init skipped:', error);
+      }
     }
   }
 
@@ -317,6 +318,7 @@ class RealTimeManager {
    */
   private showPushNotification(notification: any): void {
     PushNotification.localNotification({
+      channelId: 'finsync360-default',
       title: notification.title,
       message: notification.message,
       playSound: true,

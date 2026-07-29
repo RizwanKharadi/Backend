@@ -89,6 +89,23 @@ export const uploadPendingChanges = createAsyncThunk(
   }
 );
 
+export const updateSyncSettings = createAsyncThunk(
+  'sync/updateSyncSettings',
+  async (settings: { autoSync?: boolean; syncInterval?: number }, { rejectWithValue }) => {
+    try {
+      if (typeof settings.autoSync === 'boolean') {
+        // Placeholder for persisted settings update when backend/settings endpoint is wired.
+      }
+      if (typeof settings.syncInterval === 'number') {
+        // Placeholder for persisted settings update when backend/settings endpoint is wired.
+      }
+      return settings;
+    } catch (error: any) {
+      return rejectWithValue(error.message || 'Failed to update sync settings');
+    }
+  }
+);
+
 // Sync slice
 const syncSlice = createSlice({
   name: 'sync',
@@ -128,6 +145,13 @@ const syncSlice = createSlice({
     },
     clearSyncError: (state) => {
       state.error = null;
+    },
+    pauseSync: (state) => {
+      state.isSyncing = false;
+      state.syncStatus = 'paused';
+    },
+    resumeSync: (state) => {
+      state.syncStatus = 'pending';
     },
     updateSyncStatus: (state, action: PayloadAction<SyncStatus>) => {
       state.syncStatus = action.payload;
@@ -212,6 +236,16 @@ const syncSlice = createSlice({
         state.syncStatus = 'error';
         state.error = action.payload as string;
       });
+
+    builder
+      .addCase(updateSyncSettings.fulfilled, (state, action) => {
+        if (typeof action.payload.autoSync === 'boolean') {
+          state.autoSyncEnabled = action.payload.autoSync;
+        }
+        if (typeof action.payload.syncInterval === 'number') {
+          state.syncInterval = action.payload.syncInterval;
+        }
+      });
   },
 });
 
@@ -225,6 +259,8 @@ export const {
   setSyncInterval,
   addSyncSession,
   clearSyncError,
+  pauseSync,
+  resumeSync,
   updateSyncStatus,
 } = syncSlice.actions;
 

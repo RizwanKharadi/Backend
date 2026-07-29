@@ -10,6 +10,15 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env.office
+
+# Local scratch copies — duplicate source trees, never commit
+_backup_compare/
+
+# Local MySQL data (dev)
+backend/.mysql-data/
+backend/mysqld-*.log
+C:/mysql-finsync-data/
 
 # Logs
 logs/
@@ -168,3 +177,11 @@ BACKEND_COMPLETION_SUMMARY.md
 backend/fix-imports.js
 backend/ES6_CONVERSION_PLAN.md
 backend/ES6_CONVERSION.md
+
+# Local Claude Code settings
+.claude/settings.local.json
+
+# Build caches (never commit)
+mobile/.gradle-user-home/
+mobile/android/.gradle/
+**/__pycache__/

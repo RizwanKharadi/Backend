@@ -86,9 +86,9 @@ install_dependencies() {
     print_status "Installing backend dependencies..."
     cd backend && npm install && cd ..
     
-    # Install frontend dependencies
-    print_status "Installing frontend dependencies..."
-    cd frontend && npm install && cd ..
+    # Install frontend dependencies (Next.js)
+    print_status "Installing frontend-nextjs dependencies..."
+    cd frontend-nextjs && npm install && cd ..
     
     print_success "All dependencies installed successfully!"
 }
@@ -124,7 +124,7 @@ create_directories() {
     
     mkdir -p backend/uploads
     mkdir -p backend/logs
-    mkdir -p frontend/build
+    mkdir -p frontend-nextjs/.next
     
     print_success "Directories created successfully!"
 }
@@ -164,9 +164,9 @@ run_tests() {
     print_status "Running backend tests..."
     cd backend && npm test && cd ..
     
-    # Run frontend tests
-    print_status "Running frontend tests..."
-    cd frontend && npm test -- --watchAll=false && cd ..
+    # Run frontend lint (Next.js)
+    print_status "Running frontend-nextjs lint..."
+    cd frontend-nextjs && npm run lint && cd ..
     
     print_success "All tests passed!"
 }

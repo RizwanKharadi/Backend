@@ -1,10 +1,39 @@
-import axios, { AxiosInstance, AxiosResponse, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosResponse, AxiosError, InternalAxiosRequestConfig } from 'axios';
 import { toast } from 'react-hot-toast';
 import Cookies from 'js-cookie';
 
+export interface ApiRequestConfig extends InternalAxiosRequestConfig {
+  /** Skip error toasts (e.g. optional ML chart data) */
+  silentError?: boolean;
+}
+
+function getStoredCompanyId(): string | undefined {
+  if (typeof window === 'undefined') return undefined;
+  try {
+    const stored = localStorage.getItem('currentCompany');
+    if (!stored) return undefined;
+    const company = JSON.parse(stored);
+    return company?._id || company?.id;
+  } catch {
+    return undefined;
+  }
+}
+
+// Normalize API base (always ends with /api, no trailing slash)
+function getApiBaseURL(): string {
+  const raw = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api';
+  const trimmed = raw.replace(/\/+$/, '');
+  if (trimmed.endsWith('/api')) {
+    return trimmed;
+  }
+  return `${trimmed}/api`;
+}
+
+const apiBaseURL = getApiBaseURL();
+
 // Create axios instance
 const api: AxiosInstance = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL || '/api',
+  baseURL: apiBaseURL,
   timeout: 30000,
   headers: {
     'Content-Type': 'application/json',
@@ -14,6 +43,11 @@ const api: AxiosInstance = axios.create({
 // Request interceptor to add auth token
 api.interceptors.request.use(
   (config) => {
+    // Services may use '/api/auth/...' while baseURL already includes '/api'
+    if (config.url?.startsWith('/api/')) {
+      config.url = config.url.slice(4);
+    }
+
     // Try to get token from cookies first (for SSR), then localStorage
     let token: string | undefined;
     
@@ -25,6 +59,28 @@ api.interceptors.request.use(
     
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    const companyId = getStoredCompanyId();
+    if (companyId) {
+      const method = (config.method || 'get').toLowerCase();
+      if (method === 'get' || method === 'delete') {
+        config.params = config.params || {};
+        if (!config.params.companyId) {
+          if (config.params.company) {
+            config.params.companyId = config.params.company;
+            delete config.params.company;
+          } else {
+            config.params.companyId = companyId;
+          }
+        }
+      } else if (config.data && typeof config.data === 'object' && !(config.data instanceof FormData)) {
+        const data = config.data as Record<string, unknown>;
+        if (!data.companyId && data.company) {
+          data.companyId = data.company;
+          delete data.company;
+        }
+      }
     }
     
     return config;
@@ -40,6 +96,11 @@ api.interceptors.response.use(
     return response;
   },
   (error: AxiosError) => {
+    const cfg = error.config as ApiRequestConfig | undefined;
+    if (cfg?.silentError) {
+      return Promise.reject(error);
+    }
+
     const { response } = error;
     
     if (response) {

@@ -1,4 +1,4 @@
-import TouchID from 'react-native-touch-id';
+import ReactNativeBiometrics, { BiometryTypes } from 'react-native-biometrics';
 import { Platform } from 'react-native';
 import { databaseService } from './databaseService';
 
@@ -25,6 +25,7 @@ export interface BiometricCapabilities {
 }
 
 class BiometricService {
+  private rnBiometrics = new ReactNativeBiometrics();
   private defaultConfig: BiometricConfig = {
     title: 'Authenticate',
     subtitle: 'Use your biometric to authenticate',
@@ -41,12 +42,27 @@ class BiometricService {
    */
   async isSupported(): Promise<BiometricCapabilities> {
     try {
-      const biometryType = await TouchID.isSupported();
-      
+      const { available, biometryType } = await this.rnBiometrics.isSensorAvailable();
+
+      if (!available) {
+        return {
+          isSupported: false,
+          biometryType: null,
+          isEnrolled: false,
+        };
+      }
+
+      const mappedType: BiometricCapabilities['biometryType'] =
+        biometryType === BiometryTypes.FaceID
+          ? 'FaceID'
+          : biometryType === BiometryTypes.TouchID
+            ? 'TouchID'
+            : 'Fingerprint';
+
       return {
         isSupported: true,
-        biometryType: biometryType as any,
-        isEnrolled: true, // TouchID.isSupported() only returns true if enrolled
+        biometryType: mappedType,
+        isEnrolled: true,
       };
     } catch (error: any) {
       return {
@@ -63,55 +79,37 @@ class BiometricService {
   async authenticate(config?: Partial<BiometricConfig>): Promise<boolean> {
     try {
       const finalConfig = { ...this.defaultConfig, ...config };
-      
-      await TouchID.authenticate(
-        finalConfig.description || 'Authenticate to continue',
-        {
-          title: finalConfig.title,
-          subtitle: finalConfig.subtitle,
-          fallbackLabel: finalConfig.fallbackLabel,
-          cancelLabel: finalConfig.cancelLabel,
-          color: finalConfig.color,
-          imageColor: finalConfig.imageColor,
-          imageErrorColor: finalConfig.imageErrorColor,
-          sensorDescription: finalConfig.sensorDescription,
-          sensorErrorDescription: finalConfig.sensorErrorDescription,
-          passcodeFallback: finalConfig.passcodeFallback,
-          showFallbackButton: finalConfig.showFallbackButton,
-          unifiedErrors: finalConfig.unifiedErrors,
-        }
-      );
+
+      // RN Biometrics doesn't support iOS-style subtitle/cancel labels in the same way.
+      // We keep the config shape for the rest of the app, but only use a prompt message.
+      const promptMessage =
+        finalConfig.description ||
+        (Platform.OS === 'ios'
+          ? 'Authenticate to continue'
+          : 'Confirm your fingerprint to continue');
+
+      const { success } = await this.rnBiometrics.simplePrompt({ promptMessage });
+
+      if (!success) {
+        throw new Error('Authentication was cancelled by user');
+      }
 
       return true;
     } catch (error: any) {
       console.error('Biometric authentication failed:', error);
       
-      // Handle specific error cases
-      switch (error.name) {
-        case 'LAErrorUserCancel':
-        case 'UserCancel':
-          throw new Error('Authentication was cancelled by user');
-        case 'LAErrorUserFallback':
-        case 'UserFallback':
-          throw new Error('User chose to use fallback authentication');
-        case 'LAErrorSystemCancel':
-        case 'SystemCancel':
-          throw new Error('Authentication was cancelled by system');
-        case 'LAErrorPasscodeNotSet':
-        case 'PasscodeNotSet':
-          throw new Error('Passcode is not set on device');
-        case 'LAErrorBiometryNotAvailable':
-        case 'BiometryNotAvailable':
-          throw new Error('Biometry is not available');
-        case 'LAErrorBiometryNotEnrolled':
-        case 'BiometryNotEnrolled':
-          throw new Error('No biometric data is enrolled');
-        case 'LAErrorBiometryLockout':
-        case 'BiometryLockout':
-          throw new Error('Biometry is locked out');
-        default:
-          throw new Error('Biometric authentication failed');
+      const msg = (error?.message || '').toLowerCase();
+      if (msg.includes('cancel') || msg.includes('canceled') || msg.includes('cancelled')) {
+        throw new Error('Authentication was cancelled by user');
       }
+      if (msg.includes('not available') || msg.includes('not supported') || msg.includes('no biometrics')) {
+        throw new Error('Biometry is not available');
+      }
+      if (msg.includes('not enrolled')) {
+        throw new Error('No biometric data is enrolled');
+      }
+
+      throw new Error('Biometric authentication failed');
     }
   }
 
@@ -155,6 +153,14 @@ class BiometricService {
    */
   async disableBiometric(): Promise<void> {
     await databaseService.setSetting('biometric_enabled', 'false');
+  }
+
+  /**
+   * Persist enabled flag without showing another biometric prompt
+   * (caller already verified the user, e.g. from Settings).
+   */
+  async markBiometricEnabled(): Promise<void> {
+    await databaseService.setSetting('biometric_enabled', 'true');
   }
 
   /**

@@ -1,5 +1,5 @@
 import { webSocketService } from './webSocketService';
-import { EventEmitter } from 'events';
+import { EventEmitter } from '../utils/EventEmitter';
 
 export interface EditOperation {
   id: string;

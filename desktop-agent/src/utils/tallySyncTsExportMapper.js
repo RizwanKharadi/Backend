@@ -75,6 +75,12 @@ function mapStockItemRow(item = {}) {
   const hsn = Array.isArray(item.hsnDetails) && item.hsnDetails[0] ? item.hsnDetails[0] : {};
 
   const partNo = String(item.partNo || item.mailingNames?.[0] || '').trim();
+  const baseUnits = item.baseUnit || item.baseUnits || 'Nos';
+  const openingBalance = Number(item.openingBalance) || 0;
+  const openingValue = Number(item.openingValue) || 0;
+  const closingBalance = Number(item.closingBalance ?? item.closingQty ?? 0) || 0;
+  const closingValue = Math.abs(Number(item.closingValue ?? item.closingAmount ?? 0) || 0);
+  const closingRate = Math.abs(Number(item.closingRate ?? item.rate ?? 0) || 0);
 
   return {
     name,
@@ -82,15 +88,24 @@ function mapStockItemRow(item = {}) {
     partNo: partNo || '',
     parent: item.parent || item.stockGroup || '',
     category: item.stockCategory || '',
-    baseUnits: item.baseUnit || item.baseUnits || 'Nos',
-    openingBalance: Number(item.openingBalance) || 0,
-    openingValue: Number(item.openingValue) || 0,
+    baseUnits,
+    openingBalance,
+    openingValue,
+    closingValue,
+    closingRate,
     guid: item.guid || item.remoteId || null,
     alterid: item.alterId != null ? String(item.alterId) : '',
     remoteid: item.remoteId || null,
     gstRates,
     hsnCode: hsn.hsnCode || hsn.code || '',
-    hsn: hsn.hsn || ''
+    hsn: hsn.hsn || '',
+    stockBalances: {
+      unit: baseUnits,
+      openingBalance,
+      inwardQuantity: Number(item.inwardQuantity ?? item.inwardQty ?? 0) || 0,
+      outwardQuantity: Number(item.outwardQuantity ?? item.outwardQty ?? 0) || 0,
+      closingBalance
+    }
   };
 }
 

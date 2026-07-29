@@ -1,4 +1,4 @@
-import mongoose from 'mongoose';
+import { isValidId } from '../db/queryUtils.js';
 import Voucher from '../models/Voucher.js';
 import VoucherDetail from '../models/VoucherDetail.js';
 import Party from '../models/Party.js';
@@ -26,6 +26,8 @@ import logger from '../utils/logger.js';
 import moment from 'moment';
 
 const TOP_LIMIT = 10;
+const FAST_MOVING_DEFAULT_LIMIT = 200;
+const FAST_MOVING_MAX_LIMIT = 500;
 
 /** Orders do not post to P&L / Balance Sheet — exclude from report voucher drill-down. */
 const REPORT_DRILLDOWN_EXCLUDED_VOUCHER_TYPES = ['sales_order', 'purchase_order'];
@@ -73,7 +75,10 @@ const mapGroupSummaryLedgerRow = (l, groupNameSet) => {
 
 const toObjectId = (id) => {
   try {
-    return new mongoose.Types.ObjectId(id);
+    if (id == null) return null;
+    const s = String(id);
+    if (!isValidId(s) && s.length < 8) return null;
+    return s;
   } catch {
     return null;
   }
@@ -294,6 +299,70 @@ const aggregateTopItems = async (companyOid, voucherType, start, end, sortBy) =>
     ),
     totalValue: periodTotalValue,
     totalQty: periodTotalQty
+  };
+};
+
+/**
+ * Fast moving items = highest qty sold (sales vouchers), sorted desc.
+ * Uses the same voucher.items payload shape produced by tally sync:
+ * { itemName, quantity, unit, rate, amount, ... }.
+ */
+const aggregateFastMovingItems = async (companyOid, start, end, limit) => {
+  const baseMatch = {
+    company: companyOid,
+    ...voucherKindMatch('sales'),
+    date: { $gte: start, $lte: end }
+  };
+
+  const rows = await Voucher.aggregate([
+    { $match: { ...baseMatch, 'items.0': { $exists: true } } },
+    { $unwind: '$items' },
+    // Only count positive quantities as "sold"
+    { $match: { 'items.quantity': { $gt: 0 } } },
+    {
+      $addFields: {
+        itemQty: { $ifNull: ['$items.quantity', 0] },
+        itemLabel: { $ifNull: ['$items.itemName', 'Unknown'] },
+        itemUnit: { $ifNull: ['$items.unit', 'Nos'] },
+        // Group on the normalized name, not items.item: sync leaves itemId unset on
+        // lines it can't map, which would otherwise split one stock item into two rows.
+        itemKey: {
+          $toLower: { $trim: { input: { $ifNull: ['$items.itemName', 'Unknown'] } } }
+        },
+        itemAmount: {
+          $ifNull: [
+            '$items.amount',
+            { $multiply: [{ $ifNull: ['$items.quantity', 0] }, { $ifNull: ['$items.rate', 0] }] }
+          ]
+        }
+      }
+    },
+    {
+      $group: {
+        _id: '$itemKey',
+        itemId: { $first: '$items.item' },
+        name: { $first: '$itemLabel' },
+        unit: { $first: '$itemUnit' },
+        qtySold: { $sum: '$itemQty' },
+        totalAmount: { $sum: '$itemAmount' }
+      }
+    },
+    { $sort: { qtySold: -1 } },
+    { $limit: limit }
+  ]);
+
+  // Total qty sold across the full period (not just limited rows)
+  const [periodAgg] = await Voucher.aggregate([
+    { $match: { ...baseMatch, 'items.0': { $exists: true } } },
+    { $unwind: '$items' },
+    { $match: { 'items.quantity': { $gt: 0 } } },
+    { $addFields: { itemQty: { $ifNull: ['$items.quantity', 0] } } },
+    { $group: { _id: null, totalQtySold: { $sum: '$itemQty' } } }
+  ]);
+
+  return {
+    rows: Array.isArray(rows) ? rows : [],
+    totalQtySold: Number(periodAgg?.totalQtySold || 0)
   };
 };
 
@@ -648,74 +717,34 @@ const queryVouchersForLedger = async (
     company: companyOid,
     date: { $gte: fromDate, $lte: toDate }
   };
-  const ledgerMatch = {
-    ledgerEntries: { $elemMatch: { ledger: ledgerRegex } }
-  };
 
   const voucherTypeFilter =
     Array.isArray(voucherTypes) && voucherTypes.length > 0
       ? { voucherType: { $in: voucherTypes } }
       : { voucherType: { $nin: REPORT_DRILLDOWN_EXCLUDED_VOUCHER_TYPES } };
 
-  let vouchers = await Voucher.find({
+  // MySQL compat layer does not support Mongo `$elemMatch` on JSON arrays.
+  // So we fetch candidate vouchers by date/type and filter by ledger in JS.
+  const candidates = await Voucher.find({
     ...dateFilter,
-    ...ledgerMatch,
     ...voucherTypeFilter
   })
-    .select('voucherNumber voucherType date partyName totals.grandTotal narration')
+    .select('_id voucherNumber voucherType date partyName totals.grandTotal narration ledgerEntries ledgerNames')
     .sort({ date: -1 })
-    .limit(500)
+    .limit(5000)
     .lean();
 
-  const detailRows = await VoucherDetail.find({
-    company: companyOid,
-    ledgerEntries: { $elemMatch: { ledger: ledgerRegex } }
-  })
-    .select('voucherId')
-    .lean();
+  const matchesLedger = (v) => {
+    const entries = Array.isArray(v.ledgerEntries) ? v.ledgerEntries : [];
+    const inEntries = entries.some((e) => typeof e?.ledger === 'string' && ledgerRegex.test(e.ledger));
 
-  const seenIds = new Set(vouchers.map((v) => String(v._id)));
-  const extraIds = detailRows
-    .map((d) => d.voucherId)
-    .filter((id) => id && !seenIds.has(String(id)));
+    const names = Array.isArray(v.ledgerNames) ? v.ledgerNames : [];
+    const inNames = names.some((n) => typeof n === 'string' && ledgerRegex.test(n));
 
-  if (extraIds.length > 0) {
-    const extra = await Voucher.find({
-      ...dateFilter,
-      _id: { $in: extraIds },
-      ...voucherTypeFilter
-    })
-      .select('voucherNumber voucherType date partyName totals.grandTotal narration')
-      .lean();
-    for (const row of extra) {
-      if (!seenIds.has(String(row._id))) {
-        vouchers.push(row);
-        seenIds.add(String(row._id));
-      }
-    }
-  }
+    return inEntries || inNames;
+  };
 
-  // Summary-synced vouchers may only carry the ledger in the indexed ledgerNames
-  // array (no structured ledgerEntries). Without this fallback, bank/cash ledger
-  // drill-downs come back empty even though the vouchers exist.
-  if (vouchers.length === 0) {
-    const byName = await Voucher.find({
-      ...dateFilter,
-      ledgerNames: ledgerRegex,
-      ...voucherTypeFilter
-    })
-      .select('voucherNumber voucherType date partyName totals.grandTotal narration')
-      .sort({ date: -1 })
-      .limit(500)
-      .lean();
-    for (const row of byName) {
-      if (!seenIds.has(String(row._id))) {
-        vouchers.push(row);
-        seenIds.add(String(row._id));
-      }
-    }
-  }
-
+  const vouchers = candidates.filter(matchesLedger);
   vouchers.sort((a, b) => new Date(b.date) - new Date(a.date));
   return vouchers.slice(0, 500);
 };
@@ -1341,7 +1370,9 @@ export const getDashboardSummary = async (req, res) => {
       aggregateTopParties(companyOid, 'sales', monthStart, todayEnd),
       aggregateDailySales(companyOid, trendStart, todayEnd),
       Voucher.find({ company: companyOid })
-        .select('voucherNumber voucherType tallyVoucherTypeParent date partyName totals.grandTotal amount narration')
+        // `amount` is not a real SQL column (we store amounts inside `totals.grandTotal`)
+        // Also include `_id` because the API maps `v._id.toString()`.
+        .select('_id voucherNumber voucherType tallyVoucherTypeParent date partyName totals.grandTotal narration')
         .sort({ date: -1, createdAt: -1 })
         .limit(8)
         .lean()
@@ -1846,6 +1877,75 @@ export const getTop10Report = async (req, res) => {
   }
 };
 
+// @desc    Fast moving items — best-selling stock items by qty sold
+// @route   GET /api/reports/fast-moving-items
+// @access  Private
+export const getFastMovingItemsReport = async (req, res) => {
+  try {
+    const companyId = req.query?.companyId || req.body?.companyId;
+    const periodKey = normalizePeriodKey(req.query?.periodKey || 'this_year');
+    const limitRaw = req.query?.limit ?? req.query?.top ?? FAST_MOVING_DEFAULT_LIMIT;
+    const limit =
+      Number.isFinite(Number(limitRaw)) && Number(limitRaw) > 0
+        ? Math.min(FAST_MOVING_MAX_LIMIT, Math.max(1, parseInt(String(limitRaw), 10)))
+        : FAST_MOVING_DEFAULT_LIMIT;
+
+    if (!companyId) {
+      return res.status(400).json({ success: false, message: 'Company ID is required' });
+    }
+
+    const companyOid = toObjectId(companyId);
+    if (!companyOid) {
+      return res.status(400).json({ success: false, message: 'Invalid company ID' });
+    }
+
+    const company = await Company.findById(companyId).lean();
+    if (!company) {
+      return res.status(404).json({ success: false, message: 'Company not found' });
+    }
+
+    const period = resolveReportPeriod(periodKey, company);
+
+    const { rows, totalQtySold } = await aggregateFastMovingItems(
+      companyOid,
+      period.fromDate,
+      period.toDate,
+      limit
+    );
+
+    const items = rows
+      .filter((r) => Number(r?.qtySold || 0) > 0 && String(r?.name || '').trim() !== '')
+      .map((r, index) => ({
+        rank: index + 1,
+        itemId: r.itemId != null ? String(r.itemId) : null,
+        name: r.name,
+        unit: r.unit || 'Nos',
+        qtySold: Number(r.qtySold || 0),
+        totalAmount: Number(r.totalAmount || 0)
+      }));
+
+    return res.status(200).json({
+      success: true,
+      data: {
+        period: {
+          periodKey,
+          label: period.label,
+          startDate: period.fromDate.toISOString(),
+          endDate: period.toDate.toISOString()
+        },
+        summary: { totalQtySold },
+        items
+      }
+    });
+  } catch (error) {
+    logger.error('Fast moving items report error:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Server error while generating fast moving items report'
+    });
+  }
+};
+
 const INACTIVE_DAY_PRESETS = [30, 60, 90, 120, 180];
 
 const parseInactiveDaysQuery = (query = {}) => {
@@ -1865,6 +1965,36 @@ const parseInactiveDaysQuery = (query = {}) => {
 const startOfDay = (d) => {
   const x = new Date(d);
   return new Date(Date.UTC(x.getUTCFullYear(), x.getUTCMonth(), x.getUTCDate()));
+};
+
+const normalizeInactiveNameKey = (name) =>
+  String(name || '')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, ' ');
+
+const buildLastSaleMap = (rows = []) => {
+  const map = new Map();
+  for (const row of rows) {
+    const name = String(row?.name || '').trim();
+    if (!name) continue;
+    const key = normalizeInactiveNameKey(name);
+    const existing = map.get(key);
+    const rowDate = row?.lastSaleDate ? new Date(row.lastSaleDate) : null;
+    const existingDate = existing?.lastSaleDate ? new Date(existing.lastSaleDate) : null;
+    if (!existing || (rowDate && (!existingDate || rowDate > existingDate))) {
+      map.set(key, row);
+    }
+  }
+  return map;
+};
+
+const sortInactiveRows = (a, b) => {
+  // Latest last-sale date first; never-sold rows at the end.
+  if (!a.lastSaleDate && !b.lastSaleDate) return a.name.localeCompare(b.name);
+  if (!a.lastSaleDate) return 1;
+  if (!b.lastSaleDate) return -1;
+  return new Date(b.lastSaleDate).getTime() - new Date(a.lastSaleDate).getTime();
 };
 
 // Vouchers that represent a "sale" event for inactivity tracking.
@@ -1935,27 +2065,19 @@ const aggregateLastSaleByItem = async (companyOid) =>
       $match: {
         company: companyOid,
         ...INACTIVE_SALES_MATCH,
-        date: { $exists: true, $ne: null }
+        date: { $exists: true, $ne: null },
+        'items.0': { $exists: true }
       }
     },
     { $unwind: '$items' },
-    {
-      $lookup: {
-        from: 'items',
-        localField: 'items.item',
-        foreignField: '_id',
-        as: 'itemDoc'
-      }
-    },
     {
       $addFields: {
         resolvedItemName: {
           $trim: {
             input: {
-              $cond: [
-                { $gt: [{ $size: '$itemDoc' }, 0] },
-                { $arrayElemAt: ['$itemDoc.name', 0] },
-                { $ifNull: ['$items.itemName', { $ifNull: ['$items.description', ''] }] }
+              $ifNull: [
+                '$items.itemName',
+                { $ifNull: ['$items.item', { $ifNull: ['$items.description', ''] }] }
               ]
             }
           }
@@ -1965,7 +2087,7 @@ const aggregateLastSaleByItem = async (companyOid) =>
     { $match: { resolvedItemName: { $nin: ['', null] } } },
     {
       $group: {
-        _id: { itemId: '$items.item', nameKey: { $toLower: '$resolvedItemName' } },
+        _id: { nameKey: { $toLower: '$resolvedItemName' } },
         name: { $first: '$resolvedItemName' },
         lastSaleDate: { $max: '$date' },
         billCount: { $sum: 1 }
@@ -2034,9 +2156,7 @@ export const getInactiveCustomersReport = async (req, res) => {
       })
     ]);
 
-    const lastSaleMap = new Map(
-      lastSales.map((r) => [String(r.name).trim().toLowerCase(), r])
-    );
+    const lastSaleMap = buildLastSaleMap(lastSales);
 
     const customerNames = new Set();
     partyDocs.forEach((p) => customerNames.add((p.displayName || p.name || '').trim()));
@@ -2049,8 +2169,7 @@ export const getInactiveCustomersReport = async (req, res) => {
 
     for (const name of customerNames) {
       if (!name) continue;
-      const key = name.toLowerCase();
-      const sale = lastSaleMap.get(key);
+      const sale = lastSaleMap.get(normalizeInactiveNameKey(name));
       const lastSaleDate = sale?.lastSaleDate ? new Date(sale.lastSaleDate) : null;
 
       let isInactive = false;
@@ -2072,12 +2191,7 @@ export const getInactiveCustomersReport = async (req, res) => {
       });
     }
 
-    rows.sort((a, b) => {
-      if (!a.lastSaleDate && !b.lastSaleDate) return a.name.localeCompare(b.name);
-      if (!a.lastSaleDate) return -1;
-      if (!b.lastSaleDate) return 1;
-      return new Date(a.lastSaleDate).getTime() - new Date(b.lastSaleDate).getTime();
-    });
+    rows.sort(sortInactiveRows);
 
     const inactiveCount = rows.length;
     const percentOfTotal =
@@ -2132,20 +2246,19 @@ export const getInactiveItemsReport = async (req, res) => {
       Item.find({ company: companyOid, type: 'product' }).lean()
     ]);
 
-    const lastSaleMap = new Map(
-      lastSold.map((r) => [String(r.name).trim().toLowerCase(), r])
-    );
+    const lastSaleMap = buildLastSaleMap(lastSold);
 
     const itemByName = new Map();
     itemDocs.forEach((item) => {
       const label = (item.displayName || item.name || '').trim();
-      if (label) itemByName.set(label.toLowerCase(), item);
+      if (label) itemByName.set(normalizeInactiveNameKey(label), item);
     });
 
     lastSold.forEach((r) => {
       const label = String(r.name || '').trim();
-      if (label && !itemByName.has(label.toLowerCase())) {
-        itemByName.set(label.toLowerCase(), { name: label, displayName: label });
+      const key = normalizeInactiveNameKey(label);
+      if (label && !itemByName.has(key)) {
+        itemByName.set(key, { name: label, displayName: label });
       }
     });
 
@@ -2186,12 +2299,7 @@ export const getInactiveItemsReport = async (req, res) => {
       });
     }
 
-    rows.sort((a, b) => {
-      if (!a.lastSaleDate && !b.lastSaleDate) return a.name.localeCompare(b.name);
-      if (!a.lastSaleDate) return -1;
-      if (!b.lastSaleDate) return 1;
-      return new Date(a.lastSaleDate).getTime() - new Date(b.lastSaleDate).getTime();
-    });
+    rows.sort(sortInactiveRows);
 
     const inactiveCount = rows.length;
     const percentOfTotal =

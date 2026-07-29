@@ -1,9 +1,10 @@
-import React from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import {
   View,
   ScrollView,
   StyleSheet,
   Alert,
+  Platform,
 } from 'react-native';
 import {
   Surface,
@@ -13,11 +14,15 @@ import {
   Button,
   Divider,
   useTheme,
+  Dialog,
+  Portal,
+  TextInput,
 } from 'react-native-paper';
 import { useSelector, useDispatch } from 'react-redux';
 
 // Components
 import Header from '../components/common/Header';
+import { useAppGuide, replayAppGuide } from '../components/guide';
 
 // Store
 import { RootState, AppDispatch } from '../store';
@@ -30,7 +35,14 @@ import {
   setOfflineMode,
   setDebugMode,
 } from '../store/slices/settingsSlice';
-import { logout } from '../store/slices/authSlice';
+import { setOfflineMode as setOfflineSliceMode } from '../store/slices/offlineSlice';
+import { setOnlineStatus } from '../store/slices/syncSlice';
+import { refreshConnectivityAndBackend } from '../utils/connectivity';
+import { logout, setBiometricEnabled as setAuthBiometricEnabled } from '../store/slices/authSlice';
+
+// Services
+import { authService, biometricService } from '../services';
+import { MDI } from '../utils/mdiIcons';
 
 // Types
 import { MainStackScreenProps } from '../types/navigation';
@@ -40,10 +52,152 @@ type Props = MainStackScreenProps<'Settings'>;
 const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
+  const { startGuide } = useAppGuide();
   
   const { user } = useSelector((state: RootState) => state.auth);
   const settings = useSelector((state: RootState) => state.settings);
   const { isMLServiceAvailable } = useSelector((state: RootState) => state.ml);
+  const { selectedCompany } = useSelector((state: RootState) => state.company);
+
+  const [biometricSupported, setBiometricSupported] = useState(true);
+  const [biometricTypeLabel, setBiometricTypeLabel] = useState('fingerprint or face ID');
+  const [biometricBusy, setBiometricBusy] = useState(false);
+  const [passwordDialogVisible, setPasswordDialogVisible] = useState(false);
+  const [passwordInput, setPasswordInput] = useState('');
+
+  const syncBiometricSettingState = useCallback(async () => {
+    const capabilities = await biometricService.isSupported();
+    const typeLabel = await biometricService.getBiometricTypeString();
+    const enabledFlag = await biometricService.isBiometricEnabled();
+    const hasCredentials = await authService.hasBiometricCredentials();
+    const enabled = capabilities.isSupported && enabledFlag && hasCredentials;
+
+    setBiometricSupported(capabilities.isSupported);
+    setBiometricTypeLabel(
+      typeLabel !== 'Not supported' ? typeLabel.toLowerCase() : 'fingerprint or face ID'
+    );
+    dispatch(setBiometricEnabled(enabled));
+    dispatch(setAuthBiometricEnabled(enabled));
+  }, [dispatch]);
+
+  useEffect(() => {
+    void syncBiometricSettingState();
+  }, [syncBiometricSettingState]);
+
+  const applyBiometricEnabled = (enabled: boolean) => {
+    dispatch(setBiometricEnabled(enabled));
+    dispatch(setAuthBiometricEnabled(enabled));
+  };
+
+  const finalizeBiometricEnable = async (password: string) => {
+    if (!user?.email) {
+      Alert.alert('Error', 'Sign in again before enabling biometric authentication.');
+      return;
+    }
+
+    setBiometricBusy(true);
+    try {
+      await authService.enableBiometricLogin({
+        email: user.email.toLowerCase().trim(),
+        password: password.trim(),
+        rememberMe: true,
+      });
+      await biometricService.markBiometricEnabled();
+      applyBiometricEnabled(true);
+      Alert.alert(
+        'Biometric enabled',
+        `You can sign in with ${biometricTypeLabel} on the login screen.`
+      );
+    } catch (error: any) {
+      Alert.alert(
+        'Setup failed',
+        error?.message || 'Could not enable biometric authentication.'
+      );
+    } finally {
+      setBiometricBusy(false);
+      setPasswordDialogVisible(false);
+      setPasswordInput('');
+    }
+  };
+
+  const promptPasswordAndEnable = () => {
+    if (Platform.OS === 'ios') {
+      Alert.prompt(
+        'Confirm password',
+        'Enter your account password to enable biometric sign-in.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Enable',
+            onPress: (value) => {
+              if (value?.trim()) {
+                void finalizeBiometricEnable(value.trim());
+              }
+            },
+          },
+        ],
+        'secure-text'
+      );
+      return;
+    }
+    setPasswordInput('');
+    setPasswordDialogVisible(true);
+  };
+
+  const handleBiometricToggle = async (value: boolean) => {
+    if (biometricBusy) return;
+
+    if (!value) {
+      setBiometricBusy(true);
+      try {
+        await biometricService.disableBiometric();
+        await authService.clearBiometricCredentials();
+        applyBiometricEnabled(false);
+      } catch (error: any) {
+        Alert.alert(
+          'Error',
+          error?.message || 'Could not disable biometric authentication.'
+        );
+      } finally {
+        setBiometricBusy(false);
+      }
+      return;
+    }
+
+    const capabilities = await biometricService.isSupported();
+    if (!capabilities.isSupported) {
+      Alert.alert(
+        'Not available',
+        'This device does not support fingerprint or face authentication.'
+      );
+      return;
+    }
+
+    if (!user?.email) {
+      Alert.alert('Sign in required', 'Log in with your password before enabling biometrics.');
+      return;
+    }
+
+    setBiometricBusy(true);
+    try {
+      const biometricType = await biometricService.getBiometricTypeString();
+      await biometricService.authenticate({
+        title: 'Enable biometric login',
+        description: `Authenticate with ${biometricType} to continue`,
+      });
+      promptPasswordAndEnable();
+    } catch (error: any) {
+      const msg = (error?.message || '').toLowerCase();
+      if (!msg.includes('cancel')) {
+        Alert.alert(
+          'Authentication failed',
+          error?.message || 'Biometric verification was not completed.'
+        );
+      }
+    } finally {
+      setBiometricBusy(false);
+    }
+  };
 
   const handleLogout = () => {
     Alert.alert(
@@ -78,6 +232,14 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
     );
   };
 
+  const handleShowAppTour = () => {
+    navigation.goBack();
+    setTimeout(() => {
+      navigation.navigate('Tabs', { screen: 'Dashboard' });
+      replayAppGuide(dispatch, startGuide);
+    }, 300);
+  };
+
   return (
     <View style={styles.container}>
       <Header
@@ -103,8 +265,22 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           <Divider />
           
           <List.Item
-            title="Company Selection"
-            description="Switch between companies"
+            title="Subscription & billing"
+            description="Manage plan and device seats (mobile included)"
+            left={(props) => <List.Icon {...props} icon="credit-card" />}
+            onPress={() => navigation.navigate('Billing')}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          />
+
+          <Divider />
+
+          <List.Item
+            title="Company selection"
+            description={
+              selectedCompany?.name
+                ? `Active: ${selectedCompany.name}`
+                : 'Choose which workspace to view'
+            }
             left={(props) => <List.Icon {...props} icon="office-building" />}
             onPress={() => navigation.navigate('CompanySelection')}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
@@ -148,6 +324,12 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
                 value={settings.offlineMode}
                 onValueChange={(value: boolean) => {
                   dispatch(setOfflineMode(value));
+                  dispatch(setOfflineSliceMode(value));
+                  if (!value) {
+                    void refreshConnectivityAndBackend();
+                  } else {
+                    dispatch(setOnlineStatus(false));
+                  }
                 }}
               />
             )}
@@ -160,14 +342,17 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           
           <List.Item
             title="Biometric Authentication"
-            description="Use fingerprint or face ID"
+            description={
+              biometricSupported
+                ? `Sign in with ${biometricTypeLabel}`
+                : 'Not supported on this device'
+            }
             left={(props) => <List.Icon {...props} icon="fingerprint" />}
             right={() => (
               <Switch
                 value={settings.biometricEnabled}
-                onValueChange={(value: boolean) => {
-                  dispatch(setBiometricEnabled(value));
-                }}
+                disabled={!biometricSupported || biometricBusy}
+                onValueChange={handleBiometricToggle}
               />
             )}
           />
@@ -222,17 +407,9 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             <Text variant="titleMedium" style={styles.sectionTitle}>AI/ML Features</Text>
             
             <List.Item
-              title="ML Analytics"
-              description="AI-powered business insights"
-              left={(props) => <List.Icon {...props} icon="robot" />}
-              onPress={() => navigation.navigate('MLAnalytics')}
-              right={(props) => <List.Icon {...props} icon="chevron-right" />}
-            />
-            
-            <List.Item
               title="Payment Predictions"
               description="AI payment delay predictions"
-              left={(props) => <List.Icon {...props} icon="crystal-ball" />}
+              left={(props) => <List.Icon {...props} icon={MDI.mlCrystal} />}
               onPress={() => navigation.navigate('PaymentPrediction')}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
             />
@@ -254,10 +431,23 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           <List.Item
             title="Export Data"
             description="Export app data"
-            left={(props) => <List.Icon {...props} icon="export" />}
+            left={(props) => <List.Icon {...props} icon={MDI.exportData} />}
             onPress={() => {
               // TODO: Implement data export
             }}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          />
+        </Surface>
+
+        {/* Help */}
+        <Surface style={styles.section} elevation={2}>
+          <Text variant="titleMedium" style={styles.sectionTitle}>Help</Text>
+
+          <List.Item
+            title="Show app tour"
+            description="Replay Finny's guided walkthrough of the app"
+            left={(props) => <List.Icon {...props} icon="map-marker-path" />}
+            onPress={handleShowAppTour}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
           />
         </Surface>
@@ -308,6 +498,58 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         <View style={styles.bottomSpacing} />
       </ScrollView>
+
+      <Portal>
+        <Dialog
+          visible={passwordDialogVisible}
+          onDismiss={() => {
+            if (!biometricBusy) {
+              setPasswordDialogVisible(false);
+              setPasswordInput('');
+            }
+          }}
+        >
+          <Dialog.Title>Confirm password</Dialog.Title>
+          <Dialog.Content>
+            <Text variant="bodyMedium" style={styles.dialogHint}>
+              Enter your account password to store credentials for biometric sign-in.
+            </Text>
+            <TextInput
+              label="Password"
+              value={passwordInput}
+              onChangeText={setPasswordInput}
+              secureTextEntry
+              autoCapitalize="none"
+              mode="outlined"
+              style={styles.passwordInput}
+            />
+          </Dialog.Content>
+          <Dialog.Actions>
+            <Button
+              onPress={() => {
+                setPasswordDialogVisible(false);
+                setPasswordInput('');
+              }}
+              disabled={biometricBusy}
+            >
+              Cancel
+            </Button>
+            <Button
+              onPress={() => {
+                if (!passwordInput.trim()) {
+                  Alert.alert('Password required', 'Enter your account password.');
+                  return;
+                }
+                void finalizeBiometricEnable(passwordInput.trim());
+              }}
+              loading={biometricBusy}
+              disabled={biometricBusy}
+            >
+              Enable
+            </Button>
+          </Dialog.Actions>
+        </Dialog>
+      </Portal>
     </View>
   );
 };
@@ -340,6 +582,12 @@ const styles = StyleSheet.create({
   },
   bottomSpacing: {
     height: 20,
+  },
+  dialogHint: {
+    marginBottom: 12,
+  },
+  passwordInput: {
+    marginTop: 4,
   },
 });
 
