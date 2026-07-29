@@ -17,7 +17,7 @@ The FinSync360 team takes security bugs seriously. We appreciate your efforts to
 
 **Please do NOT report security vulnerabilities through public GitHub issues.**
 
-Instead, please report them via email to: **harsh@greenhacker.tech**
+Instead, please report them via email to: **rizwankharadi2@gmail.com**
 
 Include the following information in your report:
 - Type of issue (e.g. buffer overflow, SQL injection, cross-site scripting, etc.)
@@ -142,12 +142,12 @@ Currently, we do not have a formal bug bounty program. However, we greatly appre
 ## Contact
 
 For security-related questions or concerns:
-- **Email**: harsh@greenhacker.tech
+- **Email**: rizwankharadi2@gmail.com
 - **Subject**: [SECURITY] Your subject here
 
 For general questions about this security policy:
 - Create an issue with the label `security`
-- Email: harsh@greenhacker.tech
+- Email: rizwankharadi2@gmail.com
 
 ## Acknowledgments
 

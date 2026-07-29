@@ -93,6 +93,6 @@
     "express",
     "mongodb"
   ],
-  "author": "GreenHacker",
+  "author": "Rizwan Kharadi",
   "license": "MIT"
 }

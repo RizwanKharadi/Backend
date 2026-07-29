@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   title: "FinSync360 - Comprehensive ERP Solution",
   description: "Complete business management solution with Tally integration",
   keywords: "ERP, Tally, Business Management, Accounting, Inventory",
-  authors: [{ name: "GreenHacker" }],
+  authors: [{ name: "Rizwan Kharadi" }],
 };
 
 export const viewport: Viewport = {

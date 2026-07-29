@@ -525,7 +525,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ### Getting Help
 - **GitHub Issues**: Report bugs or request features
 - **Documentation**: Check the `/docs` directory for detailed guides
-- **Email**: harsh@greenhacker.tech
+- **Email**: rizwankharadi2@gmail.com
 
 ### Community
 - Star ⭐ this repository if you find it helpful

@@ -423,7 +423,7 @@ We use labels to organize and prioritize issues:
 
 - **GitHub Discussions**: Ask questions and share ideas
 - **GitHub Issues**: Report bugs and request features
-- **Email**: harsh@greenhacker.tech
+- **Email**: rizwankharadi2@gmail.com
 
 ### Recognition
 
