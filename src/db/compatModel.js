@@ -115,7 +115,9 @@ class CompatQuery {
     }
 
     const findOpts = { where };
-    const sel = parseSelect(this._select);
+    // Pass the model's real attributes so dotted-path aliases only flatten to a
+    // column when THIS model actually has it.
+    const sel = parseSelect(this._select, this.ModelCompat?.sequelizeModel?.rawAttributes);
     if (sel?.include?.length) findOpts.attributes = sel.include;
     if (sel?.exclude?.length) {
       findOpts.attributes = findOpts.attributes || { exclude: sel.exclude };

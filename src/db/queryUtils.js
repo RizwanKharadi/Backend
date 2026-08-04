@@ -28,10 +28,23 @@ const DOT_PATH_ALIASES = {
   'connectionDetails.lastHeartbeat': 'lastHeartbeat',
 };
 
-function aliasKey(key) {
+/**
+ * @param key       Mongo-style field, possibly a dotted path.
+ * @param knownAttrs Optional map of the target model's real attributes. When
+ *   supplied, an alias is only used if that column actually exists on THIS
+ *   model. DOT_PATH_ALIASES is global, but the flattened columns are not: e.g.
+ *   Voucher has a real `tallyLastSyncDate`, while OutstandingReceivable keeps
+ *   `tallySync` as a JSON column. Selecting a column the table lacks makes MySQL
+ *   reject the whole query (ER_BAD_FIELD_ERROR), so fall back to the JSON root.
+ */
+function aliasKey(key, knownAttrs) {
   if (key == null) return key;
   const k = key === '_id' ? 'id' : String(key);
-  if (DOT_PATH_ALIASES[k]) return DOT_PATH_ALIASES[k];
+  const alias = DOT_PATH_ALIASES[k];
+  if (alias) {
+    if (!knownAttrs || knownAttrs[alias]) return alias;
+    return k.includes('.') ? k.split('.')[0] : k;
+  }
   // Unmapped dotted paths live inside a JSON column — use the root attribute for SELECT.
   if (k.includes('.')) return k.split('.')[0];
   return k;
@@ -398,14 +411,16 @@ export function fromRow(instance, { lean = false } = {}) {
   return plain;
 }
 
-export function parseSelect(select) {
+/** `knownAttrs` is the model's rawAttributes; see aliasKey for why it matters. */
+export function parseSelect(select, knownAttrs) {
   if (!select) return null;
-  const dedupe = (arr) => [...new Set(arr.map(aliasKey).filter(Boolean))];
+  const alias = (k) => aliasKey(k, knownAttrs);
+  const dedupe = (arr) => [...new Set(arr.map((k) => alias(k)).filter(Boolean))];
   if (typeof select === 'object') {
     const include = [];
     const exclude = [];
     for (const [k, v] of Object.entries(select)) {
-      const key = aliasKey(k === '_id' ? 'id' : k);
+      const key = alias(k === '_id' ? 'id' : k);
       if (v) include.push(key);
       else exclude.push(key);
     }
@@ -415,8 +430,8 @@ export function parseSelect(select) {
   const include = [];
   const exclude = [];
   for (const p of parts) {
-    if (p.startsWith('-')) exclude.push(aliasKey(p.slice(1) === '_id' ? 'id' : p.slice(1)));
-    else include.push(aliasKey(p === '_id' ? 'id' : p));
+    if (p.startsWith('-')) exclude.push(alias(p.slice(1) === '_id' ? 'id' : p.slice(1)));
+    else include.push(alias(p === '_id' ? 'id' : p));
   }
   return { include: dedupe(include), exclude: dedupe(exclude) };
 }
