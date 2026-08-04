@@ -95,15 +95,17 @@ export const getInventoryStats = async (req, res) => {
               $cond: [{ $lte: ['$totalStock', 0] }, 1, 0],
             },
           },
-          totalValue: {
-            // Tally's closing stock value when synced; estimated qty × rate otherwise.
-            $sum: {
-              $cond: [
-                { $gt: ['$tallyClosingValue', 0] },
-                '$tallyClosingValue',
-                { $multiply: ['$totalStock', '$sellingPrice'] },
-              ],
-            },
+          // Tally's closing stock value only. This figure is shown as
+          // "Inventory Value" and must reconcile with Tally's Stock Summary, so
+          // it must never fall back to an estimate: qty x sellingPrice values
+          // stock at sale price rather than cost and silently inflated this
+          // total (208 items reported ~4.89Cr against a real closing value of
+          // zero). If nothing has synced, 0 is the honest answer.
+          totalValue: { $sum: '$tallyClosingValue' },
+          // Kept separate so the UI can distinguish "not synced yet" from
+          // "genuinely zero stock".
+          valuedItems: {
+            $sum: { $cond: [{ $gt: ['$tallyClosingValue', 0] }, 1, 0] },
           },
         },
       },
@@ -116,6 +118,10 @@ export const getInventoryStats = async (req, res) => {
         lowStock: agg?.lowStock ?? 0,
         outOfStock: agg?.outOfStock ?? 0,
         totalValue: agg?.totalValue ?? 0,
+        // How many items actually carry a Tally closing value. 0 here with a
+        // non-zero `total` means stock values have not synced from Tally yet,
+        // which the UI should surface rather than showing a bare Rs 0.
+        valuedItems: agg?.valuedItems ?? 0,
         categories: {},
         topItems: [],
       },
