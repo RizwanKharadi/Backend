@@ -42,6 +42,7 @@ import OfflineBanner from '../components/common/OfflineBanner';
 import VoucherTypesScreen from '../screens/VoucherTypesScreen';
 import FilteredVouchersScreen from '../screens/FilteredVouchersScreen';
 import DayBookScreen from '../screens/DayBookScreen';
+import PendingSyncScreen from '../screens/PendingSyncScreen';
 import { AppGuideProvider, GuideTarget } from '../components/guide';
 
 import { MainTabParamList, MainStackParamList } from '../types/navigation';
@@ -210,6 +211,7 @@ const MainNavigator: React.FC = () => {
         options={{ headerShown: false, animation: 'slide_from_right' }}
       />
       <Stack.Screen name="DayBook" component={DayBookScreen} />
+      <Stack.Screen name="PendingSync" component={PendingSyncScreen} />
 
       <Stack.Screen name="PaymentPrediction" component={PaymentPredictionScreen} />
       <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />

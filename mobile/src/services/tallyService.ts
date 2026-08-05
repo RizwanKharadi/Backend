@@ -49,6 +49,29 @@ export interface SyncConflict {
   createdAt: string;
 }
 
+/** Records saved in the cloud that Tally has not confirmed yet. */
+export interface PendingSyncSummary {
+  vouchers: number;
+  items: number;
+  parties: number;
+  total: number;
+  /** Scheduled for automatic retry when the desktop agent next connects. */
+  queuedForRetry: number;
+  /** Retries exhausted — will not resolve on its own. */
+  needsAttention: number;
+}
+
+export interface PendingSyncItem {
+  id: string;
+  entityType: 'voucher' | 'ledger' | 'stock-item';
+  entityId: string;
+  status: 'pending' | 'failed';
+  attempts: number;
+  lastError?: string;
+  lastAttemptAt?: string;
+  createdAt: string;
+}
+
 class TallyService {
   private readonly baseURL = '/tally';
 
@@ -297,6 +320,32 @@ class TallyService {
   }> {
     const params = period ? { period } : {};
     const response = await apiClient.get(`${this.baseURL}/statistics/${companyId}`, { params });
+    return response.data;
+  }
+
+  /**
+   * Counts of records saved in the cloud but not yet in Tally.
+   * Registers exclude these so app figures reconcile with Tally, so this is the
+   * only way the user can tell something is being held back.
+   */
+  async getPendingSyncSummary(companyId: string): Promise<{
+    success: boolean;
+    data: PendingSyncSummary;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/pending-sync`, {
+      params: { companyId },
+    });
+    return response.data;
+  }
+
+  /** The individual records waiting to reach Tally. */
+  async getPendingSyncItems(companyId: string): Promise<{
+    success: boolean;
+    data: PendingSyncItem[];
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/pending-sync/items`, {
+      params: { companyId },
+    });
     return response.data;
   }
 }

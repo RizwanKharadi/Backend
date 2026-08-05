@@ -89,6 +89,9 @@ export type MainStackParamList = {
     toDate?: string;
   };
   DayBook: { fromDate?: string; toDate?: string };
+  // Records saved in the cloud that Tally has not confirmed. Registers exclude
+  // them so app totals match Tally, so this is where they are visible.
+  PendingSync: undefined;
 };
 
 export type ReportsStackParamList = {

@@ -30,6 +30,7 @@ import TransactionCard from '../components/TransactionCard';
 import BooksEntryCard from '../components/BooksEntryCard';
 import TransactionStatsCard from '../components/TransactionStatsCard';
 import PeriodFilterBar from '../components/PeriodFilterBar';
+import PendingSyncBanner from '../components/PendingSyncBanner';
 import FloatingVoucherButton from '../components/FloatingVoucherButton';
 import BottomNavigation from '../components/BottomNavigation';
 
@@ -46,6 +47,7 @@ import { TxnTotals, TxnTypeSummary } from '../types/transactions';
 
 import { useCompany, useNotification } from '../store/hooks';
 import { voucherService } from '../services/voucherService';
+import { tallyService, PendingSyncSummary } from '../services/tallyService';
 import { Voucher } from '../types';
 import {
   formatIndianCompact,
@@ -109,6 +111,7 @@ const PremiumTransactionsScreen: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [loaded, setLoaded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [pendingSync, setPendingSync] = useState<PendingSyncSummary | null>(null);
 
   // Custom range modal
   const [customOpen, setCustomOpen] = useState(false);
@@ -162,6 +165,13 @@ const PremiumTransactionsScreen: React.FC = () => {
         setVouchers(curRes.status === 'fulfilled' ? curRes.value.data || [] : []);
         setPrevVouchers(prevRes.status === 'fulfilled' ? prevRes.value.data || [] : []);
         lastLoadRef.current = Date.now();
+
+        // Best-effort: the banner is informational, so a failure here must not
+        // disturb the register itself.
+        tallyService
+          .getPendingSyncSummary(companyId)
+          .then((r) => setPendingSync(r.data))
+          .catch(() => setPendingSync(null));
       } finally {
         inFlightRef.current = false;
         setLoading(false);
@@ -368,6 +378,13 @@ const PremiumTransactionsScreen: React.FC = () => {
             </View>
           ) : (
             <>
+              {/* Records not yet in Tally are excluded from these tiles so the
+                  totals match Tally. Surface them here or they are invisible. */}
+              <PendingSyncBanner
+                summary={pendingSync}
+                onPress={() => goStack('PendingSync')}
+              />
+
               {/* Period filter sits above the tiles it controls — every amount
                   below is scoped to this range. */}
               <View style={styles.filterWrap}>
