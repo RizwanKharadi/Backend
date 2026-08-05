@@ -33,6 +33,27 @@ const TYPE_ALIASES: Record<string, string[]> = {
   contra: ['contra'],
 };
 
+/**
+ * Tally voucher types that record a commitment or a stock movement, NOT an
+ * accounting entry. They must never be absorbed into an accounting bucket by the
+ * loose substring match below — `"sales_order".includes("sales")` is true, which
+ * previously counted Sales Orders as Sales (and Receipt Notes as Receipts,
+ * Purchase Orders as Purchases, Stock Journals as Journals).
+ */
+const NON_ACCOUNTING_TYPES = new Set([
+  'sales_order',
+  'purchase_order',
+  'quotation',
+  'delivery_note',
+  'receipt_note',
+  'rejection_in',
+  'rejection_out',
+  'material_in',
+  'material_out',
+  'physical_stock',
+  'stock_journal',
+]);
+
 function normalizeType(value: string): string {
   return value.toLowerCase().replace(/\s+/g, '_');
 }
@@ -46,6 +67,13 @@ export function matchesVoucherType(voucher: Voucher, typeId: string): boolean {
     (voucher as { tallyVoucherTypeParent?: string }).tallyVoucherTypeParent || ''
   );
   if (parent && parent === id) return true;
+
+  // Past this point only fuzzy matching remains. An order/note voucher matches
+  // its own type exactly (handled above) or nothing at all.
+  if (NON_ACCOUNTING_TYPES.has(t) || (parent !== '' && NON_ACCOUNTING_TYPES.has(parent))) {
+    return false;
+  }
+
   const aliases = TYPE_ALIASES[id] || [id];
   return aliases.some(
     (a) =>

@@ -231,17 +231,20 @@ const PremiumTransactionsScreen: React.FC = () => {
   const outflow = TRANSACTION_TYPES.filter((t) => t.group === 'outflow').map((t) => summaries[t.id]);
   const ledger = TRANSACTION_TYPES.filter((t) => t.group === 'ledger').map((t) => summaries[t.id]);
 
+  // Cash movement, not turnover: money actually received is Receipt, money
+  // actually paid is Payment. Summing every inflow/outflow tile double-counts —
+  // a Sales invoice and the Receipt settling it are the same rupees.
   const totals = useMemo<TxnTotals>(() => {
-    const sum = (list: TxnTypeSummary[]) =>
-      list.reduce(
-        (acc, s) => ({ amount: acc.amount + s.amount, count: acc.count + s.count }),
-        { amount: 0, count: 0 }
-      );
-    const moneyIn = sum(inflow);
-    const moneyOut = sum(outflow);
+    const zero = { amount: 0, count: 0 };
+    const pick = (id: string) => {
+      const s = summaries[id];
+      return s ? { amount: s.amount, count: s.count } : zero;
+    };
+    const moneyIn = pick('receipt');
+    const moneyOut = pick('payment');
     const net = moneyIn.amount - moneyOut.amount;
     return { moneyIn, moneyOut, netAmount: net, netPositive: net >= 0 };
-  }, [inflow, outflow]);
+  }, [summaries]);
 
   const countSuffix =
     period === 'today'
@@ -262,10 +265,17 @@ const PremiumTransactionsScreen: React.FC = () => {
     [navigation]
   );
 
+  // Carry the currently selected period into the drill-down so it opens on the
+  // same range the tiles were calculated from.
   const openType = useCallback(
     (s: TxnTypeSummary) =>
-      goStack('FilteredVouchers', { voucherType: s.id, title: s.title }),
-    [goStack]
+      goStack('FilteredVouchers', {
+        voucherType: s.id,
+        title: s.title,
+        fromDate: range.fromDate,
+        toDate: range.toDate,
+      }),
+    [goStack, range]
   );
 
   const handleTabPress = useCallback(
@@ -358,6 +368,12 @@ const PremiumTransactionsScreen: React.FC = () => {
             </View>
           ) : (
             <>
+              {/* Period filter sits above the tiles it controls — every amount
+                  below is scoped to this range. */}
+              <View style={styles.filterWrap}>
+                <PeriodFilterBar active={period} onChange={handleFilterChange} />
+              </View>
+
               <SectionHeader
                 title="Money In"
                 icon={TRANSACTION_GROUP_META.inflow.icon}
@@ -395,10 +411,6 @@ const PremiumTransactionsScreen: React.FC = () => {
 
               <View style={styles.sectionGap} />
               <TransactionStatsCard totals={totals} />
-
-              <View style={styles.filterWrap}>
-                <PeriodFilterBar active={period} onChange={handleFilterChange} />
-              </View>
             </>
           )}
         </View>
@@ -507,7 +519,7 @@ const styles = StyleSheet.create({
   sectionGap: { height: spacing.xl },
   cardRow: { flexDirection: 'row', alignItems: 'stretch', gap: spacing.xs },
   booksRow: { flexDirection: 'row', gap: spacing.sm },
-  filterWrap: { marginTop: spacing.lg },
+  filterWrap: { marginTop: spacing.lg, marginBottom: spacing.md },
   // Custom modal
   modalScrim: {
     flex: 1,

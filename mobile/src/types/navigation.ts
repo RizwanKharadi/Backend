@@ -80,7 +80,14 @@ export type MainStackParamList = {
   Billing: undefined;
   Sync: undefined;
   VoucherTypes: undefined;
-  FilteredVouchers: { voucherType: string; title: string };
+  // fromDate/toDate carry the period selected on the Transactions screen so the
+  // drill-down opens on the same range instead of resetting to the current month.
+  FilteredVouchers: {
+    voucherType: string;
+    title: string;
+    fromDate?: string;
+    toDate?: string;
+  };
   DayBook: { fromDate?: string; toDate?: string };
 };
 

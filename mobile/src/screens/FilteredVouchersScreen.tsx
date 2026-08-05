@@ -25,7 +25,11 @@ import { voucherService } from '../services/voucherService';
 import { useCompany } from '../store/hooks';
 import { MainStackParamList } from '../types/navigation';
 import { Voucher } from '../types';
-import { formatIndianCompact, toLocalDateString } from '../utils/formatters';
+import {
+  formatIndianCompact,
+  parseLocalDateString,
+  toLocalDateString,
+} from '../utils/formatters';
 import {
   filterVouchersInRange,
   matchesVoucherType,
@@ -43,18 +47,34 @@ function defaultDateRange(): DateRangeValue {
   };
 }
 
+/**
+ * Open on the period the caller selected (Transactions tiles pass their current
+ * range). Falls back to the current month only when opened without a range.
+ */
+function initialDateRange(fromDate?: string, toDate?: string): DateRangeValue {
+  if (!fromDate || !toDate) return defaultDateRange();
+  const from = parseLocalDateString(fromDate);
+  const to = parseLocalDateString(toDate);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+    return defaultDateRange();
+  }
+  return { from: startOfDay(from), to: startOfDay(to) };
+}
+
 const FilteredVouchersScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const insets = useSafeAreaInsets();
-  const { voucherType, title } = route.params;
+  const { voucherType, title, fromDate: paramFrom, toDate: paramTo } = route.params;
   const { selectedCompany } = useCompany();
 
   const typeConfig = getTransactionTypeConfig(voucherType);
   const accent = typeConfig?.color ?? dashboardColors.accent;
   const gradientEnd = typeConfig?.gradientEnd ?? accent;
 
-  const [dateRange, setDateRange] = useState<DateRangeValue>(defaultDateRange);
+  const [dateRange, setDateRange] = useState<DateRangeValue>(() =>
+    initialDateRange(paramFrom, paramTo)
+  );
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
