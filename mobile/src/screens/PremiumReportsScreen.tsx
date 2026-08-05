@@ -1,28 +1,24 @@
 /**
  * PremiumReportsScreen — TallyFin Reports as a Business Intelligence hub.
  *
- * Fixed category filter (All / Financial / Inventory / Customer, no scroll),
- * a live Business Snapshot (revenue / receivables / bank / inventory value),
+ * Fixed category filter (All / Financial / Inventory / Customer, no scroll)
  * then 2-column report grids. Report cards open the existing report screens;
  * reports without a screen yet show a "Soon" badge.
  */
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   ScrollView,
-  RefreshControl,
   TouchableOpacity,
 } from 'react-native';
-import { useDispatch } from 'react-redux';
-import { useNavigation, useFocusEffect } from '@react-navigation/native';
+import { useNavigation } from '@react-navigation/native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Toast from 'react-native-toast-message';
 
 import TransactionHeader from '../components/TransactionHeader';
-import InventoryStatCard from '../components/InventoryStatCard';
 import SectionHeader from '../components/SectionHeader';
 import ReportCard from '../components/ReportCard';
 import FloatingVoucherButton from '../components/FloatingVoucherButton';
@@ -34,14 +30,10 @@ import { fontSize, fontWeight } from '../theme/typography';
 import { navItems, voucherOptions } from '../data/dashboardMockData';
 import { DashboardTab, VoucherKey } from '../types/dashboard';
 
-import { AppDispatch } from '../store';
-import { useCompany, useInventory, useNotification } from '../store/hooks';
-import { fetchInventoryStats } from '../store/slices/inventorySlice';
-import { reportService, DashboardSummaryData } from '../services/reportService';
-import { formatIndianCompact, toLocalDateString } from '../utils/formatters';
+import { useCompany, useNotification } from '../store/hooks';
+import { toLocalDateString } from '../utils/formatters';
 
 const SCREEN_PADDING = spacing.md;
-const MIN_RELOAD_MS = 45_000;
 
 type Category = 'all' | 'financial' | 'inventory' | 'customer';
 
@@ -83,53 +75,11 @@ interface ReportDef {
 const PremiumReportsScreen: React.FC = () => {
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
-  const dispatch = useDispatch<AppDispatch>();
 
   const { selectedCompany } = useCompany();
-  const { stats: inventoryStats } = useInventory();
   const { unreadCount } = useNotification();
 
-  const [summary, setSummary] = useState<DashboardSummaryData | null>(null);
-  const [refreshing, setRefreshing] = useState(false);
   const [activeCat, setActiveCat] = useState<Category>('all');
-
-  const lastLoadRef = useRef(0);
-  const inFlightRef = useRef(false);
-
-  const load = useCallback(
-    async (force: boolean) => {
-      const companyId = selectedCompany?.id;
-      if (!companyId) return;
-      const now = Date.now();
-      if (!force && now - lastLoadRef.current < MIN_RELOAD_MS) return;
-      if (inFlightRef.current) return;
-
-      inFlightRef.current = true;
-      dispatch(fetchInventoryStats(companyId));
-      try {
-        const res = await reportService.getDashboardSummary(companyId);
-        if (res?.data) setSummary(res.data);
-        lastLoadRef.current = Date.now();
-      } catch {
-        // snapshot is best-effort; report cards still work
-      } finally {
-        inFlightRef.current = false;
-      }
-    },
-    [dispatch, selectedCompany?.id]
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      load(false);
-    }, [load])
-  );
-
-  const onRefresh = useCallback(async () => {
-    setRefreshing(true);
-    await load(true);
-    setRefreshing(false);
-  }, [load]);
 
   const go = useCallback(
     (route: string, params?: object) => navigation.navigate(route, params),
@@ -158,45 +108,6 @@ const PremiumReportsScreen: React.FC = () => {
   const handleVoucher = useCallback(
     (key: VoucherKey) => go('CreateNewVoucher', { initialType: VOUCHER_INITIAL_TYPE[key] }),
     [go]
-  );
-
-  // ---- Live Business Snapshot ----
-  const snapshot = useMemo(
-    () => [
-      {
-        icon: 'trending-up',
-        color: colors.kpiGreen,
-        value: formatIndianCompact(summary?.monthlyRevenue.amount || 0),
-        label: 'Revenue',
-        subtitle: 'This month',
-        onPress: () => go('FilteredVouchers', { voucherType: 'sales', title: 'Sales' }),
-      },
-      {
-        icon: 'account-cash-outline',
-        color: colors.kpiOrange,
-        value: formatIndianCompact(summary?.outstanding.receivables || 0),
-        label: 'Receivables',
-        subtitle: `${summary?.outstanding.parties || 0} parties`,
-        onPress: () => go('OutstandingReceivable'),
-      },
-      {
-        icon: 'bank',
-        color: colors.info,
-        value: formatIndianCompact(summary?.bankBalance.amount || 0),
-        label: 'Bank Balance',
-        subtitle: 'Cash & bank',
-        onPress: () => go('CashBankBook'),
-      },
-      {
-        icon: 'cube-outline',
-        color: colors.kpiPurple,
-        value: formatIndianCompact(inventoryStats.totalValue || 0),
-        label: 'Inventory Value',
-        subtitle: `${inventoryStats.total || 0} items`,
-        onPress: () => go('Inventory'),
-      },
-    ],
-    [summary, inventoryStats, go]
   );
 
   // ---- Report catalogue ----
@@ -253,17 +164,11 @@ const PremiumReportsScreen: React.FC = () => {
 
   return (
     <View style={styles.root}>
+      {/* No pull-to-refresh: this screen is a static catalogue of report links
+          since the Business Snapshot was removed — there is nothing to refetch. */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            tintColor={colors.green}
-            colors={[colors.green]}
-          />
-        }
       >
         <TransactionHeader
           title="Reports"
@@ -301,26 +206,6 @@ const PremiumReportsScreen: React.FC = () => {
                 </TouchableOpacity>
               );
             })}
-          </View>
-
-          {/* Live business snapshot */}
-          <View style={styles.snapHeader}>
-            <SectionHeader title="Business Snapshot" icon="finance" accentColor={colors.navy} />
-          </View>
-          <View style={styles.grid}>
-            {snapshot.map((s) => (
-              <View key={s.label} style={styles.gridCell}>
-                <InventoryStatCard
-                  compact
-                  icon={s.icon}
-                  color={s.color}
-                  value={s.value}
-                  label={s.label}
-                  subtitle={s.subtitle}
-                  onPress={s.onPress}
-                />
-              </View>
-            ))}
           </View>
 
           {showFinancial ? (
@@ -383,9 +268,6 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.navy, borderColor: colors.navy },
   chipText: { color: colors.textSecondary, fontSize: fontSize.label, fontWeight: fontWeight.semibold },
   chipTextActive: { color: colors.white },
-  snapHeader: { marginBottom: spacing.xs },
-  grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  gridCell: { width: '50%', padding: spacing.xxs + 2 },
   sectionGap: { height: spacing.lg },
   gridRow: { flexDirection: 'row', gap: spacing.sm, marginBottom: spacing.sm },
   gridSpacer: { flex: 1 },
