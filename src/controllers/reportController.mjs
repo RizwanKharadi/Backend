@@ -512,16 +512,28 @@ const buildBalanceSheetResponse = (report, periodMeta) => {
     const label = (entry.displayName || entry.name || '').trim();
     if (!label || amount === 0) return;
 
-    const row = { account: label, amount: Math.abs(amount) };
     const section = classifyBalanceSheetGroup(label);
 
-    if (entry.isGroup && Math.abs(mainAmount) > 0) {
+    // Tally signs these: negative is a debit, positive a credit. Taking the
+    // absolute value made a debit balance indistinguishable from a credit one,
+    // so a Capital Account carrying a debit balance was added to equity as a
+    // positive instead of subtracted — overstating equity by twice its value
+    // and leaving assets short of liabilities + equity.
+    //
+    // Assets are debits, so flip them to read positive the way a balance sheet
+    // presents them. Liabilities and equity are credits and already read
+    // positive; a debit balance among them stays negative, which is exactly
+    // what negative equity means.
+    const signedAmount = section === 'assets' ? -amount : amount;
+    const row = { account: label, amount: signedAmount };
+
+    if (entry.isGroup && mainAmount !== 0) {
       const synced = groupSummaries.find(
         (g) => String(g.groupName).trim().toLowerCase() === label.trim().toLowerCase()
       );
       groups.push({
         name: label,
-        amount: Math.abs(mainAmount),
+        amount: section === 'assets' ? -mainAmount : mainAmount,
         section,
         drillable: true,
         ledgerCount: synced?.ledgers?.length || 0
