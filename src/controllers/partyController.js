@@ -3,6 +3,7 @@ import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
 import logger from '../utils/logger.js';
 import { enqueueFailedImport } from '../services/tallyImportQueueService.js';
+import { applySyncState } from '../utils/syncStateFilter.js';
 import tallyWebSocketService from '../services/tallyWebSocketService.js';
 import { buildLedgerImportPayload } from '../utils/tallyMasterImportPayload.js';
 
@@ -43,6 +44,9 @@ export const getParties = async (req, res) => {
     if (hasBalance === 'true') {
       query['balances.current.amount'] = { $gt: 0 };
     }
+
+    // Ledger list must reconcile with Tally — see utils/syncStateFilter.js.
+    applySyncState(query, req.query.syncState);
 
     const options = {
       page: parseInt(page),

@@ -12,7 +12,11 @@ import {
   getSyncLogs
 } from '../controllers/tallyController.js';
 
-import { protect, authorize } from '../middleware/auth.js';
+import { protect, authorize, checkCompanyAccess } from '../middleware/auth.js';
+import {
+  getPendingSyncSummary,
+  getPendingSyncItems,
+} from '../controllers/syncStateController.js';
 import { requireActiveSubscription } from '../middleware/license.js';
 import validateRequest from '../middleware/validation.js';
 import { body, param, query } from 'express-validator';
@@ -21,6 +25,11 @@ const router = express.Router();
 
 // Apply authentication and subscription check to all routes
 router.use(protect, requireActiveSubscription);
+
+// Records saved in the cloud but not yet in Tally. Registers exclude these so
+// app figures reconcile with Tally, so they need their own way to be seen.
+router.get('/pending-sync', checkCompanyAccess, getPendingSyncSummary);
+router.get('/pending-sync/items', checkCompanyAccess, getPendingSyncItems);
 
 // @desc    Get Tally sync status for company
 // @route   GET /api/tally/sync-status/:companyId
