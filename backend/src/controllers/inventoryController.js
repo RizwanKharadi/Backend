@@ -4,6 +4,7 @@ import tallyWebSocketService from '../services/tallyWebSocketService.js';
 import { buildStockItemImportPayload } from '../utils/tallyMasterImportPayload.js';
 import { normalizeItemInput } from '../utils/normalizeItemInput.js';
 import { enqueueFailedImport } from '../services/tallyImportQueueService.js';
+import { applySyncState } from '../utils/syncStateFilter.js';
 import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
 import logger from '../utils/logger.js';
@@ -166,6 +167,9 @@ export const getItems = async (req, res) => {
         { description: { $regex: search, $options: 'i' } }
       ];
     }
+
+    // Item list must reconcile with Tally — see utils/syncStateFilter.js.
+    applySyncState(query, req.query.syncState);
 
     const options = {
       page: parseInt(page),

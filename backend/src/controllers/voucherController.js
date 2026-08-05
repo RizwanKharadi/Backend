@@ -8,6 +8,7 @@ import {
 } from '../utils/tallyVoucherImportPayload.js';
 import { supportsTallyImport } from '../utils/tallyVoucherImportTypes.js';
 import { enqueueFailedImport } from '../services/tallyImportQueueService.js';
+import { syncStateClause } from '../utils/syncStateFilter.js';
 import Item from '../models/Item.js';
 import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
@@ -136,6 +137,10 @@ export const getVouchers = async (req, res) => {
     }
     if (status) query.status = status;
     if (party) query.party = party;
+
+    // Registers must reconcile with Tally — see utils/syncStateFilter.js.
+    const syncClause = syncStateClause(req.query.syncState);
+    if (syncClause) andClauses.push(syncClause);
 
     if (fromDate || toDate) {
       query.date = {};
