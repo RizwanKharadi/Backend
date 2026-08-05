@@ -210,9 +210,30 @@ class TallyService extends EventEmitter {
     if (typeof value === 'object') {
       return this.toNumber(this.parseString(value));
     }
-    const cleaned = String(value).replace(/[^0-9.+-]/g, '').trim();
+
+    const raw = String(value).trim();
+
+    // Foreign-currency amounts arrive as an expression, not a plain number:
+    //   "$ 1500.00 @ ₹ 83.50/$ = 125250.00"
+    // The base-currency figure is the one after the last '='. Stripping
+    // non-numerics across the whole string concatenates all three numbers into
+    // "1500.0083.50125250.00", which is NaN — and every forex voucher then
+    // stored as 0.
+    const eq = raw.lastIndexOf('=');
+    const candidate = eq >= 0 ? raw.slice(eq + 1) : raw;
+
+    const cleaned = candidate.replace(/[^0-9.+-]/g, '').trim();
     const num = Number(cleaned);
-    return Number.isFinite(num) ? num : 0;
+    if (cleaned !== '' && Number.isFinite(num)) return num;
+
+    // No usable '=' segment (e.g. "$ 1500.00 @ 83.50"): fall back to the first
+    // numeric token rather than discarding the amount entirely.
+    const match = raw.match(/-?\d[\d,]*(?:\.\d+)?/);
+    if (match) {
+      const first = Number(match[0].replace(/,/g, ''));
+      if (Number.isFinite(first)) return first;
+    }
+    return 0;
   }
 
   /** Prefer ZVOUCHERPARENT (Tally parent type) over renamed VOUCHERTYPENAME. */
