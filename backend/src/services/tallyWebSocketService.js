@@ -2044,6 +2044,10 @@ class TallyWebSocketService {
         roundOff: 0,
         grandTotal: amount
       },
+      // A voucher pulled from Tally is a posted entry, not a draft. Without this
+      // the Voucher model's defaultValue 'draft' applies on insert and every
+      // synced voucher shows a "Draft" badge in the app.
+      status: 'posted',
       'tallySync.synced': true,
       'tallySync.tallyId': tallyId,
       'tallySync.tallyAlterId': alterId,
@@ -2378,6 +2382,8 @@ class TallyWebSocketService {
           roundOff: 0,
           grandTotal: amount
         },
+      // Pulled from Tally = posted, not a draft. See the summary-batch builder.
+      status: 'posted',
       tallySync: {
         synced: true,
         tallyId: tallyId || undefined,
