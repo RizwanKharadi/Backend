@@ -2,6 +2,7 @@ import Party from '../models/Party.js';
 import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
 import logger from '../utils/logger.js';
+import { enqueueFailedImport } from '../services/tallyImportQueueService.js';
 import tallyWebSocketService from '../services/tallyWebSocketService.js';
 import { buildLedgerImportPayload } from '../utils/tallyMasterImportPayload.js';
 
@@ -160,8 +161,10 @@ export const createParty = async (req, res) => {
     let tallyPush = { status: 'skipped', message: 'Tally push not requested' };
 
     if (req.body.pushToTally !== false) {
+      // Declared outside the try so the catch can queue it for retry.
+      let importPayload;
       try {
-        const importPayload = buildLedgerImportPayload(populatedParty, req.company, {
+        importPayload = buildLedgerImportPayload(populatedParty, req.company, {
           parent: req.body.tallyParent || req.body.parent,
           companyName: req.body.tallyCompanyName,
           mobile: req.body.mobile || partyData.contact?.phone
@@ -191,7 +194,19 @@ export const createParty = async (req, res) => {
           'tallySync.synced': false,
           'tallySync.syncError': pushError.message
         });
-        tallyPush = { status: 'failed', message: pushError.message };
+        const queued = await enqueueFailedImport({
+          companyId: req.company._id,
+          entityType: 'ledger',
+          entityId: populatedParty._id,
+          payload: importPayload,
+          error: pushError.message,
+          createdBy: req.user?._id
+        });
+        tallyPush = {
+          status: 'failed',
+          message: pushError.message,
+          queuedForRetry: Boolean(queued)
+        };
       }
     }
 

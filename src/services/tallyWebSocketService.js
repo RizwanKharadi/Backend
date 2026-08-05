@@ -24,6 +24,7 @@ import {
   isLicenseEnforcementEnabled
 } from './licenseService.js';
 import { registerTallySerial, mapTallyLicensePayload } from './tallySerialService.js';
+import { flushPendingImports } from './tallyImportQueueService.js';
 import {
   normalizeVoucherTypeSlug,
   resolveVoucherTypeFromTally
@@ -619,6 +620,18 @@ class TallyWebSocketService {
 
       if (connectionInfo) {
         connectionInfo.companyId = company._id.toString();
+
+        // Replay imports that failed while no agent was connected. Deferred so
+        // registration finishes first, and deliberately not awaited — a queue
+        // problem must never block the agent coming online.
+        setTimeout(() => {
+          flushPendingImports(company, this).catch((e) =>
+            this.logger.warn('Tally import queue flush failed', {
+              companyId: company._id.toString(),
+              error: e.message
+            })
+          );
+        }, 5000);
       }
 
       let tallySerialConflict = null;

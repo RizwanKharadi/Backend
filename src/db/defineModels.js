@@ -479,6 +479,40 @@ export function defineAllModels(sequelize) {
     { tableName: 'outstandingreceivables', indexes: [{ unique: true, fields: ['company', 'reportName'] }] }
   );
 
+  /**
+   * Durable queue for records created in the app that could not be pushed into
+   * Tally at the time (agent offline, socket flapping, Tally busy). Without this
+   * a create was a one-shot synchronous push: if it missed, the record stayed in
+   * the cloud and never reached Tally, with nothing to retry it.
+   * Flushed when a desktop agent connects for the company.
+   */
+  const TallyImportQueue = sequelize.define(
+    'TallyImportQueue',
+    {
+      id: ID,
+      company: { type: STR(36), allowNull: false },
+      // 'voucher' | 'ledger' | 'stock-item'
+      entityType: { type: STR(32), allowNull: false },
+      // Row id in vouchers/parties/items, so we can mark it synced afterwards.
+      entityId: { type: STR(36), allowNull: false },
+      // Exact payload built at creation time — replayed verbatim.
+      payload: { type: JSONF, defaultValue: {} },
+      // 'pending' | 'done' | 'failed'
+      status: { type: STR(16), defaultValue: 'pending' },
+      attempts: { type: INT, defaultValue: 0 },
+      lastError: TEXT,
+      lastAttemptAt: DATE,
+      createdBy: { type: STR(36), allowNull: true },
+    },
+    {
+      tableName: 'tallyimportqueue',
+      indexes: [
+        { fields: ['company', 'status'] },
+        { unique: true, fields: ['entityType', 'entityId'] },
+      ],
+    }
+  );
+
   const Budget = sequelize.define(
     'Budget',
     {
@@ -902,6 +936,7 @@ export function defineAllModels(sequelize) {
     GSTReturn: GSTReturnCompat,
     Notification: NotificationCompat,
     TallySerialRegistration: createCompatModel('TallySerialRegistration', TallySerialRegistration, { registry }),
+    TallyImportQueue: createCompatModel('TallyImportQueue', TallyImportQueue, { registry }),
   };
 
   Object.assign(registry, models);
@@ -921,6 +956,7 @@ export function defineAllModels(sequelize) {
     VoucherDetail, Godown, Unit, VoucherType, TallyAccount, GstRegistration,
     TallyConnection, TallySync, ProfitLossReport, BalanceSheetReport,
     OutstandingReceivable, Budget, GSTReturn, Notification, TallySerialRegistration,
+    TallyImportQueue,
   }};
 }
 

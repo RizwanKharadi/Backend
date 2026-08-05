@@ -67,6 +67,7 @@ export const Budget = proxy('Budget');
 export const GSTReturn = proxy('GSTReturn');
 export const Notification = proxy('Notification');
 export const TallySerialRegistration = proxy('TallySerialRegistration');
+export const TallyImportQueue = proxy('TallyImportQueue');
 
 export default {
   User,
