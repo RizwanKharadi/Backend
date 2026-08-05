@@ -118,15 +118,18 @@ function sampleLabels(labels: string[], maxLabels: number): string[] {
   return labels.map((l, i) => (i % step === 0 ? l : ''));
 }
 
+// Hermes on Android ships without full Intl, so
+// `toLocaleDateString(undefined, { weekday: 'short' })` yields "undefined"
+// instead of a weekday. Use a fixed table — chart axis labels must not depend
+// on the JS engine's locale support.
+const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
 function trendToSeries(rows: DashboardSummaryData['salesTrend']): SalesSeries {
   const labels: string[] = [];
   const values: number[] = [];
   for (const row of rows || []) {
-    labels.push(
-      parseLocalDateString(row.date)
-        .toLocaleDateString(undefined, { weekday: 'short' })
-        .slice(0, 3)
-    );
+    const d = parseLocalDateString(row.date);
+    labels.push(Number.isNaN(d.getTime()) ? '' : WEEKDAY_LABELS[d.getDay()]);
     values.push(row.amount || 0);
   }
   return { labels, values };
