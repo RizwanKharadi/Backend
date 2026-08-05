@@ -3,6 +3,7 @@ import Item from '../models/Item.js';
 import tallyWebSocketService from '../services/tallyWebSocketService.js';
 import { buildStockItemImportPayload } from '../utils/tallyMasterImportPayload.js';
 import { normalizeItemInput } from '../utils/normalizeItemInput.js';
+import { enqueueFailedImport } from '../services/tallyImportQueueService.js';
 import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
 import logger from '../utils/logger.js';
@@ -354,8 +355,10 @@ export const createItem = async (req, res) => {
     let tallyPush = { status: 'skipped', message: 'Tally push not requested' };
 
     if (req.body.pushToTally !== false) {
+      // Declared outside the try so the catch can queue it for retry.
+      let importPayload;
       try {
-        const importPayload = buildStockItemImportPayload(populatedItem, req.company, {
+        importPayload = buildStockItemImportPayload(populatedItem, req.company, {
           companyName: req.body.tallyCompanyName,
           baseUnits: req.body.unit || req.body.baseUnits
         });
@@ -384,7 +387,21 @@ export const createItem = async (req, res) => {
           'tallySync.synced': false,
           'tallySync.syncError': pushError.message
         });
-        tallyPush = { status: 'failed', message: pushError.message };
+        // Replay when an agent next connects, so a momentary disconnect does
+        // not orphan the item in the cloud forever.
+        const queued = await enqueueFailedImport({
+          companyId: req.company._id,
+          entityType: 'stock-item',
+          entityId: populatedItem._id,
+          payload: importPayload,
+          error: pushError.message,
+          createdBy: req.user?._id
+        });
+        tallyPush = {
+          status: 'failed',
+          message: pushError.message,
+          queuedForRetry: Boolean(queued)
+        };
       }
     }
 

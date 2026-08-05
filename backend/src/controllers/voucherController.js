@@ -7,6 +7,7 @@ import {
   buildVoucherImportPayload
 } from '../utils/tallyVoucherImportPayload.js';
 import { supportsTallyImport } from '../utils/tallyVoucherImportTypes.js';
+import { enqueueFailedImport } from '../services/tallyImportQueueService.js';
 import Item from '../models/Item.js';
 import Company from '../models/Company.js';
 import { validationResult } from 'express-validator';
@@ -22,8 +23,10 @@ async function pushVoucherToTallyWithResult(voucher, company, body, extraLedgerE
     };
   }
 
+  // Declared outside the try so the catch can queue it for retry.
+  let importPayload;
   try {
-    const importPayload = buildVoucherImportPayload(voucher, company, {
+    importPayload = buildVoucherImportPayload(voucher, company, {
       salesLedgerName: body.salesLedgerName,
       purchaseLedgerName: body.purchaseLedgerName,
       voucherTypeName: body.tallyVoucherTypeName || voucher.tallyVoucherTypeName,
@@ -81,7 +84,19 @@ async function pushVoucherToTallyWithResult(voucher, company, body, extraLedgerE
       'tallySync.synced': false,
       'tallySync.syncError': pushError.message
     });
-    return { status: 'failed', message: pushError.message };
+    const queued = await enqueueFailedImport({
+      companyId: company._id,
+      entityType: 'voucher',
+      entityId: voucher._id,
+      payload: importPayload,
+      error: pushError.message,
+      createdBy: voucher.createdBy?._id || voucher.createdBy
+    });
+    return {
+      status: 'failed',
+      message: pushError.message,
+      queuedForRetry: Boolean(queued)
+    };
   }
 }
 
