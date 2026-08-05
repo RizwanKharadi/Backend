@@ -6,6 +6,7 @@ import { MainStackScreenProps } from '../types/navigation';
 import { useCompany } from '../store/hooks';
 import { partyService } from '../services/partyService';
 import { voucherFormTheme } from '../components/voucher/voucherFormTheme';
+import { describeTallyPush } from '../utils/tallyPushMessage';
 
 type Props = MainStackScreenProps<'CreateLedger'>;
 
@@ -61,18 +62,8 @@ const CreateLedgerScreen: React.FC<Props> = ({ navigation }) => {
         ],
       });
 
-      const push = res.tallyPush;
-      if (push?.status === 'completed') {
-        Alert.alert('Saved & synced', 'Ledger created in cloud and Tally.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else if (push?.status === 'failed') {
-        Alert.alert('Saved locally', `Saved in cloud. Tally: ${push.message || 'Agent offline?'}`, [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else {
-        Alert.alert('Saved', 'Ledger saved.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
-      }
+      const { title, message } = describeTallyPush(res.tallyPush, 'Ledger');
+      Alert.alert(title, message, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save');
     } finally {

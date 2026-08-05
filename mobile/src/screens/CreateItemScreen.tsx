@@ -8,6 +8,7 @@ import { useCompany } from '../store/hooks';
 import { inventoryService } from '../services/inventoryService';
 import { masterService } from '../services/masterService';
 import { voucherFormTheme } from '../components/voucher/voucherFormTheme';
+import { describeTallyPush } from '../utils/tallyPushMessage';
 
 type Props = MainStackScreenProps<'CreateItem'>;
 
@@ -57,18 +58,8 @@ const CreateItemScreen: React.FC<Props> = ({ navigation, route }) => {
         units: { primary: { name: unit.trim() || 'Nos' } },
       } as Parameters<typeof inventoryService.createItem>[0]);
 
-      const push = res.tallyPush;
-      if (push?.status === 'completed') {
-        Alert.alert('Saved & synced', 'Stock item created in cloud and Tally.', [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else if (push?.status === 'failed') {
-        Alert.alert('Saved locally', `Saved in cloud. Tally: ${push.message || 'Agent offline?'}`, [
-          { text: 'OK', onPress: () => navigation.goBack() },
-        ]);
-      } else {
-        Alert.alert('Saved', 'Item saved.', [{ text: 'OK', onPress: () => navigation.goBack() }]);
-      }
+      const { title, message } = describeTallyPush(res.tallyPush, 'Stock item');
+      Alert.alert(title, message, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save');
     } finally {

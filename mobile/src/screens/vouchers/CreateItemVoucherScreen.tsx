@@ -34,6 +34,7 @@ import {
   tallyVoucherTypeParentsFor,
 } from '../../utils/voucherCreateConfig';
 import { masterService } from '../../services/masterService';
+import { describeTallyPush } from '../../utils/tallyPushMessage';
 
 type Props = MainStackScreenProps<'CreateItemVoucher'>;
 
@@ -227,29 +228,14 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setSaving(true);
       const response = await voucherService.createVoucher(payload);
-      const push = response.tallyPush;
-
-      if (
-        config.tallyPush &&
-        (push?.status === 'completed' || push?.status === 'already_synced')
-      ) {
-        const tallyNo = push.voucherNumber ? `\nTally voucher: ${push.voucherNumber}` : '';
-        const syncedLabel =
-          push?.status === 'already_synced' ? 'already in Tally' : 'sent to Tally';
-        Alert.alert('Saved & synced', `${config.screenTitle} saved and ${syncedLabel}.${tallyNo}`, [
-          { text: 'OK', onPress: () => navigation.popToTop() },
-        ]);
-      } else if (config.tallyPush && push?.status === 'failed') {
-        Alert.alert(
-          'Saved locally',
-          `Saved in cloud. Tally: ${push.message || 'Agent offline?'}`,
-          [{ text: 'OK', onPress: () => navigation.popToTop() }]
-        );
-      } else {
-        Alert.alert('Saved', `${config.screenTitle} saved.`, [
-          { text: 'OK', onPress: () => navigation.popToTop() },
-        ]);
-      }
+      const pushInfo = describeTallyPush(
+        response.tallyPush,
+        config.screenTitle,
+        config.tallyPush
+      );
+      Alert.alert(pushInfo.title, pushInfo.message, [
+        { text: 'OK', onPress: () => navigation.popToTop() },
+      ]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save');
     } finally {

@@ -19,6 +19,7 @@ import VoucherSaveFooter from '../../components/voucher/VoucherSaveFooter';
 import { voucherFormTheme } from '../../components/voucher/voucherFormTheme';
 import { useCompany } from '../../store/hooks';
 import { voucherService } from '../../services/voucherService';
+import { describeTallyPush } from '../../utils/tallyPushMessage';
 
 type Props = MainStackScreenProps<'CreateJournal'>;
 
@@ -113,22 +114,8 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setSaving(true);
       const response = await voucherService.createVoucher(payload);
-      const push = response.tallyPush;
-      if (push?.status === 'completed' || push?.status === 'already_synced') {
-        Alert.alert('Saved & synced', 'Journal saved and sent to Tally.', [
-          { text: 'OK', onPress: () => navigation.popToTop() },
-        ]);
-      } else if (push?.status === 'failed') {
-        Alert.alert(
-          'Saved locally',
-          `Saved in cloud. Tally: ${push.message || 'Agent offline?'}`,
-          [{ text: 'OK', onPress: () => navigation.popToTop() }]
-        );
-      } else {
-        Alert.alert('Saved', 'Journal entry saved.', [
-          { text: 'OK', onPress: () => navigation.popToTop() },
-        ]);
-      }
+      const { title, message } = describeTallyPush(response.tallyPush, 'Journal entry');
+      Alert.alert(title, message, [{ text: 'OK', onPress: () => navigation.popToTop() }]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save');
     } finally {

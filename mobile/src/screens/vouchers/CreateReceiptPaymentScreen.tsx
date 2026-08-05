@@ -20,6 +20,7 @@ import { voucherFormTheme } from '../../components/voucher/voucherFormTheme';
 import { useCompany } from '../../store/hooks';
 import { voucherService } from '../../services/voucherService';
 import { DEFAULT_BANK_CASH_LEDGERS, PAYMENT_MODES } from '../../utils/voucherCreateConfig';
+import { describeTallyPush } from '../../utils/tallyPushMessage';
 
 type Props = MainStackScreenProps<'CreateReceiptPayment'>;
 
@@ -137,22 +138,10 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setSaving(true);
       const response = await voucherService.createVoucher(payload);
-      const push = response.tallyPush;
-      if (push?.status === 'completed' || push?.status === 'already_synced') {
-        Alert.alert('Saved & synced', `${title} saved and sent to Tally.`, [
-          { text: 'OK', onPress: () => navigation.popToTop() },
-        ]);
-      } else if (push?.status === 'failed') {
-        Alert.alert(
-          'Saved locally',
-          `Saved in cloud. Tally: ${push.message || 'Agent offline?'}`,
-          [{ text: 'OK', onPress: () => navigation.popToTop() }]
-        );
-      } else {
-        Alert.alert('Saved', `${title} voucher saved.`, [
-          { text: 'OK', onPress: () => navigation.popToTop() },
-        ]);
-      }
+      const pushInfo = describeTallyPush(response.tallyPush, `${title} voucher`);
+      Alert.alert(pushInfo.title, pushInfo.message, [
+        { text: 'OK', onPress: () => navigation.popToTop() },
+      ]);
     } catch (e: any) {
       Alert.alert('Error', e.message || 'Failed to save');
     } finally {
