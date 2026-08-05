@@ -30,6 +30,13 @@ import {
   resolveVoucherTypeFromTally
 } from '../utils/tallyVoucherType.js';
 
+/**
+ * Consecutive missed heartbeats before a socket is terminated. The check runs
+ * every 60s, so this is roughly a 3-minute grace period. It must tolerate the
+ * agent being busy inside a long Tally export without being declared dead.
+ */
+const MAX_MISSED_HEARTBEATS = 3;
+
 class TallyWebSocketService {
   constructor() {
     this.wss = null;
@@ -268,9 +275,15 @@ class TallyWebSocketService {
       ws.on('message', (data) => {
         this.enqueueAgentMessage(agentId, () => this.handleMessage(agentId, data));
       });
+      ws.agentId = agentId;
       ws.on('close', (code, reason) => this.handleDisconnection(agentId, code, reason));
       ws.on('error', (error) => this.handleConnectionError(agentId, error));
       ws.on('pong', () => this.handlePong(agentId));
+      // The agent pings US every 30s of its own accord (desktop-agent
+      // WebSocketClient.startHeartbeat). An inbound ping proves the socket is
+      // alive just as well as a pong does, and counting only pongs meant an
+      // agent that was actively signalling still looked dead at the 60s check.
+      ws.on('ping', () => this.handlePong(agentId));
 
       // Send welcome message
       this.sendMessage(agentId, {
@@ -328,6 +341,7 @@ class TallyWebSocketService {
       // Agent traffic during long sync-data writes must not be treated as a dead connection.
       if (connection.ws) {
         connection.ws.isAlive = true;
+        connection.ws.missedBeats = 0;
         connection.isAlive = true;
         connection.lastHeartbeat = new Date();
       }
@@ -3443,9 +3457,11 @@ class TallyWebSocketService {
     const connection = this.connections.get(agentId);
     if (connection?.ws) {
       connection.ws.isAlive = true;
+      connection.ws.missedBeats = 0;
     }
     if (connection) {
       connection.isAlive = true;
+      connection.lastHeartbeat = new Date();
     }
   }
 
@@ -3513,7 +3529,19 @@ class TallyWebSocketService {
     setInterval(() => {
       this.wss.clients.forEach((ws) => {
         if (ws.isAlive === false) {
-          return ws.terminate();
+          // One missed beat used to terminate immediately, so any single lost
+          // or late pong killed a healthy agent on a 60s cycle and orphaned
+          // whatever import was in flight. Require several consecutive misses.
+          ws.missedBeats = (ws.missedBeats || 0) + 1;
+          if (ws.missedBeats >= MAX_MISSED_HEARTBEATS) {
+            this.logger.warn('Terminating unresponsive agent socket', {
+              agentId: ws.agentId,
+              missedBeats: ws.missedBeats
+            });
+            return ws.terminate();
+          }
+        } else {
+          ws.missedBeats = 0;
         }
 
         ws.isAlive = false;
