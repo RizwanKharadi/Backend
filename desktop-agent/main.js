@@ -1413,8 +1413,10 @@ class DesktopAgent {
         }
 
         if (/razorpay|authentication failed|not configured/i.test(String(message))) {
+          // The keys live in the backend's own .env on the server — not in the
+          // agent, and not in any hosting provider's dashboard.
           throw new Error(
-            `${message} Check Razorpay keys on the server (Test keys in Test mode, no extra quotes in Railway variables).`
+            `${message} Set RAZORPAY_KEY_ID and RAZORPAY_KEY_SECRET in the backend .env on the server, then restart it. Test keys only work in Test mode, Live keys in Live mode, and the values must not be wrapped in quotes.`
           );
         }
 
