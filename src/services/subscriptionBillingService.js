@@ -87,14 +87,31 @@ const razorpayPlanIdCache = {
 
 class SubscriptionBillingService {
   constructor() {
-    if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-      this.razorpay = new Razorpay({
+    this._razorpay = null;
+  }
+
+  /**
+   * Built on first use, never in the constructor.
+   *
+   * This module is imported by the route tree, and ESM evaluates every import
+   * before the importing module's own body runs — so this class was being
+   * constructed before server.js reached `dotenv.config()`. The constructor saw
+   * an empty process.env, set the client to null for the life of the process,
+   * and every checkout then failed with "Razorpay is not configured" no matter
+   * what the .env actually contained.
+   *
+   * Hosts that inject real environment variables into the process (Railway,
+   * Heroku) hid this, because there process.env is already populated before any
+   * module loads. It only appears once the values come from a .env file.
+   */
+  get razorpay() {
+    if (!this._razorpay && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+      this._razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET
       });
-    } else {
-      this.razorpay = null;
     }
+    return this._razorpay;
   }
 
   assertConfigured() {

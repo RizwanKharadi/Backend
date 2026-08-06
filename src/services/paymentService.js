@@ -5,15 +5,28 @@ import logger from '../utils/logger.js';
 
 class PaymentService {
   constructor() {
-    if (process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
-      this.razorpay = new Razorpay({
+    this._razorpay = null;
+    this._warnedUnconfigured = false;
+  }
+
+  /**
+   * Built on first use. The constructor ran before server.js loaded .env (ESM
+   * evaluates imports first), so reading process.env here left the client null
+   * for the life of the process even when the keys were present.
+   * See subscriptionBillingService for the full explanation.
+   */
+  get razorpay() {
+    if (!this._razorpay && process.env.RAZORPAY_KEY_ID && process.env.RAZORPAY_KEY_SECRET) {
+      this._razorpay = new Razorpay({
         key_id: process.env.RAZORPAY_KEY_ID,
         key_secret: process.env.RAZORPAY_KEY_SECRET
       });
-    } else {
-      logger.warn('Razorpay credentials not configured. Payment features will be disabled.');
-      this.razorpay = null;
     }
+    if (!this._razorpay && !this._warnedUnconfigured) {
+      this._warnedUnconfigured = true;
+      logger.warn('Razorpay credentials not configured. Payment features will be disabled.');
+    }
+    return this._razorpay;
   }
 
   // Create payment order
