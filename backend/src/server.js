@@ -1,3 +1,10 @@
+// MUST be the first import. ESM evaluates every import before the body of this
+// file runs, so the `dotenv.config()` call further down happens *after* every
+// service module has already been constructed. Any module reading process.env
+// at import time saw an empty environment — which silently disabled Razorpay
+// even with valid keys in .env. This side-effect import populates process.env
+// before anything else loads.
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
