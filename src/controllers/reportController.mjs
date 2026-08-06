@@ -88,6 +88,32 @@ const toObjectId = (id) => {
  * Tally-synced vouchers often carry custom voucher type names; the reliable signal is
  * the Tally parent type (tallyVoucherTypeParent). Match both, like the inactive reports.
  */
+/**
+ * Vouchers that record a commitment or a stock movement, not money changing
+ * hands. They have no debit/credit side, so the Day Book must not sign them —
+ * a Sales Order is not money going out.
+ */
+const NON_ACCOUNTING_VOUCHER_TYPES = new Set([
+  'sales_order',
+  'purchase_order',
+  'quotation',
+  'delivery_note',
+  'receipt_note',
+  'rejection_in',
+  'rejection_out',
+  'material_in',
+  'material_out',
+  'physical_stock',
+  'stock_journal'
+]);
+
+const normalizeVoucherTypeKey = (value) =>
+  String(value || '').trim().toLowerCase().replace(/\s+/g, '_');
+
+const isNonAccountingVoucher = (voucher) =>
+  NON_ACCOUNTING_VOUCHER_TYPES.has(normalizeVoucherTypeKey(voucher?.voucherType)) ||
+  NON_ACCOUNTING_VOUCHER_TYPES.has(normalizeVoucherTypeKey(voucher?.tallyVoucherTypeParent));
+
 const voucherKindMatch = (kind) => {
   const parentRegexByKind = {
     sales: /^sales$/i,
@@ -1556,32 +1582,35 @@ export const getDayBook = async (req, res) => {
 
     // Format daybook entries
     const dayBookEntries = vouchers.map(voucher => {
-      let amount = 0;
-      let type = 'debit';
+      const amount = voucher.totals?.grandTotal || 0;
+      let type;
 
-      // Determine amount and type based on voucher type
-      switch (voucher.voucherType) {
-        case 'sales':
-        case 'receipt':
-          amount = voucher.totals?.grandTotal || 0;
-          type = 'credit'; // Money coming in
-          break;
-        case 'purchase':
-        case 'payment':
-          amount = voucher.totals?.grandTotal || 0;
-          type = 'debit'; // Money going out
-          break;
-        case 'journal':
-        case 'contra':
-        case 'debit_note':
-        case 'credit_note':
-          // For these, we need to determine based on the actual transaction
-          amount = voucher.totals?.grandTotal || 0;
-          type = voucher.amount > 0 ? 'credit' : 'debit';
-          break;
-        default:
-          amount = voucher.totals?.grandTotal || 0;
-          type = 'debit';
+      // Determine the side based on voucher type. Orders, quotations and stock
+      // notes are checked first: they carry no debit/credit side, and used to
+      // fall through to `default` and be reported as debits, so a Sales Order
+      // read as money going out.
+      if (isNonAccountingVoucher(voucher)) {
+        type = 'none';
+      } else {
+        switch (voucher.voucherType) {
+          case 'sales':
+          case 'receipt':
+            type = 'credit'; // Money coming in
+            break;
+          case 'purchase':
+          case 'payment':
+            type = 'debit'; // Money going out
+            break;
+          case 'journal':
+          case 'contra':
+          case 'debit_note':
+          case 'credit_note':
+            // For these, we need to determine based on the actual transaction
+            type = voucher.amount > 0 ? 'credit' : 'debit';
+            break;
+          default:
+            type = 'debit';
+        }
       }
 
       return {
@@ -1604,11 +1633,13 @@ export const getDayBook = async (req, res) => {
     });
 
     // Calculate totals
+    // `type: 'none'` entries belong to neither column — an unsigned else-branch
+    // would silently bank every order as a credit.
     const totals = dayBookEntries.reduce(
       (acc, entry) => {
         if (entry.type === 'debit') {
           acc.totalDebit += entry.amount;
-        } else {
+        } else if (entry.type === 'credit') {
           acc.totalCredit += entry.amount;
         }
         return acc;
