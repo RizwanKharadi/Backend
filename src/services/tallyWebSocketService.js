@@ -884,6 +884,9 @@ class TallyWebSocketService {
             case 'outstanding_receivable':
               await this.upsertOutstandingReceivable(company, data);
               break;
+            case 'outstanding_payable':
+              await this.upsertOutstandingPayable(company, data);
+              break;
             default:
               throw new Error(`Unsupported batch entity type: ${entityType}`);
           }
@@ -1011,6 +1014,9 @@ class TallyWebSocketService {
           break;
         case 'outstanding_receivable':
           await this.upsertOutstandingReceivable(company, data);
+          break;
+        case 'outstanding_payable':
+          await this.upsertOutstandingPayable(company, data);
           break;
         case 'item':
           await this.upsertItem(company, data);
@@ -3072,7 +3078,21 @@ class TallyWebSocketService {
   }
 
   async upsertOutstandingReceivable(company, incoming = {}) {
-    const reportName = incoming.reportName || 'Bills Receivable';
+    return this.upsertOutstandingBills(company, incoming, 'Bills Receivable');
+  }
+
+  async upsertOutstandingPayable(company, incoming = {}) {
+    return this.upsertOutstandingBills(company, incoming, 'Bills Payable');
+  }
+
+  /**
+   * Bills Receivable and Bills Payable share the outstandingreceivables table —
+   * rows are keyed by (company, reportName), so one writer serves both.
+   */
+  async upsertOutstandingBills(company, incoming = {}, defaultReportName = 'Bills Receivable') {
+    // Keyed off the entity type, not the payload: a mislabeled `reportName` would
+    // otherwise let payables overwrite the receivables row (and vice versa).
+    const reportName = defaultReportName;
     const fromDate = incoming.fromDate ? new Date(incoming.fromDate) : null;
     const toDate = incoming.toDate ? new Date(incoming.toDate) : null;
     const asOfDate = incoming.asOfDate ? new Date(incoming.asOfDate) : new Date();
