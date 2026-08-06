@@ -15,6 +15,8 @@ export interface ReportParams {
   dateFrom?: string;
   dateTo?: string;
   format?: 'json' | 'pdf' | 'excel' | 'csv';
+  /** Bucket size for period-series reports (sales/purchase). Server default: day. */
+  groupBy?: 'day' | 'week' | 'month';
   filters?: Record<string, any>;
 }
 
@@ -31,20 +33,28 @@ export interface FinancialReport {
   }>;
 }
 
+/**
+ * Mirrors GET /api/reports/sales exactly. The previous shape here
+ * (totalSales/salesByPeriod[].period/.sales) did not exist on the response, so
+ * anything reading it silently got `undefined` and charted nothing.
+ */
 export interface SalesReport {
-  totalSales: number;
-  totalOrders: number;
-  averageOrderValue: number;
-  topProducts: Array<{
-    id: string;
-    name: string;
-    quantity: number;
-    revenue: number;
-  }>;
+  period: { startDate: string; endDate: string };
+  summary: {
+    totalSales: number;
+    totalQuantity: number;
+    transactionCount: number;
+    averageOrderValue: number;
+  };
   salesByPeriod: Array<{
-    period: string;
-    sales: number;
-    orders: number;
+    date: string;
+    amount: number;
+    count: number;
+  }>;
+  topCustomers: Array<{
+    name: string;
+    totalAmount: number;
+    transactionCount: number;
   }>;
 }
 

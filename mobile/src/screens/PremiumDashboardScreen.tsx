@@ -28,7 +28,6 @@ import HeaderSection from '../components/HeaderSection';
 import HeroCard from '../components/HeroCard';
 import KpiCard from '../components/KpiCard';
 import SalesChart from '../components/SalesChart';
-import QuickActionCard from '../components/QuickActionCard';
 import OutstandingList from '../components/OutstandingList';
 import FloatingVoucherButton from '../components/FloatingVoucherButton';
 import BottomNavigation from '../components/BottomNavigation';
@@ -36,14 +35,13 @@ import BottomNavigation from '../components/BottomNavigation';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
-import { navItems, quickActions } from '../data/dashboardMockData';
+import { navItems } from '../data/dashboardMockData';
 import { navigateToReportTab } from '../navigation/reportNavigation';
 import {
   DashboardTab,
   HeaderData,
   KpiCardData,
   OutstandingItem,
-  QuickActionKey,
   SalesPeriod,
   SalesSeries,
   SubscriptionState,
@@ -78,13 +76,6 @@ import {
 const SCREEN_PADDING = spacing.md;
 const MIN_AUTO_RELOAD_MS = 45_000;
 
-const QUICK_ACTION_INITIAL_TYPE: Record<QuickActionKey, string> = {
-  salesInvoice: 'sales',
-  receipt: 'receipt',
-  payment: 'payment',
-  expense: 'payment',
-};
-
 const TAB_ROUTE: Record<Exclude<DashboardTab, 'dashboard'>, string> = {
   transactions: 'Transactions',
   inventory: 'Inventory',
@@ -111,6 +102,17 @@ function sampleLabels(labels: string[], maxLabels: number): string[] {
 // instead of a weekday. Use a fixed table — chart axis labels must not depend
 // on the JS engine's locale support.
 const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const MONTH_LABELS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/** '2026-08-06' → '6 Aug'. Fixed tables for the same Hermes/Intl reason. */
+function formatDayMonth(iso: string): string {
+  const d = parseLocalDateString(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getDate()} ${MONTH_LABELS[d.getMonth()]}`;
+}
 
 function trendToSeries(rows: DashboardSummaryData['salesTrend']): SalesSeries {
   const labels: string[] = [];
@@ -271,15 +273,18 @@ const PremiumDashboardScreen: React.FC = () => {
           companyId,
           startDate: isoDaysAgo(days),
           endDate: isoDaysAgo(0),
+          // 90 daily points is unreadable on a phone-width chart — bucket by week.
+          groupBy: period === '90D' ? 'week' : 'day',
         });
+        // Rows are { date, amount, count } — the server groups and sorts them.
         const rows = res?.data?.salesByPeriod || [];
         const labels = sampleLabels(
-          rows.map((r) => r.period),
+          rows.map((r) => formatDayMonth(r.date)),
           6
         );
         setSalesSeries((prev) => ({
           ...prev,
-          [period]: { labels, values: rows.map((r) => r.sales || 0) },
+          [period]: { labels, values: rows.map((r) => r.amount || 0) },
         }));
       } catch {
         setSalesSeries((prev) => ({ ...prev, [period]: EMPTY_SERIES }));
@@ -346,11 +351,6 @@ const PremiumDashboardScreen: React.FC = () => {
   );
 
   const handleVoucher = useCallback(() => go('CreateNewVoucher', {}), [go]);
-  const handleQuickAction = useCallback(
-    (key: QuickActionKey) =>
-      go('CreateNewVoucher', { initialType: QUICK_ACTION_INITIAL_TYPE[key] }),
-    [go]
-  );
 
   // ---- Derive view models from live data ----
 
@@ -586,21 +586,6 @@ const PremiumDashboardScreen: React.FC = () => {
                 />
               </View>
 
-              <View style={[styles.block, styles.quickCard]}>
-                <View style={styles.sectionHeaderInline}>
-                  <Text style={styles.sectionTitle}>Quick Actions</Text>
-                </View>
-                <View style={styles.quickRow}>
-                  {quickActions.map((action) => (
-                    <QuickActionCard
-                      key={action.key}
-                      action={action}
-                      onPress={() => handleQuickAction(action.key)}
-                    />
-                  ))}
-                </View>
-              </View>
-
               <View style={styles.block}>
                 <OutstandingList
                   items={topOutstanding}
@@ -663,7 +648,6 @@ const styles = StyleSheet.create({
     marginTop: spacing.xl,
     marginBottom: spacing.sm,
   },
-  sectionHeaderInline: { marginBottom: spacing.md },
   sectionTitle: {
     color: colors.textPrimary,
     fontSize: fontSize.bodyLg,
@@ -674,18 +658,6 @@ const styles = StyleSheet.create({
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap' },
   kpiCell: { width: '50%', padding: spacing.xxs + 2 },
   block: { marginTop: spacing.md },
-  quickCard: {
-    backgroundColor: colors.card,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: colors.border,
-    padding: spacing.md,
-  },
-  quickRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: spacing.xs,
-  },
   footNote: {
     color: colors.textSecondary,
     fontSize: fontSize.label,

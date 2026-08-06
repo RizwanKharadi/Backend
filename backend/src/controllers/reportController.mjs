@@ -1084,13 +1084,17 @@ export const getSalesReport = async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
+    // Match the same way the dashboard trend does: a company whose sales sit
+    // under a custom Tally voucher type (parent "Sales") would otherwise be
+    // missing here while showing up in the 7-day dashboard trend.
     const salesVouchers = await Voucher.find({
       company: companyId,
-      voucherType: 'sales',
+      ...voucherKindMatch('sales'),
       date: { $gte: start, $lte: end }
     }).populate('party', 'name');
 
-    const totalSales = salesVouchers.reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
+    const voucherAmount = (v) => Math.abs(Number(v.totals?.grandTotal || 0));
+    const totalSales = salesVouchers.reduce((sum, v) => sum + voucherAmount(v), 0);
     const totalQuantity = salesVouchers.reduce((sum, v) => {
       return sum + (v.items?.reduce((itemSum, item) => itemSum + (item.quantity || 0), 0) || 0);
     }, 0);
@@ -1102,7 +1106,7 @@ export const getSalesReport = async (req, res) => {
       if (!salesByPeriod[key]) {
         salesByPeriod[key] = { date: key, amount: 0, count: 0 };
       }
-      salesByPeriod[key].amount += v.totals?.grandTotal || 0;
+      salesByPeriod[key].amount += voucherAmount(v);
       salesByPeriod[key].count += 1;
     });
 
@@ -1118,7 +1122,7 @@ export const getSalesReport = async (req, res) => {
             transactionCount: 0
           };
         }
-        customerSales[customerId].totalAmount += v.totals?.grandTotal || 0;
+        customerSales[customerId].totalAmount += voucherAmount(v);
         customerSales[customerId].transactionCount += 1;
       }
     });
