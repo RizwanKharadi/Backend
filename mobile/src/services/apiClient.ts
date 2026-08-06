@@ -5,12 +5,11 @@ import { store } from '../store';
 import { forceLogout } from '../store/slices/authSlice';
 import { setOfflineMode } from '../store/slices/offlineSlice';
 import { setOnlineStatus } from '../store/slices/syncSlice';
-import { resolveLocalhostForDevice } from '../utils/devHost';
+import { resolveEndpoint, PRODUCTION_API_URL } from '../utils/apiHost';
 
-// Hardcoded fallback ONLY if .env is missing
-const PRODUCTION_API_URL = 'https://web-production-577680.up.railway.app/api';
-
-export const API_BASE_URL = resolveLocalhostForDevice(ENV_API_URL || PRODUCTION_API_URL);
+// Fallback when .env is missing, and the guard against a dev URL reaching a
+// release build — see src/utils/apiHost.ts.
+export const API_BASE_URL = resolveEndpoint(ENV_API_URL, PRODUCTION_API_URL, 'API_BASE_URL');
 
 export interface ApiError {
   message: string;

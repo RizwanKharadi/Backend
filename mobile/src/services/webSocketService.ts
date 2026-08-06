@@ -3,9 +3,11 @@ import { io, Socket } from 'socket.io-client';
 import { WEBSOCKET_URL } from '@env';
 import { authService } from './authService';
 import { EventEmitter } from '../utils/EventEmitter';
-import { resolveLocalhostForDevice } from '../utils/devHost';
+import { resolveEndpoint, PRODUCTION_WS_URL } from '../utils/apiHost';
 
-const SOCKET_URL = resolveLocalhostForDevice(WEBSOCKET_URL);
+// Was `resolveLocalhostForDevice(WEBSOCKET_URL)` with no fallback: a missing
+// env value handed socket.io an undefined URL.
+const SOCKET_URL = resolveEndpoint(WEBSOCKET_URL, PRODUCTION_WS_URL, 'WEBSOCKET_URL');
 
 interface WebSocketMessage {
   type: string;
