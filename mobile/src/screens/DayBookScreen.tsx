@@ -22,7 +22,7 @@ import { useCompany } from '../store/hooks';
 import { MainStackParamList } from '../types/navigation';
 import { dashboardColors, voucherTypeColor } from '../components/dashboard/dashboardTheme';
 import { toLocalDateString, parseLocalDateString } from '../utils/formatters';
-import { matchesVoucherType } from '../utils/voucherHelpers';
+import { matchesVoucherType, isNonAccountingVoucherType } from '../utils/voucherHelpers';
 import { Voucher } from '../types';
 
 type RouteProps = RouteProp<MainStackParamList, 'DayBook'>;
@@ -37,7 +37,8 @@ interface DayBookEntry {
   voucherNumber: string;
   partyName: string;
   amount: number;
-  type: 'debit' | 'credit';
+  /** 'none' = orders/notes, which have no debit or credit side. */
+  type: 'debit' | 'credit' | 'none';
   narration?: string;
 }
 
@@ -250,7 +251,7 @@ const DayBookScreen: React.FC = () => {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Icon name="book-open-page-variant" size={28} color="#fff" />
-            <Text style={styles.heroLabel}>Net movement</Text>
+            <Text style={styles.heroLabel}>Net movement(Money In - Money Out)</Text>
           </View>
           <Text
             style={[
@@ -370,6 +371,12 @@ const DayBookScreen: React.FC = () => {
             {dayEntries.map((entry, index) => {
               const isCredit = entry.type === 'credit';
               const accent = voucherTypeColor(entry.voucherType);
+              // Orders, quotations and notes move no money — no sign, no DR/CR,
+              // and the voucher-type colour instead of inflow/outflow green/red.
+              const neutral =
+                entry.type === 'none' ||
+                isNonAccountingVoucherType(entry.voucherType) ||
+                isNonAccountingVoucherType(entry.tallyVoucherTypeParent);
               const voucherId = entry.voucherId || entry.id;
               return (
                 <TouchableOpacity
@@ -399,42 +406,46 @@ const DayBookScreen: React.FC = () => {
                               {voucherTypeLabel(entry.voucherType)}
                             </Text>
                           </View>
-                          <View
-                            style={[
-                              styles.drCrPill,
-                              {
-                                backgroundColor: isCredit
-                                  ? '#d1fae5'
-                                  : '#fee2e2',
-                              },
-                            ]}
-                          >
-                            <Text
+                          {neutral ? null : (
+                            <View
                               style={[
-                                styles.drCrText,
+                                styles.drCrPill,
                                 {
-                                  color: isCredit
-                                    ? dashboardColors.positive
-                                    : dashboardColors.negative,
+                                  backgroundColor: isCredit
+                                    ? '#d1fae5'
+                                    : '#fee2e2',
                                 },
                               ]}
                             >
-                              {isCredit ? 'CR' : 'DR'}
-                            </Text>
-                          </View>
+                              <Text
+                                style={[
+                                  styles.drCrText,
+                                  {
+                                    color: isCredit
+                                      ? dashboardColors.positive
+                                      : dashboardColors.negative,
+                                  },
+                                ]}
+                              >
+                                {isCredit ? 'CR' : 'DR'}
+                              </Text>
+                            </View>
+                          )}
                         </View>
                       </View>
                       <Text
                         style={[
                           styles.entryAmount,
                           {
-                            color: isCredit
+                            color: neutral
+                              ? accent
+                              : isCredit
                               ? dashboardColors.positive
                               : dashboardColors.negative,
                           },
                         ]}
                       >
-                        {isCredit ? '+' : '−'}₹
+                        {neutral ? '' : isCredit ? '+' : '−'}₹
                         {entry.amount.toLocaleString('en-IN')}
                       </Text>
                     </View>

@@ -58,6 +58,16 @@ function normalizeType(value: string): string {
   return value.toLowerCase().replace(/\s+/g, '_');
 }
 
+/**
+ * True for vouchers that record a commitment or a stock movement rather than
+ * money changing hands. They have no debit/credit side, so they must never be
+ * shown with a +/- sign or an inflow/outflow colour.
+ */
+export function isNonAccountingVoucherType(value?: string): boolean {
+  if (!value) return false;
+  return NON_ACCOUNTING_TYPES.has(normalizeType(value));
+}
+
 export function matchesVoucherType(voucher: Voucher, typeId: string): boolean {
   const t = normalizeType(voucher.voucherType || '');
   const id = normalizeType(typeId);
