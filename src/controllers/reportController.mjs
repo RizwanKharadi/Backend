@@ -22,6 +22,7 @@ import {
   matchesAccountLedgerParent,
   normalizeTallyParentName
 } from '../utils/tallyLedgerFilter.js';
+import { syncStateClause } from '../utils/syncStateFilter.js';
 import logger from '../utils/logger.js';
 import moment from 'moment';
 
@@ -114,6 +115,29 @@ const isNonAccountingVoucher = (voucher) =>
   NON_ACCOUNTING_VOUCHER_TYPES.has(normalizeVoucherTypeKey(voucher?.voucherType)) ||
   NON_ACCOUNTING_VOUCHER_TYPES.has(normalizeVoucherTypeKey(voucher?.tallyVoucherTypeParent));
 
+/**
+ * Restricts a voucher query to what Tally itself would report.
+ *
+ * Two things were being counted that Tally does not have:
+ *
+ *  - Records created in the app that never reached Tally. The vouchers register
+ *    already hides these (see utils/syncStateFilter.js) but no report did, so a
+ *    KPI could total more than the list you reach by tapping it.
+ *  - Optional vouchers. Tally keeps them out of its own books until they are
+ *    marked regular, so counting them inflates figures by an amount Tally will
+ *    never show.
+ *
+ * Compose through `$and`: `voucherKindMatch` and the sync clause both use
+ * `$or`, and merging them as plain keys would silently drop one.
+ */
+const booksMatch = (match = {}) => {
+  const { $and: existing = [], ...rest } = match;
+  return {
+    ...rest,
+    $and: [...existing, syncStateClause('synced'), { isOptional: { $ne: true } }]
+  };
+};
+
 const voucherKindMatch = (kind) => {
   const parentRegexByKind = {
     sales: /^sales$/i,
@@ -144,11 +168,11 @@ const withRankAndShare = (rows, total, valueKey = 'totalAmount') =>
 const aggregateTopParties = async (companyOid, voucherType, start, end) => {
   const rows = await Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end }
-      }
+      })
     },
     {
       $lookup: {
@@ -201,11 +225,11 @@ const aggregateTopParties = async (companyOid, voucherType, start, end) => {
 
   const [periodAgg] = await Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end }
-      }
+      })
     },
     {
       $group: {
@@ -240,12 +264,12 @@ const aggregateTopItems = async (companyOid, voucherType, start, end, sortBy) =>
 
   const rows = await Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end },
         'items.0': { $exists: true }
-      }
+      })
     },
     { $unwind: '$items' },
     {
@@ -279,12 +303,12 @@ const aggregateTopItems = async (companyOid, voucherType, start, end, sortBy) =>
 
   const [periodAgg] = await Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...voucherKindMatch(voucherType),
         date: { $gte: start, $lte: end },
         'items.0': { $exists: true }
-      }
+      })
     },
     { $unwind: '$items' },
     {
@@ -334,11 +358,11 @@ const aggregateTopItems = async (companyOid, voucherType, start, end, sortBy) =>
  * { itemName, quantity, unit, rate, amount, ... }.
  */
 const aggregateFastMovingItems = async (companyOid, start, end, limit) => {
-  const baseMatch = {
+  const baseMatch = booksMatch({
     company: companyOid,
     ...voucherKindMatch('sales'),
     date: { $gte: start, $lte: end }
-  };
+  });
 
   const rows = await Voucher.aggregate([
     { $match: { ...baseMatch, 'items.0': { $exists: true } } },
@@ -763,10 +787,12 @@ const queryVouchersForLedger = async (
 
   // MySQL compat layer does not support Mongo `$elemMatch` on JSON arrays.
   // So we fetch candidate vouchers by date/type and filter by ledger in JS.
-  const candidates = await Voucher.find({
-    ...dateFilter,
-    ...voucherTypeFilter
-  })
+  const candidates = await Voucher.find(
+    booksMatch({
+      ...dateFilter,
+      ...voucherTypeFilter
+    })
+  )
     .select('_id voucherNumber voucherType date partyName totals.grandTotal narration ledgerEntries ledgerNames')
     .sort({ date: -1 })
     .limit(5000)
@@ -1052,11 +1078,13 @@ export const getCashFlowReport = async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    const cashVouchers = await Voucher.find({
-      company: companyId,
-      voucherType: { $in: ['receipt', 'payment', 'contra'] },
-      date: { $gte: start, $lte: end }
-    });
+    const cashVouchers = await Voucher.find(
+      booksMatch({
+        company: companyId,
+        voucherType: { $in: ['receipt', 'payment', 'contra'] },
+        date: { $gte: start, $lte: end }
+      })
+    );
 
     const cashInflows = cashVouchers
       .filter(v => v.voucherType === 'receipt')
@@ -1113,11 +1141,13 @@ export const getSalesReport = async (req, res) => {
     // Match the same way the dashboard trend does: a company whose sales sit
     // under a custom Tally voucher type (parent "Sales") would otherwise be
     // missing here while showing up in the 7-day dashboard trend.
-    const salesVouchers = await Voucher.find({
-      company: companyId,
-      ...voucherKindMatch('sales'),
-      date: { $gte: start, $lte: end }
-    }).populate('party', 'name');
+    const salesVouchers = await Voucher.find(
+      booksMatch({
+        company: companyId,
+        ...voucherKindMatch('sales'),
+        date: { $gte: start, $lte: end }
+      })
+    ).populate('party', 'name');
 
     const voucherAmount = (v) => Math.abs(Number(v.totals?.grandTotal || 0));
     const totalSales = salesVouchers.reduce((sum, v) => sum + voucherAmount(v), 0);
@@ -1197,11 +1227,14 @@ export const getPurchaseReport = async (req, res) => {
     const start = new Date(startDate);
     const end = new Date(endDate);
 
-    const purchaseVouchers = await Voucher.find({
-      company: companyId,
-      voucherType: 'purchase',
-      date: { $gte: start, $lte: end }
-    }).populate('party', 'name');
+    // Same parent-type matching as the sales report, for the same reason.
+    const purchaseVouchers = await Voucher.find(
+      booksMatch({
+        company: companyId,
+        ...voucherKindMatch('purchase'),
+        date: { $gte: start, $lte: end }
+      })
+    ).populate('party', 'name');
 
     const totalPurchases = purchaseVouchers.reduce((sum, v) => sum + (v.totals?.grandTotal || 0), 0);
 
@@ -1312,11 +1345,11 @@ export const getBudgetVsActualReport = async (req, res) => {
 const sumVoucherAmounts = async (companyOid, kind, start, end) => {
   const [agg] = await Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...voucherKindMatch(kind),
         date: { $gte: start, $lte: end }
-      }
+      })
     },
     {
       $group: {
@@ -1333,11 +1366,11 @@ const sumVoucherAmounts = async (companyOid, kind, start, end) => {
 const aggregateDailySales = async (companyOid, fromDate, toDate) => {
   const rows = await Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...voucherKindMatch('sales'),
         date: { $gte: fromDate, $lte: toDate }
-      }
+      })
     },
     {
       $group: {
@@ -1415,7 +1448,7 @@ export const getDashboardSummary = async (req, res) => {
         .lean(),
       aggregateTopParties(companyOid, 'sales', monthStart, todayEnd),
       aggregateDailySales(companyOid, trendStart, todayEnd),
-      Voucher.find({ company: companyOid })
+      Voucher.find(booksMatch({ company: companyOid }))
         // `amount` is not a real SQL column (we store amounts inside `totals.grandTotal`)
         // Also include `_id` because the API maps `v._id.toString()`.
         .select('_id voucherNumber voucherType tallyVoucherTypeParent date partyName totals.grandTotal narration')
@@ -1573,10 +1606,12 @@ export const getDayBook = async (req, res) => {
     const endDate = toDate ? parseYmd(toDate, true) : endOfReportDay(istToday);
 
     // Get all vouchers for the date range
-    const vouchers = await Voucher.find({
-      company: companyId,
-      date: { $gte: startDate, $lte: endDate }
-    })
+    const vouchers = await Voucher.find(
+      booksMatch({
+        company: companyId,
+        date: { $gte: startDate, $lte: endDate }
+      })
+    )
     .populate('party', 'name displayName')
     .sort({ date: 1, createdAt: 1 });
 
@@ -2123,11 +2158,11 @@ const INACTIVE_SALES_MATCH = {
 const aggregateLastSaleByCustomer = async (companyOid) =>
   Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...INACTIVE_SALES_MATCH,
         date: { $exists: true, $ne: null }
-      }
+      })
     },
     {
       $lookup: {
@@ -2173,12 +2208,12 @@ const aggregateLastSaleByCustomer = async (companyOid) =>
 const aggregateLastSaleByItem = async (companyOid) =>
   Voucher.aggregate([
     {
-      $match: {
+      $match: booksMatch({
         company: companyOid,
         ...INACTIVE_SALES_MATCH,
         date: { $exists: true, $ne: null },
         'items.0': { $exists: true }
-      }
+      })
     },
     { $unwind: '$items' },
     {
