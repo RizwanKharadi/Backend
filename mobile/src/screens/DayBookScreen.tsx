@@ -22,6 +22,8 @@ import { useCompany } from '../store/hooks';
 import { MainStackParamList } from '../types/navigation';
 import { dashboardColors, voucherTypeColor } from '../components/dashboard/dashboardTheme';
 import { toLocalDateString, parseLocalDateString } from '../utils/formatters';
+import { matchesVoucherType } from '../utils/voucherHelpers';
+import { Voucher } from '../types';
 
 type RouteProps = RouteProp<MainStackParamList, 'DayBook'>;
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
@@ -31,6 +33,7 @@ interface DayBookEntry {
   voucherId?: string;
   date: string;
   voucherType: string;
+  tallyVoucherTypeParent?: string;
   voucherNumber: string;
   partyName: string;
   amount: number;
@@ -38,11 +41,20 @@ interface DayBookEntry {
   narration?: string;
 }
 
+interface CashTotal {
+  amount: number;
+  count: number;
+}
+
 interface DayBookSummary {
   totalDebit: number;
   totalCredit: number;
   netBalance: number;
   transactionCount: number;
+  /** Cash movement — added by the server; absent on older backends. */
+  moneyIn?: CashTotal;
+  moneyOut?: CashTotal;
+  netCash?: number;
 }
 
 const QUICK_RANGES = [
@@ -185,6 +197,33 @@ const DayBookScreen: React.FC = () => {
     totals.netBalance = totals.totalCredit - totals.totalDebit;
   }
 
+  /**
+   * Money in / out is cash that actually moved — Receipt and Payment only. A
+   * Sales invoice and the Receipt settling it are the same rupees, so counting
+   * both would double them. Prefer the server's figures; fall back to the same
+   * sum over entries so this is right against an older backend and offline cache.
+   */
+  const cash = useMemo(() => {
+    if (summary?.moneyIn && summary?.moneyOut) {
+      return {
+        moneyIn: summary.moneyIn,
+        moneyOut: summary.moneyOut,
+        net: summary.netCash ?? summary.moneyIn.amount - summary.moneyOut.amount,
+      };
+    }
+    const tally = (kind: 'receipt' | 'payment') =>
+      entries.reduce(
+        (acc, e) => {
+          if (!matchesVoucherType(e as unknown as Voucher, kind)) return acc;
+          return { amount: acc.amount + e.amount, count: acc.count + 1 };
+        },
+        { amount: 0, count: 0 }
+      );
+    const moneyIn = tally('receipt');
+    const moneyOut = tally('payment');
+    return { moneyIn, moneyOut, net: moneyIn.amount - moneyOut.amount };
+  }, [summary, entries]);
+
   return (
     <View style={styles.container}>
       <DetailScreenHeader
@@ -216,11 +255,11 @@ const DayBookScreen: React.FC = () => {
           <Text
             style={[
               styles.heroAmount,
-              { color: totals.netBalance >= 0 ? '#6ee7b7' : '#fca5a5' },
+              { color: cash.net >= 0 ? '#6ee7b7' : '#fca5a5' },
             ]}
           >
-            {totals.netBalance >= 0 ? '+' : ''}₹
-            {Math.abs(totals.netBalance).toLocaleString('en-IN')}
+            {cash.net >= 0 ? '+' : ''}₹
+            {Math.abs(cash.net).toLocaleString('en-IN')}
           </Text>
           <Text style={styles.heroSub}>
             {totals.transactionCount} transaction
@@ -229,16 +268,16 @@ const DayBookScreen: React.FC = () => {
           </Text>
           <View style={styles.heroRow}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Money in</Text>
+              <Text style={styles.heroStatLabel}>Money in (Receipts)</Text>
               <Text style={[styles.heroStatValue, { color: '#6ee7b7' }]}>
-                ₹{totals.totalCredit.toLocaleString('en-IN')}
+                ₹{cash.moneyIn.amount.toLocaleString('en-IN')}
               </Text>
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Money out</Text>
+              <Text style={styles.heroStatLabel}>Money out (Payments)</Text>
               <Text style={[styles.heroStatValue, { color: '#fca5a5' }]}>
-                ₹{totals.totalDebit.toLocaleString('en-IN')}
+                ₹{cash.moneyOut.amount.toLocaleString('en-IN')}
               </Text>
             </View>
           </View>

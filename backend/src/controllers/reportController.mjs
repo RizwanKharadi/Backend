@@ -1616,6 +1616,28 @@ export const getDayBook = async (req, res) => {
       { totalDebit: 0, totalCredit: 0 }
     );
 
+    // Money in / money out is cash actually moved, not turnover: a Sales invoice
+    // and the Receipt settling it are the same rupees, so counting both would
+    // double them. Only Receipt and Payment vouchers move cash. Match the Tally
+    // parent type too, so renamed/custom voucher types still count.
+    const isKind = (entry, kind) => {
+      const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, '_');
+      return norm(entry.voucherType) === kind || norm(entry.tallyVoucherTypeParent) === kind;
+    };
+    const cash = dayBookEntries.reduce(
+      (acc, entry) => {
+        if (isKind(entry, 'receipt')) {
+          acc.moneyIn.amount += entry.amount;
+          acc.moneyIn.count += 1;
+        } else if (isKind(entry, 'payment')) {
+          acc.moneyOut.amount += entry.amount;
+          acc.moneyOut.count += 1;
+        }
+        return acc;
+      },
+      { moneyIn: { amount: 0, count: 0 }, moneyOut: { amount: 0, count: 0 } }
+    );
+
     res.status(200).json({
       success: true,
       data: {
@@ -1628,7 +1650,11 @@ export const getDayBook = async (req, res) => {
           totalDebit: totals.totalDebit,
           totalCredit: totals.totalCredit,
           netBalance: totals.totalCredit - totals.totalDebit,
-          transactionCount: dayBookEntries.length
+          transactionCount: dayBookEntries.length,
+          // Cash movement (Receipt / Payment only) — what the Day Book header shows.
+          moneyIn: cash.moneyIn,
+          moneyOut: cash.moneyOut,
+          netCash: cash.moneyIn.amount - cash.moneyOut.amount
         }
       }
     });
