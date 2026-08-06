@@ -75,6 +75,13 @@ const ReportsNavigator = () => {
         component={OutstandingReceivableScreen}
         options={{ headerShown: false }}
       />
+      {/* Same screen, different Tally report — selected by the `kind` param. */}
+      <Stack.Screen
+        name="OutstandingPayable"
+        component={OutstandingReceivableScreen}
+        initialParams={{ kind: 'payable' }}
+        options={{ headerShown: false }}
+      />
       <Stack.Screen
         name="OutstandingLedgerDetail"
         component={OutstandingLedgerDetailScreen}

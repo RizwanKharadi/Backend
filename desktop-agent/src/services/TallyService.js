@@ -3438,6 +3438,18 @@ ${nativeLines}
   }
 
   async getBillsReceivable(companyName, fromDate, toDate) {
+    return this.getBillsOutstanding('Bills Receivable', companyName, fromDate, toDate);
+  }
+
+  async getBillsPayable(companyName, fromDate, toDate) {
+    return this.getBillsOutstanding('Bills Payable', companyName, fromDate, toDate);
+  }
+
+  /**
+   * Bills Receivable and Bills Payable are the same Tally report shape (BILLFIXED
+   * rows keyed by party), only the report name differs — one request path serves both.
+   */
+  async getBillsOutstanding(reportName, companyName, fromDate, toDate) {
     try {
       const from = this.formatYyyyMmDd(fromDate);
       const to = this.formatYyyyMmDd(toDate);
@@ -3448,20 +3460,24 @@ ${nativeLines}
           <SVCURRENTCOMPANY>${companyName}</SVCURRENTCOMPANY>`;
       }
 
-      const xml = this.buildSimpleExportEnvelope('Bills Receivable', extra);
+      const xml = this.buildSimpleExportEnvelope(reportName, extra);
       const response = await this.sendRawXml(xml, {
         requestType: 'EXPORT',
-        collection: 'Bills Receivable'
+        collection: reportName
       });
 
-      return this.parseBillsReceivable(response, fromDate, toDate);
+      return this.parseBillsOutstanding(response, reportName, fromDate, toDate);
     } catch (error) {
-      this.logger.error('Failed to get Bills Receivable from Tally:', error);
+      this.logger.error(`Failed to get ${reportName} from Tally:`, error);
       throw error;
     }
   }
 
   parseBillsReceivable(response, fromDate = null, toDate = null) {
+    return this.parseBillsOutstanding(response, 'Bills Receivable', fromDate, toDate);
+  }
+
+  parseBillsOutstanding(response, reportName = 'Bills Receivable', fromDate = null, toDate = null) {
     const env = response?.ENVELOPE || response || {};
     const fixedList = this.ensureArray(env.BILLFIXED);
     const bills = [];
@@ -3537,7 +3553,7 @@ ${nativeLines}
     const totalOutstanding = ledgers.reduce((s, l) => s + l.totalOutstanding, 0);
 
     return {
-      reportName: 'Bills Receivable',
+      reportName,
       fromDate: fromDate || null,
       toDate: toDate || null,
       asOfDate: new Date().toISOString(),

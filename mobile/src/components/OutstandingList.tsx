@@ -1,5 +1,5 @@
 /**
- * OutstandingList — "Top Outstanding" card. Numbered rows with party name,
+ * OutstandingList — "Top Outstanding Receivables" card. Numbered rows with party name,
  * amount and a status pill. Rows fade/slide in with a subtle stagger using
  * the built-in Animated API (no extra native deps).
  */
@@ -84,14 +84,16 @@ interface OutstandingListProps {
 }
 
 const OutstandingList: React.FC<OutstandingListProps> = ({
-  title = 'Top Outstanding',
+  title = 'Top Outstanding Receivables',
   items,
   onViewAll,
   onItemPress,
 }) => (
   <View style={[styles.card, shadows.card]}>
     <View style={styles.header}>
-      <Text style={styles.cardTitle}>{title}</Text>
+      <Text style={styles.cardTitle} numberOfLines={1}>
+        {title}
+      </Text>
       <TouchableOpacity onPress={onViewAll} activeOpacity={0.7} accessibilityRole="button">
         <Text style={styles.viewAll}>
           View all <Text style={styles.chev}>›</Text>
@@ -131,6 +133,8 @@ const styles = StyleSheet.create({
     color: colors.textPrimary,
     fontSize: fontSize.bodyLg,
     fontWeight: fontWeight.bold,
+    flexShrink: 1,
+    marginRight: spacing.sm,
   },
   viewAll: {
     color: colors.green,

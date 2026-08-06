@@ -14,20 +14,22 @@ import { useCompany } from '../../store/hooks';
 import {
   reportService,
   OutstandingBill,
+  OutstandingKind,
 } from '../../services/reportService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
 
 const PRIMARY = '#1565C0';
 const AMOUNT_COLOR = '#8B4513';
 
-type RouteParams = { partyName: string };
+type RouteParams = { partyName: string; kind?: OutstandingKind };
 
 const OutstandingLedgerDetailScreen = () => {
   const navigation = useNavigation();
   const rootNavigation =
     navigation.getParent()?.getParent() ?? navigation.getParent();
   const route = useRoute();
-  const { partyName } = (route.params || {}) as RouteParams;
+  const { partyName, kind: rawKind } = (route.params || {}) as RouteParams;
+  const kind: OutstandingKind = rawKind === 'payable' ? 'payable' : 'receivable';
   const { selectedCompany } = useCompany();
 
   const [loading, setLoading] = useState(true);
@@ -45,7 +47,8 @@ const OutstandingLedgerDetailScreen = () => {
     }
     setError(null);
     try {
-      const res = await reportService.getOutstandingReceivableLedger(
+      const res = await reportService.getOutstandingLedger(
+        kind,
         selectedCompany.id,
         partyName
       );
@@ -58,7 +61,7 @@ const OutstandingLedgerDetailScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedCompany?.id, partyName]);
+  }, [selectedCompany?.id, partyName, kind]);
 
   useEffect(() => {
     load();

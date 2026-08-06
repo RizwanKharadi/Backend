@@ -77,16 +77,27 @@ const Footer: React.FC = () => (
   </View>
 );
 
+/** Display-only footer: explains what the figure is made of instead of drilling down. */
+const FormulaFooter: React.FC<{ label: string }> = ({ label }) => (
+  <View style={styles.footer}>
+    <Text style={styles.formulaText} numberOfLines={2}>
+      {label}
+    </Text>
+  </View>
+);
+
 const HeroCard: React.FC<HeroCardProps> = (props) => {
   const isNetWorth = props.variant === 'netWorth';
   const gradient = isNetWorth ? gradients.heroNetWorth : gradients.heroReceivables;
+  // No handler ⇒ the card is a read-out, not a link: don't offer a tap target.
+  const Wrapper: React.ElementType = props.onPress ? TouchableOpacity : View;
 
   return (
-    <TouchableOpacity
+    <Wrapper
       activeOpacity={0.88}
       onPress={props.onPress}
       style={[styles.shadow, styles.flex]}
-      accessibilityRole="button"
+      accessibilityRole={props.onPress ? 'button' : 'summary'}
     >
       <LinearGradient
         colors={gradient}
@@ -143,9 +154,13 @@ const HeroCard: React.FC<HeroCardProps> = (props) => {
             </View>
           </>
         )}
-        <Footer />
+        {isNetWorth && props.data.formulaLabel ? (
+          <FormulaFooter label={props.data.formulaLabel} />
+        ) : (
+          <Footer />
+        )}
       </LinearGradient>
-    </TouchableOpacity>
+    </Wrapper>
   );
 };
 
@@ -249,6 +264,14 @@ const styles = StyleSheet.create({
     color: '#CFE0F5',
     fontSize: fontSize.label,
     fontWeight: fontWeight.medium,
+  },
+  formulaText: {
+    // Deliberately below caption size: this is a half-width card and the label
+    // has to wrap to two lines without pushing past the card edge.
+    color: '#9FB6D6',
+    fontSize: 10,
+    lineHeight: 12,
+    flex: 1,
   },
 });
 

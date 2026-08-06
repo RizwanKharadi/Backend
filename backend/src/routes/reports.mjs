@@ -12,6 +12,8 @@ import {
   getDayBook,
   getOutstandingReceivable,
   getOutstandingReceivableLedger,
+  getOutstandingPayable,
+  getOutstandingPayableLedger,
   getTop10Report,
   getFastMovingItemsReport,
   getInactiveCustomersReport,
@@ -99,6 +101,14 @@ router.get('/outstanding-receivable', checkCompanyAccess, getOutstandingReceivab
 // @desc    Outstanding receivable — single ledger bills
 // @route   GET /api/reports/outstanding-receivable/ledger
 router.get('/outstanding-receivable/ledger', checkCompanyAccess, getOutstandingReceivableLedger);
+
+// @desc    Outstanding payable — ledger list
+// @route   GET /api/reports/outstanding-payable
+router.get('/outstanding-payable', checkCompanyAccess, getOutstandingPayable);
+
+// @desc    Outstanding payable — single ledger bills
+// @route   GET /api/reports/outstanding-payable/ledger
+router.get('/outstanding-payable/ledger', checkCompanyAccess, getOutstandingPayableLedger);
 
 // Legacy endpoint
 router.get('/', checkCompanyAccess, async (req, res) => {

@@ -235,7 +235,12 @@ class SyncManager extends EventEmitter {
     return { keys: incremental, mode: 'incremental' };
   }
 
-  shouldSyncOutstandingReceivable(companyState, reportMode) {
+  /**
+   * Outstanding reports are heavy, so on incremental runs they are throttled by
+   * their own last-run stamp. `stateKey` keeps receivable and payable independent —
+   * one being fresh must not suppress the other.
+   */
+  shouldSyncOutstanding(companyState, reportMode, stateKey = 'lastOutstandingSyncAt') {
     if (reportMode !== 'incremental') {
       return true;
     }
@@ -243,10 +248,16 @@ class SyncManager extends EventEmitter {
       return true;
     }
     const minHours = Number(this.config?.reports?.outstandingMinIntervalHours) || 24;
-    const last = companyState.lastOutstandingSyncAt
-      ? new Date(companyState.lastOutstandingSyncAt).getTime()
-      : 0;
+    const last = companyState[stateKey] ? new Date(companyState[stateKey]).getTime() : 0;
     return !last || Date.now() - last > minHours * 60 * 60 * 1000;
+  }
+
+  shouldSyncOutstandingReceivable(companyState, reportMode) {
+    return this.shouldSyncOutstanding(companyState, reportMode, 'lastOutstandingSyncAt');
+  }
+
+  shouldSyncOutstandingPayable(companyState, reportMode) {
+    return this.shouldSyncOutstanding(companyState, reportMode, 'lastPayableSyncAt');
   }
 
   getMasterBatchSize(entityType) {
@@ -633,6 +644,7 @@ class SyncManager extends EventEmitter {
         lastReportRunAt: null,
         lastFullReportsSyncAt: null,
         lastOutstandingSyncAt: null,
+        lastPayableSyncAt: null,
         lastVoucherAlterId: 0,
         lastTallyMastersAlterId: st.lastTallyMastersAlterId ?? 0,
         lastTallyVouchersAlterId: st.lastTallyVouchersAlterId ?? 0,
@@ -749,6 +761,7 @@ class SyncManager extends EventEmitter {
         lastReportRunAt: null,
         lastFullReportsSyncAt: null,
         lastOutstandingSyncAt: null,
+        lastPayableSyncAt: null,
         lastVoucherAlterId: 0,
         lastTallyMastersAlterId: 0,
         lastTallyVouchersAlterId: 0,
@@ -2964,6 +2977,46 @@ class SyncManager extends EventEmitter {
             });
           }
 
+          if (this.shouldSyncOutstandingPayable(companyState, reportMode)) {
+            const payableRange = this.getOutstandingReceivableDateRange(company);
+            this.emitPhaseProgress(syncSession, 'reports', (ci + 0.96) / companyCount, {
+              currentOperation: `Reports — ${company.name} (Bills Payable)`,
+              force: true
+            });
+
+            try {
+              const payable = await this.tallyService.getBillsPayable(
+                company.name,
+                payableRange.fromDateIso,
+                payableRange.toDateIso
+              );
+              totalReports += 1;
+              syncSession.totalItems += 1;
+              await this.syncOutstandingPayableToServer(payable, company.name);
+              processedReports += 1;
+              syncSession.processedItems += 1;
+              companyState.lastPayableSyncAt = new Date().toISOString();
+              this.logger.info('Outstanding payable synced', {
+                companyName: company.name,
+                ledgerCount: payable.ledgers?.length || 0,
+                totalOutstanding: payable.totalOutstanding || 0
+              });
+            } catch (error) {
+              errorCount += 1;
+              syncSession.errors.push({
+                type: 'report',
+                item: `Bills Payable (${company.name})`,
+                error: error.message,
+                timestamp: new Date()
+              });
+              this.logger.error(`Failed to sync outstanding payable for ${company.name}:`, error);
+            }
+          } else {
+            this.logger.info('Skipping Bills Payable (incremental — synced recently)', {
+              companyName: company.name
+            });
+          }
+
           await this.saveSyncState();
         } catch (error) {
           errorCount += 1;
@@ -3358,6 +3411,18 @@ class SyncManager extends EventEmitter {
     await this.pushSyncPayloadResilient(data, { timeoutMs: 300000, maxAttempts: 3 });
   }
 
+  async syncOutstandingPayableToServer(report, companyName) {
+    const data = {
+      type: 'outstanding_payable',
+      action: 'upsert',
+      companyId: this.resolveUploadCompanyId(companyName),
+      data: { ...report, companyName },
+      timestamp: new Date().toISOString()
+    };
+
+    await this.pushSyncPayloadResilient(data, { timeoutMs: 300000, maxAttempts: 3 });
+  }
+
   async syncReportToServer(report, companyName) {
     const data = {
       type: 'report',
@@ -3641,7 +3706,11 @@ class SyncManager extends EventEmitter {
           tallyGuid: result.tallyGuid,
           masterName: result.masterName || importPayload.name,
           companyName: tallyCompany,
-          alreadyExisted: Boolean(result.alreadyExisted)
+          alreadyExisted: Boolean(result.alreadyExisted),
+          // Tally returns no GUID for masters — CREATED/ALTERED is the only
+          // proof the server gets that the ledger really landed.
+          created: result.created,
+          altered: result.altered
         }
       });
     } catch (error) {
@@ -3680,7 +3749,10 @@ class SyncManager extends EventEmitter {
           tallyGuid: result.tallyGuid,
           masterName: result.masterName || importPayload.name,
           companyName: tallyCompany,
-          alreadyExisted: Boolean(result.alreadyExisted)
+          alreadyExisted: Boolean(result.alreadyExisted),
+          // See handleImportLedger — masters come back without a GUID.
+          created: result.created,
+          altered: result.altered
         }
       });
     } catch (error) {

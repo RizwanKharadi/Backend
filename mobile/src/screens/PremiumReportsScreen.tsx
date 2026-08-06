@@ -27,8 +27,8 @@ import BottomNavigation from '../components/BottomNavigation';
 import { colors } from '../theme/colors';
 import { radius, spacing } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
-import { navItems, voucherOptions } from '../data/dashboardMockData';
-import { DashboardTab, VoucherKey } from '../types/dashboard';
+import { navItems } from '../data/dashboardMockData';
+import { DashboardTab } from '../types/dashboard';
 
 import { useCompany, useNotification } from '../store/hooks';
 import { toLocalDateString } from '../utils/formatters';
@@ -48,17 +48,6 @@ const TAB_ROUTE: Record<Exclude<DashboardTab, 'reports'>, string> = {
   dashboard: 'Dashboard',
   transactions: 'Transactions',
   inventory: 'Inventory',
-};
-
-const VOUCHER_INITIAL_TYPE: Record<VoucherKey, string> = {
-  sales: 'sales',
-  receipt: 'receipt',
-  payment: 'payment',
-  purchase: 'purchase',
-  contra: 'contra',
-  journal: 'journal',
-  debitNote: 'debit_note',
-  creditNote: 'credit_note',
 };
 
 interface ReportDef {
@@ -105,10 +94,7 @@ const PremiumReportsScreen: React.FC = () => {
     [navigation]
   );
 
-  const handleVoucher = useCallback(
-    (key: VoucherKey) => go('CreateNewVoucher', { initialType: VOUCHER_INITIAL_TYPE[key] }),
-    [go]
-  );
+  const handleVoucher = useCallback(() => go('CreateNewVoucher', {}), [go]);
 
   // ---- Report catalogue ----
   const financial: ReportDef[] = [
@@ -116,7 +102,7 @@ const PremiumReportsScreen: React.FC = () => {
     { icon: 'bank', color: colors.info, title: 'Balance Sheet', description: 'Assets, liabilities and equity', route: 'BalanceSheet' },
     { icon: 'cash-multiple', color: colors.info, title: 'Cash / Bank Book', description: 'Cash-in-hand, bank accounts and OD balances', route: 'CashBankBook' },
     { icon: 'account-cash-outline', color: colors.info, title: 'Receivables', description: 'Bills receivable by ledger', route: 'OutstandingReceivable' },
-    { icon: 'account-arrow-up-outline', color: colors.info, title: 'Payables', description: 'Bills payable by ledger', soon: true },
+    { icon: 'account-arrow-up-outline', color: colors.info, title: 'Payables', description: 'Bills payable by ledger', route: 'OutstandingPayable' },
     { icon: 'book-open-variant', color: colors.info, title: 'Day Book', description: 'All vouchers by date range', route: 'DayBook', params: {} },
   ];
 
@@ -235,8 +221,7 @@ const PremiumReportsScreen: React.FC = () => {
       </ScrollView>
 
       <FloatingVoucherButton
-        options={voucherOptions}
-        onSelect={handleVoucher}
+        onPress={handleVoucher}
         bottomOffset={insets.bottom + 40}
       />
 

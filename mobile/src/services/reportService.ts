@@ -87,6 +87,9 @@ export interface OutstandingBill {
   inventoryLines?: Array<{ item?: string; quantity?: string; rate?: string }>;
 }
 
+/** Which Tally report to read — 'Bills Receivable' or 'Bills Payable'. */
+export type OutstandingKind = 'receivable' | 'payable';
+
 export interface OutstandingReceivableSummary {
   asOfDate?: string;
   fromDate?: string;
@@ -274,11 +277,20 @@ export interface DashboardSummaryData {
   lastSyncedAt?: string | null;
   todaySales: { amount: number; count: number };
   monthlyRevenue: { amount: number; count: number; fromDate: string; toDate: string };
+  monthlyPurchase?: { amount: number; count: number; fromDate: string; toDate: string };
   outstanding: { receivables: number; overdueParties: number; parties: number };
+  payable?: {
+    payables: number;
+    overdueParties: number;
+    parties: number;
+    synced: boolean;
+  };
   bankBalance: { amount: number; bankAccounts: number; cashInHand: number };
   profitThisMonth: number;
   topCustomer: { name: string; amount: number } | null;
   salesTrend: Array<{ date: string; amount: number; count: number }>;
+  /** Back-compat block older backends send; used as a purchase fallback. */
+  thisMonth?: { sales: number; purchases: number; profit: number };
   recentVouchers: Array<{
     id: string;
     voucherNumber: string;
@@ -746,6 +758,42 @@ class ReportService {
       params: { companyId, partyName },
     });
     return response.data;
+  }
+
+  async getOutstandingPayable(companyId: string): Promise<{
+    success: boolean;
+    data: OutstandingReceivableSummary;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/outstanding-payable`, {
+      params: { companyId },
+    });
+    return response.data;
+  }
+
+  async getOutstandingPayableLedger(
+    companyId: string,
+    partyName: string
+  ): Promise<{
+    success: boolean;
+    data: OutstandingLedgerDetail;
+  }> {
+    const response = await apiClient.get(`${this.baseURL}/outstanding-payable/ledger`, {
+      params: { companyId, partyName },
+    });
+    return response.data;
+  }
+
+  /** Receivable and payable share a response shape — pick the endpoint by kind. */
+  getOutstanding(kind: OutstandingKind, companyId: string) {
+    return kind === 'payable'
+      ? this.getOutstandingPayable(companyId)
+      : this.getOutstandingReceivable(companyId);
+  }
+
+  getOutstandingLedger(kind: OutstandingKind, companyId: string, partyName: string) {
+    return kind === 'payable'
+      ? this.getOutstandingPayableLedger(companyId, partyName)
+      : this.getOutstandingReceivableLedger(companyId, partyName);
   }
 
   async getInactiveCustomers(params: {

@@ -125,8 +125,10 @@ export type ReportsStackParamList = {
   };
   TopTenReport: undefined;
   FastMovingItems: undefined;
-  OutstandingReceivable: undefined;
-  OutstandingLedgerDetail: { partyName: string };
+  // Both routes render the same screen; `kind` picks which Tally report it reads.
+  OutstandingReceivable: { kind?: 'receivable' | 'payable' } | undefined;
+  OutstandingPayable: { kind?: 'receivable' | 'payable' } | undefined;
+  OutstandingLedgerDetail: { partyName: string; kind?: 'receivable' | 'payable' };
   InactiveCustomer: undefined;
   InactiveItem: undefined;
 };

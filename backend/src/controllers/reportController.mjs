@@ -512,16 +512,28 @@ const buildBalanceSheetResponse = (report, periodMeta) => {
     const label = (entry.displayName || entry.name || '').trim();
     if (!label || amount === 0) return;
 
-    const row = { account: label, amount: Math.abs(amount) };
     const section = classifyBalanceSheetGroup(label);
 
-    if (entry.isGroup && Math.abs(mainAmount) > 0) {
+    // Tally signs these: negative is a debit, positive a credit. Taking the
+    // absolute value made a debit balance indistinguishable from a credit one,
+    // so a Capital Account carrying a debit balance was added to equity as a
+    // positive instead of subtracted — overstating equity by twice its value
+    // and leaving assets short of liabilities + equity.
+    //
+    // Assets are debits, so flip them to read positive the way a balance sheet
+    // presents them. Liabilities and equity are credits and already read
+    // positive; a debit balance among them stays negative, which is exactly
+    // what negative equity means.
+    const signedAmount = section === 'assets' ? -amount : amount;
+    const row = { account: label, amount: signedAmount };
+
+    if (entry.isGroup && mainAmount !== 0) {
       const synced = groupSummaries.find(
         (g) => String(g.groupName).trim().toLowerCase() === label.trim().toLowerCase()
       );
       groups.push({
         name: label,
-        amount: Math.abs(mainAmount),
+        amount: section === 'assets' ? -mainAmount : mainAmount,
         section,
         drillable: true,
         ledgerCount: synced?.ledgers?.length || 0
@@ -1347,6 +1359,7 @@ export const getDashboardSummary = async (req, res) => {
       ytdSales,
       ytdPurchases,
       outstandingDoc,
+      payableDoc,
       storedPnl,
       topCustomersMonth,
       dailySales,
@@ -1358,6 +1371,9 @@ export const getDashboardSummary = async (req, res) => {
       sumVoucherAmounts(companyOid, 'sales', fyStart, todayEnd),
       sumVoucherAmounts(companyOid, 'purchase', fyStart, todayEnd),
       OutstandingReceivable.findOne({ company: companyId, reportName: 'Bills Receivable' })
+        .select('totalOutstanding ledgers.oldestOverdueDays tallySync.lastSyncDate updatedAt')
+        .lean(),
+      OutstandingReceivable.findOne({ company: companyId, reportName: 'Bills Payable' })
         .select('totalOutstanding ledgers.oldestOverdueDays tallySync.lastSyncDate updatedAt')
         .lean(),
       ProfitLossReport.findOne({
@@ -1401,9 +1417,10 @@ export const getDashboardSummary = async (req, res) => {
       logger.warn('Dashboard bank balance resolution failed:', e.message);
     }
 
-    const overdueParties = (outstandingDoc?.ledgers || []).filter(
-      (l) => Number(l.oldestOverdueDays || 0) > 0
-    ).length;
+    const countOverdue = (doc) =>
+      (doc?.ledgers || []).filter((l) => Number(l.oldestOverdueDays || 0) > 0).length;
+    const overdueParties = countOverdue(outstandingDoc);
+    const overduePayableParties = countOverdue(payableDoc);
 
     const trend = [];
     for (let i = 6; i >= 0; i--) {
@@ -1434,10 +1451,23 @@ export const getDashboardSummary = async (req, res) => {
           fromDate: monthStart.toISOString().slice(0, 10),
           toDate: today.toISOString().slice(0, 10)
         },
+        monthlyPurchase: {
+          amount: monthPurchases.amount,
+          count: monthPurchases.count,
+          fromDate: monthStart.toISOString().slice(0, 10),
+          toDate: today.toISOString().slice(0, 10)
+        },
         outstanding: {
           receivables: outstandingDoc?.totalOutstanding || 0,
           overdueParties,
           parties: outstandingDoc?.ledgers?.length || 0
+        },
+        // Bills Payable — mirrors `outstanding`; zeros until the agent syncs it.
+        payable: {
+          payables: payableDoc?.totalOutstanding || 0,
+          overdueParties: overduePayableParties,
+          parties: payableDoc?.ledgers?.length || 0,
+          synced: Boolean(payableDoc)
         },
         bankBalance: {
           amount: bankBalance + cashInHand,
@@ -1609,7 +1639,19 @@ export const getDayBook = async (req, res) => {
 
 // @desc    Outstanding receivable — ledger summary list (Bills Receivable)
 // @route   GET /api/reports/outstanding-receivable
-export const getOutstandingReceivable = async (req, res) => {
+export const getOutstandingReceivable = (req, res) =>
+  getOutstandingBills(req, res, 'Bills Receivable');
+
+// @desc    Outstanding payable — ledger list
+// @route   GET /api/reports/outstanding-payable
+export const getOutstandingPayable = (req, res) =>
+  getOutstandingBills(req, res, 'Bills Payable');
+
+/**
+ * Both outstanding reports live in the same collection keyed by `reportName`,
+ * so one reader serves receivables and payables.
+ */
+const getOutstandingBills = async (req, res, reportName) => {
   try {
     const companyId = req.query.companyId || req.body?.companyId;
     if (!companyId) {
@@ -1618,7 +1660,7 @@ export const getOutstandingReceivable = async (req, res) => {
 
     const doc = await OutstandingReceivable.findOne({
       company: companyId,
-      reportName: 'Bills Receivable'
+      reportName
     }).lean();
 
     if (!doc) {
@@ -1654,17 +1696,25 @@ export const getOutstandingReceivable = async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error('Outstanding receivable list error:', error);
+    logger.error(`${reportName} list error:`, error);
     return res.status(500).json({
       success: false,
-      message: 'Server error while loading outstanding receivable'
+      message: `Server error while loading ${reportName}`
     });
   }
 };
 
 // @desc    Outstanding receivable — bills for one ledger/party
 // @route   GET /api/reports/outstanding-receivable/ledger
-export const getOutstandingReceivableLedger = async (req, res) => {
+export const getOutstandingReceivableLedger = (req, res) =>
+  getOutstandingBillsLedger(req, res, 'Bills Receivable');
+
+// @desc    Outstanding payable — bills for one ledger/party
+// @route   GET /api/reports/outstanding-payable/ledger
+export const getOutstandingPayableLedger = (req, res) =>
+  getOutstandingBillsLedger(req, res, 'Bills Payable');
+
+const getOutstandingBillsLedger = async (req, res, reportName) => {
   try {
     const companyId = req.query.companyId || req.body?.companyId;
     const partyName = req.query.partyName || req.query.ledgerName;
@@ -1678,13 +1728,13 @@ export const getOutstandingReceivableLedger = async (req, res) => {
 
     const doc = await OutstandingReceivable.findOne({
       company: companyId,
-      reportName: 'Bills Receivable'
+      reportName
     }).lean();
 
     if (!doc) {
       return res.status(404).json({
         success: false,
-        message: 'Outstanding receivable data not found. Run desktop sync first.'
+        message: `${reportName} data not found. Run desktop sync first.`
       });
     }
 
@@ -1695,7 +1745,7 @@ export const getOutstandingReceivableLedger = async (req, res) => {
     if (!ledger) {
       return res.status(404).json({
         success: false,
-        message: 'Ledger not found in outstanding receivable report'
+        message: `Ledger not found in ${reportName} report`
       });
     }
 
@@ -1786,7 +1836,7 @@ export const getOutstandingReceivableLedger = async (req, res) => {
       }
     });
   } catch (error) {
-    logger.error('Outstanding receivable ledger error:', error);
+    logger.error(`${reportName} ledger error:`, error);
     return res.status(500).json({
       success: false,
       message: 'Server error while loading ledger outstanding'

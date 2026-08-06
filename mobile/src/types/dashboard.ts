@@ -27,6 +27,8 @@ export interface HeroNetWorth {
   value: string;
   trendLabel: string;
   trendPositive: boolean;
+  /** Plain-English breakdown of what the figure adds up, shown on the card. */
+  formulaLabel?: string;
 }
 
 export interface HeroReceivables {
@@ -83,23 +85,6 @@ export interface OutstandingItem {
   name: string;
   amount: string;
   status: OutstandingStatus;
-}
-
-export type VoucherKey =
-  | 'sales'
-  | 'receipt'
-  | 'payment'
-  | 'purchase'
-  | 'contra'
-  | 'journal'
-  | 'debitNote'
-  | 'creditNote';
-
-export interface VoucherOption {
-  key: VoucherKey;
-  title: string;
-  icon: string;
-  color: string;
 }
 
 export type DashboardTab = 'dashboard' | 'transactions' | 'inventory' | 'reports';

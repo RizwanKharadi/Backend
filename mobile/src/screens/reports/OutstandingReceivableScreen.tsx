@@ -8,11 +8,12 @@ import {
   RefreshControl,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useCompany } from '../../store/hooks';
 import {
   reportService,
+  OutstandingKind,
   OutstandingLedgerSummary,
 } from '../../services/reportService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
@@ -20,8 +21,28 @@ import { formatCurrency, formatDate } from '../../utils/formatters';
 const PRIMARY = '#1565C0';
 const AMOUNT_COLOR = '#8B4513';
 
+// Receivable and payable are the same screen against a different Tally report.
+const COPY: Record<OutstandingKind, { title: string; empty: string; error: string }> = {
+  receivable: {
+    title: 'Outstanding Receivable',
+    empty: 'No outstanding receivable data. Run sync from desktop-agent with Tally open.',
+    error: 'Failed to load outstanding receivable',
+  },
+  payable: {
+    title: 'Outstanding Payable',
+    empty: 'No outstanding payable data. Run sync from desktop-agent with Tally open.',
+    error: 'Failed to load outstanding payable',
+  },
+};
+
 const OutstandingReceivableScreen = () => {
   const navigation = useNavigation<any>();
+  const route = useRoute();
+  const kind: OutstandingKind =
+    (route.params as { kind?: OutstandingKind } | undefined)?.kind === 'payable'
+      ? 'payable'
+      : 'receivable';
+  const copy = COPY[kind];
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -38,7 +59,7 @@ const OutstandingReceivableScreen = () => {
     }
     setError(null);
     try {
-      const res = await reportService.getOutstandingReceivable(selectedCompany.id);
+      const res = await reportService.getOutstanding(kind, selectedCompany.id);
       const data = res.data;
       setTotalOutstanding(data.totalOutstanding || 0);
       setAsOfDate(data.asOfDate || data.lastSyncedAt || null);
@@ -47,14 +68,14 @@ const OutstandingReceivableScreen = () => {
       const apiMsg =
         e?.response?.data?.message ||
         (e?.response?.status === 404
-          ? 'API not found — restart the backend server to load outstanding-receivable routes.'
+          ? `API not found — restart the backend server to load outstanding-${kind} routes.`
           : null);
-      setError(apiMsg || e?.message || 'Failed to load outstanding receivable');
+      setError(apiMsg || e?.message || copy.error);
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedCompany?.id]);
+  }, [selectedCompany?.id, kind, copy.error]);
 
   useEffect(() => {
     load();
@@ -73,7 +94,10 @@ const OutstandingReceivableScreen = () => {
     <TouchableOpacity
       style={styles.ledgerRow}
       onPress={() =>
-        navigation.navigate('OutstandingLedgerDetail', { partyName: item.partyName })
+        navigation.navigate('OutstandingLedgerDetail', {
+          partyName: item.partyName,
+          kind,
+        })
       }
       activeOpacity={0.7}
     >
@@ -104,7 +128,7 @@ const OutstandingReceivableScreen = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Icon name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Outstanding Receivable</Text>
+        <Text style={styles.headerTitle}>{copy.title}</Text>
         <View style={styles.headerActions}>
           <Icon name="magnify" size={22} color="#fff" style={styles.headerIcon} />
           <Icon name="filter-variant" size={22} color="#fff" style={styles.headerIcon} />
@@ -137,11 +161,7 @@ const OutstandingReceivableScreen = () => {
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY]} />
           }
-          ListEmptyComponent={
-            <Text style={styles.empty}>
-              No outstanding data. Run sync from desktop-agent with Tally open.
-            </Text>
-          }
+          ListEmptyComponent={<Text style={styles.empty}>{copy.empty}</Text>}
           contentContainerStyle={ledgers.length === 0 ? styles.emptyList : undefined}
         />
       )}

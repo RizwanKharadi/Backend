@@ -3,7 +3,7 @@
  *
  * Data sources:
  *  - reportService.getDashboardSummary(companyId)      → KPIs, hero figures, 7D trend
- *  - reportService.getOutstandingReceivable(companyId) → Top Outstanding list
+ *  - reportService.getOutstandingReceivable(companyId) → Top Outstanding Receivables list
  *  - reportService.getSalesReport(...)                 → 30D / 90D sales trend (lazy)
  *  - billingService.getStatus()                        → subscription / trial badge
  *  - Redux: auth (user), sync, inventory, notifications, company
@@ -36,7 +36,7 @@ import BottomNavigation from '../components/BottomNavigation';
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
-import { navItems, quickActions, voucherOptions } from '../data/dashboardMockData';
+import { navItems, quickActions } from '../data/dashboardMockData';
 import { navigateToReportTab } from '../navigation/reportNavigation';
 import {
   DashboardTab,
@@ -47,7 +47,6 @@ import {
   SalesPeriod,
   SalesSeries,
   SubscriptionState,
-  VoucherKey,
 } from '../types/dashboard';
 
 import { AppDispatch } from '../store';
@@ -78,17 +77,6 @@ import {
 
 const SCREEN_PADDING = spacing.md;
 const MIN_AUTO_RELOAD_MS = 45_000;
-
-const VOUCHER_INITIAL_TYPE: Record<VoucherKey, string> = {
-  sales: 'sales',
-  receipt: 'receipt',
-  payment: 'payment',
-  purchase: 'purchase',
-  contra: 'contra',
-  journal: 'journal',
-  debitNote: 'debit_note',
-  creditNote: 'credit_note',
-};
 
 const QUICK_ACTION_INITIAL_TYPE: Record<QuickActionKey, string> = {
   salesInvoice: 'sales',
@@ -322,13 +310,22 @@ const PremiumDashboardScreen: React.FC = () => {
     [go]
   );
 
+  const goPurchases = useCallback(
+    () => go('FilteredVouchers', { voucherType: 'purchase', title: 'Purchase' }),
+    [go]
+  );
+
   const kpiPress = useCallback(
     (id: string) => {
       switch (id) {
         case 'revenue':
           return goSales();
-        case 'outstanding':
+        case 'purchase':
+          return goPurchases();
+        case 'receivables':
           return goReport('OutstandingReceivable');
+        case 'payable':
+          return goReport('OutstandingPayable');
         case 'bank':
           return goReport('CashBankBook');
         case 'profit':
@@ -337,7 +334,7 @@ const PremiumDashboardScreen: React.FC = () => {
           return goReport('VouchersList');
       }
     },
-    [goSales, goReport]
+    [goSales, goPurchases, goReport]
   );
 
   const handleTabPress = useCallback(
@@ -348,10 +345,7 @@ const PremiumDashboardScreen: React.FC = () => {
     [navigation]
   );
 
-  const handleVoucher = useCallback(
-    (key: VoucherKey) => go('CreateNewVoucher', { initialType: VOUCHER_INITIAL_TYPE[key] }),
-    [go]
-  );
+  const handleVoucher = useCallback(() => go('CreateNewVoucher', {}), [go]);
   const handleQuickAction = useCallback(
     (key: QuickActionKey) =>
       go('CreateNewVoucher', { initialType: QUICK_ACTION_INITIAL_TYPE[key] }),
@@ -382,9 +376,27 @@ const PremiumDashboardScreen: React.FC = () => {
     unreadNotifications: unreadCount || 0,
   };
 
+  /**
+   * Six tiles in a 2-column grid; order below is read row-by-row, so the
+   * columns come out as:
+   *   left  — Revenue, Receivables, Bank Balance
+   *   right — Purchase, Payables, Profit This Month
+   */
   const kpis: KpiCardData[] = useMemo(() => {
     if (!summary) return [];
     const profit = summary.profitThisMonth || 0;
+
+    // Older backends only carry purchases in the back-compat `thisMonth` block.
+    const purchaseAmount =
+      summary.monthlyPurchase?.amount ?? summary.thisMonth?.purchases ?? 0;
+    const purchaseCount = summary.monthlyPurchase?.count;
+
+    // Payables read a report the agent may not have pushed yet. An unsynced
+    // report is not "₹0 payable" — show a dash rather than a figure Tally
+    // never confirmed.
+    const payable = summary.payable;
+    const payableSynced = Boolean(payable?.synced);
+
     return [
       {
         id: 'revenue',
@@ -396,21 +408,41 @@ const PremiumDashboardScreen: React.FC = () => {
         spark: (summary.salesTrend || []).map((r) => r.amount || 0),
       },
       {
-        id: 'outstanding',
-        label: 'Outstanding',
+        id: 'purchase',
+        label: 'Purchase',
+        value: formatIndianCompact(purchaseAmount),
+        deltaLabel:
+          purchaseCount === undefined ? 'This month' : `${purchaseCount} bills`,
+        icon: 'cart-outline',
+        accent: 'purple',
+      },
+      {
+        id: 'receivables',
+        label: 'Receivables',
         value: formatIndianCompact(summary.outstanding.receivables),
         deltaLabel: `${summary.outstanding.overdueParties} overdue`,
         deltaPositive: false,
-        icon: 'account-group',
+        icon: 'account-cash-outline',
         accent: 'orange',
+      },
+      {
+        id: 'payable',
+        label: 'Payables',
+        value: payableSynced ? formatIndianCompact(payable!.payables) : '—',
+        deltaLabel: payableSynced
+          ? `${payable!.overdueParties} overdue`
+          : 'Awaiting Tally sync',
+        deltaPositive: payableSynced ? false : undefined,
+        icon: 'account-arrow-up-outline',
+        accent: 'red',
       },
       {
         id: 'bank',
         label: 'Bank Balance',
         value: formatIndianCompact(summary.bankBalance.amount),
-        deltaLabel: `${summary.bankBalance.bankAccounts} account${
-          summary.bankBalance.bankAccounts === 1 ? '' : 's'
-        }`,
+        // `bankAccounts` is the bank-group *balance*, not a count of accounts —
+        // name what the figure is made of instead of miscounting it.
+        deltaLabel: 'Bank Account + Cash in Hand',
         icon: 'bank',
         accent: 'purple',
       },
@@ -490,6 +522,7 @@ const PremiumDashboardScreen: React.FC = () => {
 
         <View style={styles.content}>
           <View style={styles.heroRow}>
+            {/* Display only — no drill-down, since no single report matches this sum. */}
             <HeroCard
               variant="netWorth"
               data={{
@@ -499,8 +532,8 @@ const PremiumDashboardScreen: React.FC = () => {
                 ),
                 trendLabel: `${signedCompact(summary?.profitThisMonth || 0)} this month`,
                 trendPositive: (summary?.profitThisMonth || 0) >= 0,
+                formulaLabel: 'Bank Account + Cash In Hand + Receivables',
               }}
-              onPress={() => goReport('BalanceSheet')}
             />
             <View style={styles.heroGap} />
             <HeroCard
@@ -591,8 +624,7 @@ const PremiumDashboardScreen: React.FC = () => {
       </ScrollView>
 
       <FloatingVoucherButton
-        options={voucherOptions}
-        onSelect={handleVoucher}
+        onPress={handleVoucher}
         bottomOffset={insets.bottom + 40}
       />
 
