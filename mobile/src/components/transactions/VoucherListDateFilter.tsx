@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   View,
+  ScrollView,
   StyleSheet,
   TouchableOpacity,
   Platform,
@@ -25,7 +26,9 @@ interface VoucherListDateFilterProps {
 const PRESETS = [
   { id: 'this_month', label: 'This month' },
   { id: 'last_month', label: 'Last month' },
-  { id: 'this_year', label: 'This year' },
+  // Labelled FY because it *is* the financial year — "This year" read as
+  // calendar year and invited exactly the mismatch this preset used to have.
+  { id: 'this_year', label: 'This FY' },
 ] as const;
 
 function startOfDay(d: Date): Date {
@@ -55,14 +58,58 @@ function applyPreset(preset: (typeof PRESETS)[number]['id']): DateRangeValue {
       const to = startOfDay(new Date(now.getFullYear(), now.getMonth(), 0));
       return { from, to };
     }
-    case 'this_year':
+    case 'this_year': {
+      // Financial year (1 April - 31 March), not the calendar year. Every other
+      // figure in the app resolves the company's FY, so starting at 1 January
+      // pulled in Jan-Mar of the *previous* FY and overstated the total.
+      const fyStartYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
       return {
-        from: startOfDay(new Date(now.getFullYear(), 0, 1)),
+        from: startOfDay(new Date(fyStartYear, 3, 1)),
         to: now,
       };
+    }
     default:
       return { from: now, to: now };
   }
+}
+
+const MONTH_LABELS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/**
+ * The last 12 whole months, newest first — one tap to scope a long voucher list
+ * to a single month, which is the common case when hunting for one voucher.
+ * Fixed month names because Hermes on Android ships without full Intl.
+ */
+function recentMonths(count = 12) {
+  const now = new Date();
+  const out: { key: string; label: string; from: Date; to: Date }[] = [];
+  for (let i = 0; i < count; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    const year = d.getFullYear();
+    const month = d.getMonth();
+    out.push({
+      key: `${year}-${month}`,
+      // Year shown only when it is not the current one, to keep chips short.
+      label:
+        year === now.getFullYear()
+          ? MONTH_LABELS[month]
+          : `${MONTH_LABELS[month]} ${String(year).slice(2)}`,
+      from: startOfDay(new Date(year, month, 1)),
+      to: startOfDay(new Date(year, month + 1, 0)),
+    });
+  }
+  return out;
+}
+
+function isSameDay(a: Date, b: Date): boolean {
+  return (
+    a.getFullYear() === b.getFullYear() &&
+    a.getMonth() === b.getMonth() &&
+    a.getDate() === b.getDate()
+  );
 }
 
 const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
@@ -71,6 +118,7 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
   accentColor = dashboardColors.accent,
 }) => {
   const [picker, setPicker] = useState<'from' | 'to' | null>(null);
+  const months = useMemo(() => recentMonths(12), []);
 
   const onPickerChange = (event: DateTimePickerEvent, date?: Date) => {
     if (Platform.OS === 'android') {
@@ -110,6 +158,32 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
           </TouchableOpacity>
         ))}
       </View>
+
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.monthRow}
+      >
+        {months.map((m) => {
+          const active = isSameDay(value.from, m.from) && isSameDay(value.to, m.to);
+          return (
+            <TouchableOpacity
+              key={m.key}
+              style={[
+                styles.monthChip,
+                active && { backgroundColor: accentColor, borderColor: accentColor },
+              ]}
+              onPress={() => onChange({ from: m.from, to: m.to })}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+            >
+              <Text style={[styles.monthText, active && styles.monthTextActive]}>
+                {m.label}
+              </Text>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
 
       <View style={styles.dateCard}>
         <Text style={styles.cardTitle}>Date range</Text>
@@ -184,6 +258,27 @@ const styles = StyleSheet.create({
   presetText: {
     fontSize: 12,
     fontWeight: '700',
+  },
+  monthRow: {
+    gap: 8,
+    paddingRight: 8,
+    marginBottom: 10,
+  },
+  monthChip: {
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#d7dde5',
+    backgroundColor: dashboardColors.cardBg,
+  },
+  monthText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: dashboardColors.muted,
+  },
+  monthTextActive: {
+    color: '#fff',
   },
   dateCard: {
     backgroundColor: dashboardColors.cardBg,

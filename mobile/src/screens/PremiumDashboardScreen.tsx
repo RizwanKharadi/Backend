@@ -36,7 +36,7 @@ import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { navItems } from '../data/dashboardMockData';
-import { navigateToReportTab } from '../navigation/reportNavigation';
+import { navigateToReportTab, navigateToTab } from '../navigation/reportNavigation';
 import {
   DashboardTab,
   HeaderData,
@@ -70,7 +70,6 @@ import {
   formatRelativeTime,
   getGreeting,
   parseLocalDateString,
-  calcPercentChange,
 } from '../utils/formatters';
 
 const SCREEN_PADDING = spacing.md;
@@ -128,16 +127,6 @@ function trendToSeries(rows: DashboardSummaryData['salesTrend']): SalesSeries {
 function signedCompact(amount: number): string {
   const sign = amount < 0 ? '-' : '+';
   return `${sign}${formatIndianCompact(Math.abs(amount))}`;
-}
-
-function growthFromSeries(values: number[]): { label: string; positive: boolean } {
-  if (values.length < 2) return { label: '—', positive: true };
-  const pct = calcPercentChange(values[values.length - 1], values[0]);
-  if (pct === null) return { label: '—', positive: true };
-  return {
-    label: `${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%`,
-    positive: pct >= 0,
-  };
 }
 
 function buildSubscription(
@@ -306,7 +295,12 @@ const PremiumDashboardScreen: React.FC = () => {
 
   // Report screens are nested under the Reports tab — mirror the old dashboard.
   const goReport = useCallback(
-    (screen: string) => navigateToReportTab(navigation as any, screen as any),
+    // standalone: opened from the dashboard, so Back must return here rather
+    // than dropping the user on the reports list they never visited.
+    (screen: string) =>
+      navigateToReportTab(navigation as any, screen as any, undefined, {
+        standalone: true,
+      }),
     [navigation]
   );
 
@@ -345,7 +339,7 @@ const PremiumDashboardScreen: React.FC = () => {
   const handleTabPress = useCallback(
     (key: DashboardTab) => {
       if (key === 'dashboard') return;
-      navigation.navigate(TAB_ROUTE[key]);
+      navigateToTab(navigation as any, TAB_ROUTE[key]);
     },
     [navigation]
   );
@@ -400,7 +394,7 @@ const PremiumDashboardScreen: React.FC = () => {
     return [
       {
         id: 'revenue',
-        label: 'Revenue',
+        label: 'Sales',
         value: formatIndianCompact(summary.monthlyRevenue.amount),
         deltaLabel: `${summary.monthlyRevenue.count} invoices`,
         icon: 'trending-up',
@@ -475,7 +469,6 @@ const PremiumDashboardScreen: React.FC = () => {
 
   const activeSeries = salesSeries[salesPeriod] ?? EMPTY_SERIES;
   const salesTotal = activeSeries.values.reduce((s, v) => s + v, 0);
-  const salesGrowth = growthFromSeries(activeSeries.values);
 
   // ---- Render ----
 
@@ -532,7 +525,7 @@ const PremiumDashboardScreen: React.FC = () => {
                 ),
                 trendLabel: `${signedCompact(summary?.profitThisMonth || 0)} this month`,
                 trendPositive: (summary?.profitThisMonth || 0) >= 0,
-                formulaLabel: 'Bank Account + Cash In Hand + Receivables',
+                formulaLabel: 'Cash & Bank + Receivables',
               }}
             />
             <View style={styles.heroGap} />
@@ -560,9 +553,6 @@ const PremiumDashboardScreen: React.FC = () => {
             <>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Business Overview</Text>
-                <Text style={styles.viewAll} onPress={() => goReport('VouchersList')}>
-                  View all <Text style={styles.chev}>›</Text>
-                </Text>
               </View>
 
               <View style={styles.kpiGrid}>
@@ -576,8 +566,6 @@ const PremiumDashboardScreen: React.FC = () => {
               <View style={styles.block}>
                 <SalesChart
                   value={formatIndianCompact(salesTotal)}
-                  growthLabel={salesGrowth.label}
-                  growthPositive={salesGrowth.positive}
                   activePeriod={salesPeriod}
                   series={activeSeries}
                   loading={salesLoading}

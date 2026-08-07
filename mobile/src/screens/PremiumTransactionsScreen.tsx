@@ -37,15 +37,16 @@ import BottomNavigation from '../components/BottomNavigation';
 import { colors } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
-import { navItems, voucherOptions } from '../data/dashboardMockData';
+import { navItems } from '../data/dashboardMockData';
 import {
   TRANSACTION_TYPES,
   TRANSACTION_GROUP_META,
 } from '../constants/transactionTypes';
-import { DashboardTab, VoucherKey } from '../types/dashboard';
+import { DashboardTab } from '../types/dashboard';
 import { TxnTotals, TxnTypeSummary } from '../types/transactions';
 
 import { useCompany, useNotification } from '../store/hooks';
+import { navigateToTab } from '../navigation/reportNavigation';
 import { voucherService } from '../services/voucherService';
 import { tallyService, PendingSyncSummary } from '../services/tallyService';
 import { Voucher } from '../types';
@@ -70,17 +71,6 @@ import {
 
 const SCREEN_PADDING = spacing.md;
 const MIN_RELOAD_MS = 45_000;
-
-const VOUCHER_INITIAL_TYPE: Record<VoucherKey, string> = {
-  sales: 'sales',
-  receipt: 'receipt',
-  payment: 'payment',
-  purchase: 'purchase',
-  contra: 'contra',
-  journal: 'journal',
-  debitNote: 'debit_note',
-  creditNote: 'credit_note',
-};
 
 const TAB_ROUTE: Record<Exclude<DashboardTab, 'transactions'>, string> = {
   dashboard: 'Dashboard',
@@ -291,16 +281,15 @@ const PremiumTransactionsScreen: React.FC = () => {
   const handleTabPress = useCallback(
     (key: DashboardTab) => {
       if (key === 'transactions') return;
-      navigation.navigate(TAB_ROUTE[key as Exclude<DashboardTab, 'transactions'>]);
+      navigateToTab(
+        navigation as any,
+        TAB_ROUTE[key as Exclude<DashboardTab, 'transactions'>]
+      );
     },
     [navigation]
   );
 
-  const handleVoucher = useCallback(
-    (key: VoucherKey) =>
-      goStack('CreateNewVoucher', { initialType: VOUCHER_INITIAL_TYPE[key] }),
-    [goStack]
-  );
+  const handleVoucher = useCallback(() => goStack('CreateNewVoucher', {}), [goStack]);
 
   // ---- Custom range modal handlers ----
 
@@ -392,7 +381,7 @@ const PremiumTransactionsScreen: React.FC = () => {
               </View>
 
               <SectionHeader
-                title="Money In"
+                title="Sales Flow"
                 icon={TRANSACTION_GROUP_META.inflow.icon}
                 accentColor={colors.success}
                 onViewAll={() => goStack('DayBook', {})}
@@ -401,7 +390,7 @@ const PremiumTransactionsScreen: React.FC = () => {
 
               <View style={styles.sectionGap} />
               <SectionHeader
-                title="Money Out"
+                title="Purchase Flow"
                 icon={TRANSACTION_GROUP_META.outflow.icon}
                 accentColor={colors.danger}
                 onViewAll={() => goStack('DayBook', {})}
@@ -434,8 +423,7 @@ const PremiumTransactionsScreen: React.FC = () => {
       </ScrollView>
 
       <FloatingVoucherButton
-        options={voucherOptions}
-        onSelect={handleVoucher}
+        onPress={handleVoucher}
         bottomOffset={insets.bottom + 40}
       />
 

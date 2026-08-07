@@ -3015,9 +3015,15 @@ ${nativeLines}
     const sumCredit = (ledgerEntries || []).reduce((s, e) => s + this.toNumber(e.credit), 0);
     const fromLedgers =
       sumDebit > 0 ? sumDebit : sumCredit > 0 ? sumCredit : 0;
+    // Ledger totals first. On a multi-ledger accounting voucher (a Payment
+    // split across two expense lines, say) Tally's VOUCHER.AMOUNT resolves to
+    // the first ledger line, not the voucher total — a 50 + 140 payment was
+    // stored as 50. A balanced voucher's debit total is its true value, so
+    // trust that and keep AMOUNT only as a fallback for vouchers with no
+    // ledger entries.
     const grandTotal =
-      this.toNumber(voucher?.AMOUNT) ||
       fromLedgers ||
+      this.toNumber(voucher?.AMOUNT) ||
       Number((taxableAmount + totalTax).toFixed(2));
     const roundOff = Number((grandTotal - (taxableAmount + totalTax)).toFixed(2));
 

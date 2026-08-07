@@ -82,7 +82,21 @@ function wordsBelow1000(n: number): string {
 export function resolveVoucherDisplayAmount(voucher: {
   amount?: number;
   totals?: { grandTotal?: number };
+  entries?: Array<{ debitAmount?: number; creditAmount?: number }>;
 }): number {
+  // A balanced voucher's debit total is its true value. Vouchers synced before
+  // the agent fix carry a grandTotal taken from Tally's VOUCHER.AMOUNT, which
+  // on a multi-ledger accounting voucher is only the first line — a 50 + 140
+  // payment stored as 50. Where the entries balance, believe them.
+  const entries = voucher.entries || [];
+  if (entries.length > 1) {
+    const debit = entries.reduce((s, e) => s + Number(e.debitAmount || 0), 0);
+    const credit = entries.reduce((s, e) => s + Number(e.creditAmount || 0), 0);
+    if (debit > 0 && Math.abs(debit - credit) < 0.01) {
+      return Math.abs(debit);
+    }
+  }
+
   const fromTotals = voucher.totals?.grandTotal;
   const raw =
     fromTotals != null && Number(fromTotals) !== 0

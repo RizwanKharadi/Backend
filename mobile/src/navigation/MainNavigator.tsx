@@ -63,6 +63,10 @@ const TabNavigator: React.FC = () => {
     <>
     <OfflineBanner />
     <Tab.Navigator
+      // Back returns to the tab you came from. A report opened from a dashboard
+      // tile is pushed as the only route in the Reports stack, so its Back
+      // falls through to here and lands back on the Dashboard.
+      backBehavior="history"
       tabBar={(props) => <GuideTabBar {...props} />}
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
@@ -145,10 +149,16 @@ const TabNavigator: React.FC = () => {
         }}
         listeners={({ navigation }) => ({
           tabPress: (e) => {
+            // Tapping Reports always shows the reports list. Checking the
+            // focused route name rather than the stack index matters: a report
+            // opened from a dashboard tile is the *only* route in this stack
+            // (index 0), so an index check would leave that report showing.
             const state = navigation.getState();
             const reportsRoute = state.routes.find((r) => r.name === 'Reports');
-            const nestedIndex = reportsRoute?.state?.index ?? 0;
-            if (nestedIndex > 0) {
+            const nested = reportsRoute?.state;
+            const focusedName =
+              nested?.routes?.[nested.index ?? 0]?.name ?? 'ReportsHome';
+            if (focusedName !== 'ReportsHome') {
               e.preventDefault();
               navigation.navigate('Reports', { screen: 'ReportsHome' });
             }

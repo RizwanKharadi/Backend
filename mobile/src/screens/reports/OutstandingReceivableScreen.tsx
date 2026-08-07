@@ -1,9 +1,10 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   FlatList,
+  TextInput,
   TouchableOpacity,
   RefreshControl,
   ActivityIndicator,
@@ -50,6 +51,24 @@ const OutstandingReceivableScreen = () => {
   const [totalOutstanding, setTotalOutstanding] = useState(0);
   const [asOfDate, setAsOfDate] = useState<string | null>(null);
   const [ledgers, setLedgers] = useState<OutstandingLedgerSummary[]>([]);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState('');
+
+  const visibleLedgers = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return ledgers;
+    return ledgers.filter((l) => l.partyName.toLowerCase().includes(q));
+  }, [ledgers, query]);
+
+  // While filtering, the header total reflects what is on screen — showing the
+  // full outstanding above a filtered list reads as a mismatch.
+  const shownTotal = useMemo(
+    () =>
+      query.trim()
+        ? visibleLedgers.reduce((s, l) => s + (l.totalOutstanding || 0), 0)
+        : totalOutstanding,
+    [query, visibleLedgers, totalOutstanding]
+  );
 
   const load = useCallback(async () => {
     if (!selectedCompany?.id) {
@@ -130,19 +149,44 @@ const OutstandingReceivableScreen = () => {
         </TouchableOpacity>
         <Text style={styles.headerTitle}>{copy.title}</Text>
         <View style={styles.headerActions}>
-          <Icon name="magnify" size={22} color="#fff" style={styles.headerIcon} />
-          <Icon name="filter-variant" size={22} color="#fff" style={styles.headerIcon} />
+          <TouchableOpacity
+            onPress={() => setSearchOpen((open) => !open)}
+            style={styles.headerIconBtn}
+            accessibilityRole="button"
+            accessibilityLabel={searchOpen ? 'Close search' : 'Search parties'}
+          >
+            <Icon name={searchOpen ? 'close' : 'magnify'} size={22} color="#fff" />
+          </TouchableOpacity>
         </View>
       </View>
 
       <View style={styles.summaryBlock}>
-        <Text style={styles.totalAmount}>{formatCurrency(totalOutstanding)}</Text>
+        <Text style={styles.totalAmount}>{formatCurrency(shownTotal)}</Text>
         <Text style={styles.asOfText}>{asOfLabel}</Text>
       </View>
 
+      {searchOpen ? (
+        <View style={styles.searchBar}>
+          <Icon name="magnify" size={20} color="#888" />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search party name"
+            placeholderTextColor="#9e9e9e"
+            autoFocus
+            returnKeyType="search"
+          />
+          {query ? (
+            <TouchableOpacity onPress={() => setQuery('')} accessibilityLabel="Clear search">
+              <Icon name="close-circle" size={18} color="#bbb" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      ) : null}
+
       <View style={styles.tabRow}>
         <Text style={styles.tabActive}>Ledgers</Text>
-        <Text style={styles.tabInactive}>Group</Text>
         <Icon name="chart-bar" size={20} color={PRIMARY} style={styles.tabChart} />
       </View>
 
@@ -155,14 +199,21 @@ const OutstandingReceivableScreen = () => {
         </View>
       ) : (
         <FlatList
-          data={ledgers}
+          data={visibleLedgers}
           keyExtractor={(item) => item.partyName}
           renderItem={renderLedger}
+          keyboardShouldPersistTaps="handled"
           refreshControl={
             <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={[PRIMARY]} />
           }
-          ListEmptyComponent={<Text style={styles.empty}>{copy.empty}</Text>}
-          contentContainerStyle={ledgers.length === 0 ? styles.emptyList : undefined}
+          ListEmptyComponent={
+            <Text style={styles.empty}>
+              {query.trim() ? `No party matching "${query.trim()}".` : copy.empty}
+            </Text>
+          }
+          contentContainerStyle={
+            visibleLedgers.length === 0 ? styles.emptyList : undefined
+          }
         />
       )}
     </View>
@@ -189,7 +240,29 @@ const styles = StyleSheet.create({
     marginLeft: 4,
   },
   headerActions: { flexDirection: 'row', alignItems: 'center' },
-  headerIcon: { marginLeft: 12 },
+  headerIconBtn: { padding: 8, marginLeft: 4 },
+  searchBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 12,
+    marginTop: -10,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    borderRadius: 10,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 8,
+    fontSize: 15,
+    color: '#222',
+  },
   summaryBlock: {
     backgroundColor: PRIMARY,
     paddingHorizontal: 16,

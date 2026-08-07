@@ -31,8 +31,6 @@ const PERIODS: { key: SalesPeriod; label: string }[] = [
 
 interface SalesChartProps {
   value: string;
-  growthLabel: string;
-  growthPositive: boolean;
   activePeriod: SalesPeriod;
   series: SalesSeries;
   loading?: boolean;
@@ -56,8 +54,6 @@ function formatCompact(value: number): string {
 
 const SalesChart: React.FC<SalesChartProps> = ({
   value,
-  growthLabel,
-  growthPositive,
   activePeriod,
   series,
   loading,
@@ -76,22 +72,6 @@ const SalesChart: React.FC<SalesChartProps> = ({
           <Text style={styles.title}>Sales Trend</Text>
           <View style={styles.valueRow}>
             <Text style={styles.value}>{value}</Text>
-            <View style={styles.growthRow}>
-              <Icon
-                name={growthPositive ? 'menu-up' : 'menu-down'}
-                size={16}
-                color={growthPositive ? colors.success : colors.danger}
-              />
-              <Text
-                style={[
-                  styles.growth,
-                  { color: growthPositive ? colors.success : colors.danger },
-                ]}
-              >
-                {growthLabel}
-              </Text>
-              <Text style={styles.growthSub}>vs last period</Text>
-            </View>
           </View>
         </View>
       </View>
@@ -225,9 +205,6 @@ const styles = StyleSheet.create({
     fontWeight: fontWeight.bold,
     fontVariant: ['tabular-nums'],
   },
-  growthRow: { flexDirection: 'row', alignItems: 'center' },
-  growth: { fontSize: fontSize.label, fontWeight: fontWeight.medium },
-  growthSub: { color: colors.textSecondary, fontSize: fontSize.label, marginLeft: 4 },
   segment: {
     flexDirection: 'row',
     backgroundColor: colors.background,

@@ -43,6 +43,7 @@ import { AttentionItemVM, CategoryVM } from '../types/inventory';
 
 import { AppDispatch } from '../store';
 import { useInventory, useCompany, useNotification } from '../store/hooks';
+import { navigateToTab } from '../navigation/reportNavigation';
 import { fetchInventoryStats } from '../store/slices/inventorySlice';
 import { inventoryService } from '../services/inventoryService';
 import { InventoryItem } from '../types';
@@ -170,7 +171,10 @@ const PremiumInventoryScreen: React.FC = () => {
   const handleTabPress = useCallback(
     (key: DashboardTab) => {
       if (key === 'inventory') return;
-      navigation.navigate(TAB_ROUTE[key as Exclude<DashboardTab, 'inventory'>]);
+      navigateToTab(
+        navigation as any,
+        TAB_ROUTE[key as Exclude<DashboardTab, 'inventory'>]
+      );
     },
     [navigation]
   );
