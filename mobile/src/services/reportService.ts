@@ -456,6 +456,9 @@ class ReportService {
     companyId: string;
     periodKey: ReportPeriodKey;
     ledgerName: string;
+    /** Month filter: an explicit range overrides periodKey server-side. */
+    fromDate?: string;
+    toDate?: string;
   }): Promise<{
     success: boolean;
     data: {
@@ -495,6 +498,9 @@ class ReportService {
     companyId: string;
     periodKey: ReportPeriodKey;
     ledgerName: string;
+    /** Month filter: an explicit range overrides periodKey server-side. */
+    fromDate?: string;
+    toDate?: string;
   }): Promise<{
     success: boolean;
     data: {
@@ -538,6 +544,9 @@ class ReportService {
     companyId: string;
     periodKey: ReportPeriodKey;
     ledgerName: string;
+    /** Month filter: an explicit range overrides periodKey server-side. */
+    fromDate?: string;
+    toDate?: string;
   }): Promise<{
     success: boolean;
     data: {

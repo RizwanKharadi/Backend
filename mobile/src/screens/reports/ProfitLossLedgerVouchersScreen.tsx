@@ -14,6 +14,7 @@ import { useCompany } from '../../store/hooks';
 import { reportService, ProfitLossVoucherRow } from '../../services/reportService';
 import { formatCurrency } from '../../utils/formatters';
 import { ReportPeriodKey } from '../../components/reports/ReportPeriodFilterModal';
+import MonthFilterBar, { MonthRange } from '../../components/reports/MonthFilterBar';
 
 const PRIMARY = '#1565C0';
 
@@ -35,6 +36,7 @@ const ProfitLossLedgerVouchersScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vouchers, setVouchers] = useState<ProfitLossVoucherRow[]>([]);
+  const [month, setMonth] = useState<MonthRange | null>(null);
 
   const load = useCallback(async () => {
     if (!selectedCompany?.id || !ledgerName) {
@@ -44,17 +46,16 @@ const ProfitLossLedgerVouchersScreen = () => {
     }
     setError(null);
     try {
+      // Server-side: an explicit range overrides the period preset.
+      const params = {
+        companyId: selectedCompany.id,
+        periodKey: periodKey || 'this_month',
+        ledgerName,
+        ...(month || {}),
+      };
       const res = isBalanceSheet
-        ? await reportService.getBalanceSheetVouchers({
-            companyId: selectedCompany.id,
-            periodKey: periodKey || 'this_month',
-            ledgerName,
-          })
-        : await reportService.getProfitLossVouchers({
-            companyId: selectedCompany.id,
-            periodKey: periodKey || 'this_month',
-            ledgerName,
-          });
+        ? await reportService.getBalanceSheetVouchers(params)
+        : await reportService.getProfitLossVouchers(params);
       setVouchers(res.data.vouchers || []);
     } catch (e: any) {
       setError(e?.response?.data?.message || e?.message || 'Failed to load vouchers');
@@ -62,7 +63,7 @@ const ProfitLossLedgerVouchersScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedCompany?.id, ledgerName, periodKey, isBalanceSheet]);
+  }, [selectedCompany?.id, ledgerName, periodKey, isBalanceSheet, month]);
 
   useEffect(() => {
     load();
@@ -120,6 +121,8 @@ const ProfitLossLedgerVouchersScreen = () => {
           </TouchableOpacity>
         </View>
       ) : (
+        <>
+        <MonthFilterBar value={month} onChange={setMonth} accentColor={PRIMARY} />
         <FlatList
           data={vouchers}
           keyExtractor={(item) => item.id}
@@ -139,10 +142,12 @@ const ProfitLossLedgerVouchersScreen = () => {
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              No vouchers found with ledger &quot;{ledgerName}&quot; in this period.
+              No vouchers found with ledger &quot;{ledgerName}&quot;
+              {month ? ' in the selected month.' : ' in this period.'}
             </Text>
           }
         />
+        </>
       )}
     </View>
   );

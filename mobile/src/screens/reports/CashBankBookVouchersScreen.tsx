@@ -14,6 +14,7 @@ import { useCompany } from '../../store/hooks';
 import { reportService, ProfitLossVoucherRow } from '../../services/reportService';
 import { formatCurrency } from '../../utils/formatters';
 import { ReportPeriodKey } from '../../components/reports/ReportPeriodFilterModal';
+import MonthFilterBar, { MonthRange } from '../../components/reports/MonthFilterBar';
 
 const PRIMARY = '#1565C0';
 
@@ -33,6 +34,7 @@ const CashBankBookVouchersScreen = () => {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [vouchers, setVouchers] = useState<ProfitLossVoucherRow[]>([]);
+  const [month, setMonth] = useState<MonthRange | null>(null);
 
   const load = useCallback(async () => {
     if (!selectedCompany?.id || !ledgerName) {
@@ -46,6 +48,8 @@ const CashBankBookVouchersScreen = () => {
         companyId: selectedCompany.id,
         periodKey: periodKey || 'this_month',
         ledgerName,
+        // Server-side: an explicit range overrides the period preset.
+        ...(month || {}),
       });
       setVouchers(res.data.vouchers || []);
     } catch (e: any) {
@@ -54,7 +58,7 @@ const CashBankBookVouchersScreen = () => {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [selectedCompany?.id, ledgerName, periodKey]);
+  }, [selectedCompany?.id, ledgerName, periodKey, month]);
 
   useEffect(() => {
     load();
@@ -113,6 +117,8 @@ const CashBankBookVouchersScreen = () => {
           </TouchableOpacity>
         </View>
       ) : (
+        <>
+        <MonthFilterBar value={month} onChange={setMonth} accentColor={PRIMARY} />
         <FlatList
           data={vouchers}
           keyExtractor={(item) => item.id}
@@ -132,10 +138,12 @@ const CashBankBookVouchersScreen = () => {
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              No receipt, payment or contra vouchers for &quot;{ledgerName}&quot; in this period.
+              No receipt, payment or contra vouchers for &quot;{ledgerName}&quot;
+              {month ? ' in the selected month.' : ' in this period.'}
             </Text>
           }
         />
+        </>
       )}
     </View>
   );
