@@ -813,6 +813,26 @@ const queryVouchersForLedger = async (
   return vouchers.slice(0, 500);
 };
 
+/**
+ * True voucher value. `totals.grandTotal` was taken from Tally's VOUCHER.AMOUNT,
+ * which on a multi-ledger accounting voucher is only the first line — a 50 + 140
+ * payment stored as 50. A balanced voucher's debit total is its real value, so
+ * prefer that. Every report drill-down list goes through here, so they all agree.
+ */
+const voucherRowAmount = (v) => {
+  const entries = Array.isArray(v.ledgerEntries) ? v.ledgerEntries : [];
+  if (entries.length > 1) {
+    let debit = 0;
+    let credit = 0;
+    for (const e of entries) {
+      debit += Math.abs(Number(e?.debit ?? e?.debitAmount ?? 0));
+      credit += Math.abs(Number(e?.credit ?? e?.creditAmount ?? 0));
+    }
+    if (debit > 0 && Math.abs(debit - credit) < 0.01) return debit;
+  }
+  return Math.abs(Number(v.totals?.grandTotal || 0));
+};
+
 const mapVoucherRowsForApi = (vouchers) =>
   vouchers.map((v) => ({
     id: v._id.toString(),
@@ -821,7 +841,7 @@ const mapVoucherRowsForApi = (vouchers) =>
     date: v.date,
     dateDisplay: formatTallyDisplayDate(v.date),
     partyName: v.partyName || '',
-    amount: Math.abs(Number(v.totals?.grandTotal || 0)),
+    amount: voucherRowAmount(v),
     narration: v.narration || ''
   }));
 
