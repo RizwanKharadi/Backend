@@ -833,6 +833,38 @@ const voucherRowAmount = (v) => {
   return Math.abs(Number(v.totals?.grandTotal || 0));
 };
 
+/**
+ * Drill-down voucher range: an explicit fromDate/toDate wins over the period
+ * preset, so the app can scope a long list to a single month without the
+ * caller having to express that month as a period key.
+ *
+ * Dates are parsed as UTC days to match how voucher dates are stored (UTC
+ * midnight of the Tally calendar date).
+ */
+const resolveDrilldownRange = (query, periodKey, company) => {
+  const parseYmd = (value, endOfDayFlag = false) => {
+    const m = String(value || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (!m) return null;
+    const base = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+    if (Number.isNaN(base.getTime())) return null;
+    return endOfDayFlag ? endOfReportDay(base) : base;
+  };
+
+  const from = parseYmd(query?.fromDate, false);
+  const to = parseYmd(query?.toDate, true);
+  if (from && to && from <= to) {
+    return {
+      periodKey: 'custom',
+      label: `${query.fromDate} → ${query.toDate}`,
+      fromDate: from,
+      toDate: to,
+      asOfDate: to
+    };
+  }
+
+  return resolveBalanceSheetVoucherRange(periodKey, company);
+};
+
 const mapVoucherRowsForApi = (vouchers) =>
   vouchers.map((v) => ({
     id: v._id.toString(),
@@ -870,7 +902,8 @@ export const getProfitLossVouchers = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Company not found' });
     }
 
-    const period = resolveReportPeriod(periodKey, company);
+    // fromDate/toDate (the month filter) override the period preset.
+    const period = resolveDrilldownRange(req.query, periodKey, company);
     const vouchers = await queryVouchersForLedger(
       companyOid,
       ledgerName,
@@ -996,7 +1029,8 @@ export const getBalanceSheetVouchers = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Company not found' });
     }
 
-    const range = resolveBalanceSheetVoucherRange(periodKey, company);
+    // fromDate/toDate (the month filter) override the period preset.
+    const range = resolveDrilldownRange(req.query, periodKey, company);
     const vouchers = await queryVouchersForLedger(
       companyOid,
       ledgerName,
@@ -2763,7 +2797,8 @@ export const getCashBankBookVouchers = async (req, res) => {
       return res.status(404).json({ success: false, message: 'Company not found' });
     }
 
-    const range = resolveBalanceSheetVoucherRange(periodKey, company);
+    // fromDate/toDate (the month filter) override the period preset.
+    const range = resolveDrilldownRange(req.query, periodKey, company);
     const vouchers = await queryVouchersForLedger(
       companyOid,
       ledgerName,
