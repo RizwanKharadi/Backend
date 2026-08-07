@@ -1341,6 +1341,18 @@ export const getBudgetVsActualReport = async (req, res) => {
 // @desc    Get Dashboard Summary
 // @route   GET /api/reports/dashboard
 // @access  Private
+/** Newest of the given dates, ignoring null/invalid ones. */
+const latestDate = (...values) => {
+  let best = null;
+  for (const value of values) {
+    if (!value) continue;
+    const d = value instanceof Date ? value : new Date(value);
+    if (Number.isNaN(d.getTime())) continue;
+    if (!best || d > best) best = d;
+  }
+  return best;
+};
+
 /** Sum |grandTotal| (fallback |amount|) of vouchers of a kind within [start, end]. */
 const sumVoucherAmounts = async (companyOid, kind, start, end) => {
   const [agg] = await Voucher.aggregate([
@@ -1426,6 +1438,7 @@ export const getDashboardSummary = async (req, res) => {
       storedPnl,
       topCustomersMonth,
       dailySales,
+      newestVoucherSync,
       recentVouchers
     ] = await Promise.all([
       sumVoucherAmounts(companyOid, 'sales', today, todayEnd),
@@ -1448,6 +1461,14 @@ export const getDashboardSummary = async (req, res) => {
         .lean(),
       aggregateTopParties(companyOid, 'sales', monthStart, todayEnd),
       aggregateDailySales(companyOid, trendStart, todayEnd),
+      // Newest voucher sync stamp. company.tallyIntegration.lastSyncDate only
+      // moves when a *company* record syncs, so between full syncs it went
+      // stale and the app reported "1d ago" while the agent had synced an hour
+      // earlier. The latest voucher push is the honest signal.
+      Voucher.findOne({ company: companyOid })
+        .select('tallyLastSyncDate')
+        .sort({ tallyLastSyncDate: -1 })
+        .lean(),
       Voucher.find(booksMatch({ company: companyOid }))
         // `amount` is not a real SQL column (we store amounts inside `totals.grandTotal`)
         // Also include `_id` because the API maps `v._id.toString()`.
@@ -1503,10 +1524,14 @@ export const getDashboardSummary = async (req, res) => {
           date: today.toISOString().slice(0, 10),
           timezone: 'Asia/Kolkata'
         },
-        lastSyncedAt:
-          company.tallyIntegration?.lastSyncDate ||
-          outstandingDoc?.tallySync?.lastSyncDate ||
-          null,
+        // Most recent of every sync signal we have, so the label matches what
+        // the desktop agent reports rather than lagging a day behind it.
+        lastSyncedAt: latestDate(
+          company.tallyIntegration?.lastSyncDate,
+          outstandingDoc?.tallySync?.lastSyncDate,
+          payableDoc?.tallySync?.lastSyncDate,
+          newestVoucherSync?.tallyLastSyncDate
+        ),
         todaySales: { amount: todaySales.amount, count: todaySales.count },
         monthlyRevenue: {
           amount: monthSales.amount,
