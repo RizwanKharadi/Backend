@@ -61,6 +61,31 @@ function initialDateRange(fromDate?: string, toDate?: string): DateRangeValue {
   return { from: startOfDay(from), to: startOfDay(to) };
 }
 
+const PAGE_SIZE = 500;
+/** Stop runaway paging; 20 pages is 10,000 vouchers. */
+const MAX_PAGES = 20;
+
+/**
+ * Walk every page, not just the first.
+ *
+ * The period total is summed from what this screen holds, and it used to hold
+ * one 500-row page. A month fits in that; a financial year does not, so the
+ * FY total silently reported only the newest 500 vouchers — 76L against Tally's
+ * 1.49Cr. Anything short of every row in the range gives a wrong total.
+ */
+async function fetchAllPages(
+  params: Record<string, unknown>
+): Promise<Voucher[]> {
+  const out: Voucher[] = [];
+  for (let page = 1; page <= MAX_PAGES; page++) {
+    const res = await voucherService.getVouchers({ ...params, page });
+    const batch = res.data || [];
+    out.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return out;
+}
+
 const FilteredVouchersScreen: React.FC = () => {
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
@@ -97,29 +122,25 @@ const FilteredVouchersScreen: React.FC = () => {
         companyId: selectedCompany.id,
         fromDate: fromStr,
         toDate: toStr,
-        limit: 500,
+        limit: PAGE_SIZE,
         page: 1,
       };
 
       let docs: Voucher[] = [];
-      const typedRes = await voucherService.getVouchers({
-        ...baseParams,
-        type: voucherType,
-      });
-      docs = (typedRes.data || []).filter((v) => matchesVoucherType(v, voucherType));
+      const typed = await fetchAllPages({ ...baseParams, type: voucherType });
+      docs = typed.filter((v) => matchesVoucherType(v, voucherType));
 
       if (docs.length === 0) {
-        const allRes = await voucherService.getVouchers(baseParams);
-        docs = (allRes.data || []).filter((v) => matchesVoucherType(v, voucherType));
+        const all = await fetchAllPages(baseParams);
+        docs = all.filter((v) => matchesVoucherType(v, voucherType));
       }
 
       if (docs.length === 0) {
-        const wideRes = await voucherService.getVouchers({
+        const wide = await fetchAllPages({
           companyId: selectedCompany.id,
-          limit: 500,
-          page: 1,
+          limit: PAGE_SIZE,
         });
-        docs = filterVouchersInRange(wideRes.data || [], fromStr, toStr).filter((v) =>
+        docs = filterVouchersInRange(wide, fromStr, toStr).filter((v) =>
           matchesVoucherType(v, voucherType)
         );
       }

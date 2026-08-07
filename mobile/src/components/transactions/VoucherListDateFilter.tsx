@@ -21,6 +21,8 @@ interface VoucherListDateFilterProps {
   value: DateRangeValue;
   onChange: (range: DateRangeValue) => void;
   accentColor?: string;
+  /** Month chips are for long drill-down lists, not the Sales/Purchase report. */
+  showMonthChips?: boolean;
 }
 
 const PRESETS = [
@@ -116,6 +118,7 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
   value,
   onChange,
   accentColor = dashboardColors.accent,
+  showMonthChips = false,
 }) => {
   const [picker, setPicker] = useState<'from' | 'to' | null>(null);
   const months = useMemo(() => recentMonths(12), []);
@@ -159,6 +162,7 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
         ))}
       </View>
 
+      {showMonthChips ? (
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -184,6 +188,7 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
           );
         })}
       </ScrollView>
+      ) : null}
 
       <View style={styles.dateCard}>
         <Text style={styles.cardTitle}>Date range</Text>
