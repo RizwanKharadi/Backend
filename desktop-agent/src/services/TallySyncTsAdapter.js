@@ -162,20 +162,41 @@ class TallySyncTsAdapter {
     }
 
     const message = String(first.message || '').toLowerCase();
+
+    // tally-sync-ts collapses Tally's <IMPORTRESULT> into status + a wording:
+    // it emits "Created successfully" only when CREATED > 0, "Altered
+    // successfully" only when ALTERED > 0, "Deleted successfully" only when
+    // DELETED > 0 — and "Imported successfully" when all three are zero.
+    // For master imports (ledger / stock item) that wording is ALL we get:
+    // there is no GUID, LASTVCHID is absent so masterId is undefined, and
+    // alteredId is never populated by parsePostResponse at all. Reading only
+    // the numeric fields threw away Tally's own confirmation and reported a
+    // successful import as a failure.
+    const createdByMessage = /created\s+successfully/.test(message);
+    const alteredByMessage = /altered\s+successfully/.test(message);
+    const deletedByMessage = /deleted\s+successfully/.test(message);
+
     const alreadyExisted =
       Boolean(hints.alreadyExisted) ||
       message.includes('exist') ||
       message.includes('duplicate') ||
+      // Tally alters instead of duplicating when a master of that name is there.
+      alteredByMessage ||
       (first.alteredId > 0 && !first.masterId);
 
-    const created = first.masterId ? 1 : 0;
-    const altered = first.alteredId ? 1 : 0;
+    const created = first.masterId || createdByMessage ? 1 : 0;
+    const altered = first.alteredId || alteredByMessage ? 1 : 0;
     const tallyGuid = first.guid || '';
     const hasProof =
       Boolean(tallyGuid) ||
       alreadyExisted ||
       created > 0 ||
-      altered > 0;
+      altered > 0 ||
+      deletedByMessage;
+
+    // Note "Imported successfully" is deliberately NOT proof: it is what the
+    // library says when CREATED, ALTERED and DELETED are all zero, i.e. Tally
+    // accepted the XML but changed nothing.
 
     if (!hasProof) {
       const msg =

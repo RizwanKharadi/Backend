@@ -5,6 +5,7 @@ import { updateSyncStatus } from '../store/slices/tallySlice';
 import { setSyncProgress } from '../store/slices/syncSlice';
 import PushNotification from 'react-native-push-notification';
 import { Alert, AppState, AppStateStatus } from 'react-native';
+import { tSafe } from '../i18n';
 
 export interface RealTimeEvent {
   type: string;
@@ -217,11 +218,17 @@ class RealTimeManager {
     
     // Show alert to user
     Alert.alert(
-      'Sync Conflict',
-      'A data conflict has been detected. Please review and resolve it.',
+      tSafe('sync.conflict.title', 'Sync Conflict'),
+      tSafe(
+        'sync.conflict.message',
+        'A data conflict has been detected. Please review and resolve it.'
+      ),
       [
-        { text: 'Later', style: 'cancel' },
-        { text: 'Resolve Now', onPress: () => this.navigateToConflictResolution(data) },
+        { text: tSafe('sync.conflict.later', 'Later'), style: 'cancel' },
+        {
+          text: tSafe('sync.conflict.resolveNow', 'Resolve Now'),
+          onPress: () => this.navigateToConflictResolution(data),
+        },
       ]
     );
   }

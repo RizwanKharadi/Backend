@@ -16,6 +16,7 @@ import { protect, authorize, checkCompanyAccess } from '../middleware/auth.js';
 import {
   getPendingSyncSummary,
   getPendingSyncItems,
+  retryPendingSync,
 } from '../controllers/syncStateController.js';
 import { requireActiveSubscription } from '../middleware/license.js';
 import validateRequest from '../middleware/validation.js';
@@ -30,6 +31,7 @@ router.use(protect, requireActiveSubscription);
 // app figures reconcile with Tally, so they need their own way to be seen.
 router.get('/pending-sync', checkCompanyAccess, getPendingSyncSummary);
 router.get('/pending-sync/items', checkCompanyAccess, getPendingSyncItems);
+router.post('/pending-sync/retry', checkCompanyAccess, retryPendingSync);
 
 // @desc    Get Tally sync status for company
 // @route   GET /api/tally/sync-status/:companyId

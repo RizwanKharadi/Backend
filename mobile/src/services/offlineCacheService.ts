@@ -161,15 +161,20 @@ export const offlineCacheService = {
     summary: unknown
   ): Promise<void> {
     if (!companyId) return;
+    // Annotated rather than `satisfies`: this project pins TypeScript 4.8, and
+    // `satisfies` (4.9+) is a *parse* error there. Because tsc skips all
+    // semantic checking whenever any file fails to parse, that one keyword was
+    // silently disabling type checking for the entire project.
+    const payload: CachedDayBook = {
+      entries,
+      summary,
+      fromDate,
+      toDate,
+      cachedAt: new Date().toISOString(),
+    };
     await AsyncStorage.setItem(
       key(companyId, `daybook_${fromDate}_${toDate}`),
-      JSON.stringify({
-        entries,
-        summary,
-        fromDate,
-        toDate,
-        cachedAt: new Date().toISOString(),
-      } satisfies CachedDayBook)
+      JSON.stringify(payload)
     );
   },
 

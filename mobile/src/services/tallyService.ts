@@ -348,6 +348,22 @@ class TallyService {
     });
     return response.data;
   }
+
+  /**
+   * Push everything waiting straight away, including rows that gave up after
+   * their retry budget ran out. Needs the desktop agent to be connected.
+   */
+  async retryPendingSync(companyId: string): Promise<{
+    success: boolean;
+    data: { attempted: number; succeeded: number; failed: number };
+  }> {
+    const response = await apiClient.post(
+      `${this.baseURL}/pending-sync/retry`,
+      {},
+      { params: { companyId } }
+    );
+    return response.data;
+  }
 }
 
 export const tallyService = new TallyService();

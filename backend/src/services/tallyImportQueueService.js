@@ -13,40 +13,50 @@
 import { TallyImportQueue, Party, Item, Voucher } from '../models/index.js';
 import logger from '../utils/logger.js';
 
+/**
+ * Masters (ledger / stock item) come back from Tally without a GUID, so never
+ * overwrite an existing tallyId with an empty string.
+ */
+function syncedUpdate(result) {
+  return {
+    'tallySync.synced': true,
+    ...(result?.tallyGuid ? { 'tallySync.tallyId': result.tallyGuid } : {}),
+    'tallySync.lastSyncDate': new Date(),
+    'tallySync.syncError': '',
+  };
+}
+
 /** entityType -> how to push it and how to mark the source row synced. */
 const HANDLERS = {
   ledger: {
     push: (svc, company, payload, entityId) =>
       svc.pushLedgerToTally(company, payload, { partyId: entityId }),
+    isSynced: async (entityId) => {
+      const row = await Party.findById(entityId).lean();
+      return Boolean(row?.tallySynced || row?.tallySync?.synced);
+    },
     markSynced: (entityId, result) =>
-      Party.findByIdAndUpdate(entityId, {
-        'tallySync.synced': true,
-        'tallySync.tallyId': result.tallyGuid,
-        'tallySync.lastSyncDate': new Date(),
-        'tallySync.syncError': '',
-      }),
+      Party.findByIdAndUpdate(entityId, syncedUpdate(result)),
   },
   'stock-item': {
     push: (svc, company, payload, entityId) =>
       svc.pushStockItemToTally(company, payload, { itemId: entityId }),
+    isSynced: async (entityId) => {
+      const row = await Item.findById(entityId).lean();
+      return Boolean(row?.tallySynced || row?.tallySync?.synced);
+    },
     markSynced: (entityId, result) =>
-      Item.findByIdAndUpdate(entityId, {
-        'tallySync.synced': true,
-        'tallySync.tallyId': result.tallyGuid,
-        'tallySync.lastSyncDate': new Date(),
-        'tallySync.syncError': '',
-      }),
+      Item.findByIdAndUpdate(entityId, syncedUpdate(result)),
   },
   voucher: {
     push: (svc, company, payload, entityId) =>
       svc.pushVoucherToTally(company, payload, { voucherId: entityId }),
+    isSynced: async (entityId) => {
+      const row = await Voucher.findById(entityId).lean();
+      return Boolean(row?.tallySynced || row?.tallySync?.synced);
+    },
     markSynced: (entityId, result) =>
-      Voucher.findByIdAndUpdate(entityId, {
-        'tallySync.synced': true,
-        'tallySync.tallyId': result.tallyGuid,
-        'tallySync.lastSyncDate': new Date(),
-        'tallySync.syncError': '',
-      }),
+      Voucher.findByIdAndUpdate(entityId, syncedUpdate(result)),
   },
 };
 
@@ -136,16 +146,32 @@ export async function flushPendingImports(company, wsService) {
     if (!handler) continue;
 
     try {
+      // Someone else already got this into Tally (the create path succeeded on
+      // a later attempt, or the record came back down in a full sync). Pushing
+      // again would create a duplicate master in Tally.
+      if (handler.isSynced && (await handler.isSynced(row.entityId))) {
+        await TallyImportQueue.findByIdAndUpdate(row._id, {
+          status: 'done',
+          lastError: '',
+          lastAttemptAt: new Date(),
+        });
+        succeeded += 1;
+        continue;
+      }
+
       const result = await handler.push(wsService, company, row.payload, row.entityId);
 
-      const confirmed =
-        Boolean(result?.tallyGuid) ||
-        Boolean(result?.alreadyExisted) ||
-        Number(result?.created) > 0 ||
-        Number(result?.altered) > 0;
-
-      if (!confirmed) {
-        throw new Error('Tally did not confirm the import');
+      // The agent only answers success:true after Tally itself confirmed the
+      // import (TallySyncTsAdapter.normalizePostResponses rejects a response
+      // with no GUID and no CREATED/ALTERED), so a resolved push IS the
+      // confirmation — same rule the synchronous create path uses.
+      //
+      // Re-deriving proof here used to fail for ledgers and stock items:
+      // Tally returns no GUID for masters, and the agent's master responses
+      // carried no created/altered counts. The record landed in Tally, the
+      // queue row stayed pending, and the app showed it as waiting forever.
+      if (result?.success === false) {
+        throw new Error(result?.error || result?.message || 'Tally rejected the import');
       }
 
       await handler.markSynced(row.entityId, result);

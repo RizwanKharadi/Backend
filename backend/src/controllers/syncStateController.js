@@ -7,6 +7,8 @@
  * import just quietly disappears from the user's view.
  */
 import { Voucher, Item, Party, TallyImportQueue } from '../models/index.js';
+import tallyWebSocketService from '../services/tallyWebSocketService.js';
+import { flushPendingImports } from '../services/tallyImportQueueService.js';
 import logger from '../utils/logger.js';
 
 // @desc    Counts of records saved in cloud but not yet in Tally
@@ -78,5 +80,31 @@ export const getPendingSyncItems = async (req, res) => {
   } catch (error) {
     logger.error('Get pending sync items error:', error);
     res.status(500).json({ success: false, message: 'Server error' });
+  }
+};
+
+// @desc    Retry everything waiting, including rows that exhausted MAX_ATTEMPTS
+// @route   POST /api/tally/pending-sync/retry?companyId=...
+// @access  Private
+export const retryPendingSync = async (req, res) => {
+  try {
+    const company = req.company;
+
+    // Rows parked as 'failed' are never picked up by the automatic flush.
+    // A user asking for a retry is the signal to give them another run.
+    await TallyImportQueue.updateMany(
+      { company: company._id, status: 'failed' },
+      { status: 'pending', attempts: 0, lastError: '' }
+    );
+
+    const result = await flushPendingImports(company, tallyWebSocketService);
+
+    res.status(200).json({ success: true, data: result });
+  } catch (error) {
+    logger.error('Retry pending sync error:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Could not retry pending imports',
+    });
   }
 };
