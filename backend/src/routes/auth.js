@@ -27,6 +27,8 @@ import { sendOtpEmail } from '../services/otpEmail.js';
 import {
   clientTypeOf,
   createSession,
+  getRevokedSession,
+  revokedMessage,
   describeSession,
   findBlockingSession,
   listSessions,
@@ -542,12 +544,13 @@ router.post('/refresh', [
     });
 
     if (!rotated.ok) {
+      // Explain the real cause. A blanket "used on another device" had people
+      // hunting for a second device that was never there.
+      const revoked = await getRevokedSession(decoded.sid);
       return res.status(401).json({
         success: false,
-        message:
-          rotated.reason === 'REFRESH_TOKEN_REUSED'
-            ? 'This session was ended for security reasons. Please sign in again.'
-            : 'You were signed out because this account was used on another device.',
+        message: revokedMessage(revoked?.revokeReason || 'refresh_token_reuse'),
+        reason: revoked?.revokeReason || null,
         code: rotated.reason
       });
     }

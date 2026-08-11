@@ -112,6 +112,13 @@ export function defineAllModels(sequelize) {
        * being presented twice.
        */
       refreshTokenHash: { type: STR, allowNull: true },
+      /**
+       * The hash replaced by the most recent rotation. Accepted for a short
+       * grace period so a client that raced itself, or restarted before it
+       * could persist the new token, is not mistaken for a thief.
+       */
+      prevRefreshTokenHash: { type: STR, allowNull: true },
+      prevRotatedAt: { type: DATE, allowNull: true },
       lastIp: { type: STR(64), allowNull: true },
       lastSeenAt: { type: DATE, allowNull: true },
       revokedAt: { type: DATE, allowNull: true },
