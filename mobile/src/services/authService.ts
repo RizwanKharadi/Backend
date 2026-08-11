@@ -526,7 +526,7 @@ class AuthService {
     email: string,
     otp: string,
     purpose: OtpPurpose
-  ): Promise<{ success: boolean; resetTicket?: string; user?: User }> {
+  ): Promise<{ success: boolean; resetTicket?: string; user?: User; token?: string }> {
     try {
       const response = await apiClient.post('/auth/verify-otp', {
         email: email.toLowerCase().trim(),
@@ -543,7 +543,10 @@ class AuthService {
           await EncryptedStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
         }
         await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
-        return { success: true, user };
+        // The token goes back to the caller as well as into storage: the
+        // navigator switches stacks off Redux, not off storage, so the screen
+        // has to put this session into the store itself.
+        return { success: true, user, token: data.token };
       }
 
       return { success: true, resetTicket: data.resetTicket };

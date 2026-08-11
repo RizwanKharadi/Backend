@@ -28,6 +28,9 @@ import { authColors } from '../../theme/authTheme';
 import { authService } from '../../services';
 import { AuthStackScreenProps } from '../../types/navigation';
 import { useTranslation } from 'react-i18next';
+import { useDispatch } from 'react-redux';
+import { restoreSession } from '../../store/slices/authSlice';
+import type { AppDispatch } from '../../store';
 
 type Props = AuthStackScreenProps<'OtpVerification'>;
 
@@ -38,6 +41,7 @@ const RESEND_SECONDS = 60;
 const OtpVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
+  const dispatch = useDispatch<AppDispatch>();
   const { email, purpose, name } = route.params;
 
   const [code, setCode] = useState('');
@@ -76,8 +80,14 @@ const OtpVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
           });
           return;
         }
-        // Verification returns a session. AppNavigator watches auth state and
-        // swaps to the main stack on its own, so there is nothing to navigate.
+
+        // Verifying a signup is what issues the session. AppNavigator switches
+        // stacks off state.auth.isAuthenticated, so writing the token to
+        // storage is not enough — without this dispatch the screen just sits
+        // here after a successful verification.
+        if (result.token && result.user) {
+          dispatch(restoreSession({ user: result.user, token: result.token }));
+        }
       } catch (e: unknown) {
         setError((e as Error).message);
         setCode('');
@@ -86,7 +96,7 @@ const OtpVerificationScreen: React.FC<Props> = ({ navigation, route }) => {
         setBusy(false);
       }
     },
-    [busy, email, navigation, purpose]
+    [busy, dispatch, email, navigation, purpose]
   );
 
   const handleChange = (value: string) => {

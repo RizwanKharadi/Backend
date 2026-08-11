@@ -352,13 +352,24 @@ export const useElectronAPI = () => {
   const serverVerifyOtp = useCallback(async (email, otp, purpose) => {
     if (!isElectronAvailable) return { success: false }
     try {
-      return await window.electronAPI.serverVerifyOtp({ email, otp, purpose })
+      const result = await window.electronAPI.serverVerifyOtp({ email, otp, purpose })
+      // Verifying a signup is what issues the session, so the store has to pick
+      // up the token the main process just wrote. Without this the config in the
+      // renderer still has no token, App keeps rendering <Login>, and the screen
+      // sits on the OTP step even though verification succeeded.
+      if (result?.token) {
+        const updatedConfig = await window.electronAPI.getConfig()
+        if (updatedConfig) {
+          setConfig(updatedConfig)
+        }
+      }
+      return result
     } catch (error) {
       console.error('Verify OTP failed:', error)
       toast.error(error.message || 'Could not verify that code')
       return { success: false, error: error.message }
     }
-  }, [isElectronAvailable])
+  }, [isElectronAvailable, setConfig])
 
   const serverResendOtp = useCallback(async (email, purpose) => {
     if (!isElectronAvailable) return { success: false }
