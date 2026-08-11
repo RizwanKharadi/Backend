@@ -196,20 +196,47 @@ describe('refresh token rotation', () => {
     expect(first.refreshToken).not.toBe(refreshToken);
   });
 
-  test('presenting the same refresh token twice kills the session', async () => {
-    const { sessionId, refreshToken } = await createSession({ userId: USER, device: phone });
+  test('a client racing itself inside the grace window is not punished', async () => {
+    // The desktop agent refreshes from more than one code path. Two callers
+    // reading the same stored token a moment apart is a race, not an attack,
+    // and it was destroying real sessions — twice, once in the same second the
+    // agent signed in.
+    const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
+    const first = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
+
+    const raced = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
+
+    expect(raced.ok).toBe(true);
+    expect(await touchSession(sessionId)).not.toBeNull();
+    expect(first.ok).toBe(true);
+  });
+
+  test('the same token replayed after the grace window still kills the session', async () => {
+    const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
     await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
 
-    const replay = await rotateRefreshToken({
-      userId: USER,
-      sessionId,
-      presentedToken: refreshToken,
-    });
+    // Age the rotation past the window.
+    const row = rows.get(sessionId);
+    rows.set(sessionId, { ...row, prevRotatedAt: new Date(Date.now() - 5 * 60 * 1000) });
+
+    const replay = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
 
     expect(replay.ok).toBe(false);
     expect(replay.reason).toBe('REFRESH_TOKEN_REUSED');
-    // The whole session dies, not just the replayed request — a copied token
-    // means the session can no longer be trusted.
+    expect(await touchSession(sessionId)).toBeNull();
+  });
+
+  test('a token that was never issued for this session is rejected outright', async () => {
+    const { sessionId } = await createSession({ userId: USER, device: phone });
+
+    const bogus = await rotateRefreshToken({
+      userId: USER,
+      sessionId,
+      presentedToken: 'not-a-token-this-session-ever-had',
+    });
+
+    expect(bogus.ok).toBe(false);
+    expect(bogus.reason).toBe('REFRESH_TOKEN_REUSED');
     expect(await touchSession(sessionId)).toBeNull();
   });
 

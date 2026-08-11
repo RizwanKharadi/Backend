@@ -23,6 +23,13 @@ export const REFRESH_TOKEN_TTL = process.env.JWT_REFRESH_EXPIRE || '30d';
 /** A session with no activity for this long stops blocking a new sign-in. */
 const STALE_SESSION_DAYS = 45;
 
+/**
+ * How long the previous refresh token stays acceptable after a rotation.
+ * Long enough to absorb a client racing itself or restarting mid-rotation,
+ * short enough that a captured token replayed later is still caught.
+ */
+const REFRESH_GRACE_MS = 60 * 1000;
+
 const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 
 /**
@@ -178,14 +185,38 @@ export async function rotateRefreshToken({ userId, sessionId, presentedToken, ip
     return { ok: false, reason: 'SESSION_REVOKED' };
   }
 
-  if (session.refreshTokenHash !== hashToken(presentedToken)) {
-    await revokeSession(sessionId, 'refresh_token_reuse');
-    logger.warn('Refresh token reuse detected; session revoked', {
-      userId: String(userId),
+  const presented = hashToken(presentedToken);
+
+  if (session.refreshTokenHash !== presented) {
+    // The token just replaced by a rotation is honoured for a short window.
+    //
+    // Without this, a client that legitimately raced itself — two request
+    // handlers refreshing at once, or a crash between receiving the new token
+    // and writing it to disk — looks identical to a stolen token and gets its
+    // session destroyed. That is exactly what happened to the desktop agent:
+    // it was killed twice, once in the same second it signed in.
+    //
+    // The security property survives. A token captured and replayed later,
+    // which is the case worth catching, still falls outside the window.
+    const withinGrace =
+      session.prevRefreshTokenHash === presented &&
+      session.prevRotatedAt &&
+      Date.now() - new Date(session.prevRotatedAt).getTime() <= REFRESH_GRACE_MS;
+
+    if (!withinGrace) {
+      await revokeSession(sessionId, 'refresh_token_reuse');
+      logger.warn('Refresh token reuse detected; session revoked', {
+        userId: String(userId),
+        sessionId: String(sessionId),
+        deviceId: session.deviceId,
+      });
+      return { ok: false, reason: 'REFRESH_TOKEN_REUSED' };
+    }
+
+    logger.info('Refresh token replayed inside the grace window; treating as a race', {
       sessionId: String(sessionId),
       deviceId: session.deviceId,
     });
-    return { ok: false, reason: 'REFRESH_TOKEN_REUSED' };
   }
 
   const token = signAccessToken(String(userId), String(sessionId));
@@ -193,12 +224,35 @@ export async function rotateRefreshToken({ userId, sessionId, presentedToken, ip
 
   await Session.findByIdAndUpdate(sessionId, {
     refreshTokenHash: hashToken(refreshToken),
+    prevRefreshTokenHash: session.refreshTokenHash,
+    prevRotatedAt: new Date(),
     lastSeenAt: new Date(),
     lastIp: ip || session.lastIp || null,
   });
 
   return { ok: true, token, refreshToken };
 }
+
+/**
+ * Turns a stored revokeReason into something true to show the user. Reporting
+ * every revocation as "used on another device" was actively misleading: it sent
+ * people hunting for a second device that did not exist.
+ */
+export const revokedMessage = (reason) => {
+  switch (reason) {
+    case 'signed_in_elsewhere':
+    case 'replaced_by_new_login':
+      return 'You were signed out because this account was signed in on another device.';
+    case 'password_reset':
+      return 'You were signed out because the password was changed. Please sign in again.';
+    case 'refresh_token_reuse':
+      return 'This session was ended for security reasons. Please sign in again.';
+    case 'revoked_by_user':
+      return 'This device was signed out from another device.';
+    default:
+      return 'Your session has ended. Please sign in again.';
+  }
+};
 
 /** Called by `protect`. Returns null when the session is gone or revoked. */
 export async function touchSession(sessionId, ip) {
@@ -211,6 +265,12 @@ export async function touchSession(sessionId, ip) {
     await Session.findByIdAndUpdate(sessionId, { lastSeenAt: new Date(), lastIp: ip || null });
   }
   return session;
+}
+
+/** Reads a session even when revoked, so callers can explain why it ended. */
+export async function getRevokedSession(sessionId) {
+  if (!sessionId) return null;
+  return Session.findById(sessionId);
 }
 
 export async function listSessions(userId) {

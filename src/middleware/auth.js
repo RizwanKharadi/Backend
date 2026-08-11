@@ -2,7 +2,11 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import Company from '../models/Company.js';
-import { touchSession } from '../services/sessionService.js';
+import {
+  touchSession,
+  revokedMessage,
+  getRevokedSession,
+} from '../services/sessionService.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -64,9 +68,13 @@ export const protect = async (req, res, next) => {
 
       const session = await touchSession(decoded.sid, req.ip);
       if (!session) {
+        // Say why. Reporting every revocation as "used on another device" sent
+        // people looking for a second device that did not exist.
+        const revoked = await getRevokedSession(decoded.sid);
         return res.status(401).json({
           success: false,
-          message: 'You were signed out because this account was used on another device.',
+          message: revokedMessage(revoked?.revokeReason),
+          reason: revoked?.revokeReason || null,
           code: 'SESSION_REVOKED'
         });
       }
