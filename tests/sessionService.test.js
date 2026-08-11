@@ -53,6 +53,7 @@ const {
 const USER = 'user-1';
 const phone = { deviceId: 'phone-a', deviceName: 'Pixel 8', platform: 'android' };
 const tablet = { deviceId: 'tablet-b', deviceName: 'iPad', platform: 'ios' };
+const agent = { deviceId: 'agent-pc', deviceName: 'Office PC', platform: 'desktop' };
 
 beforeEach(() => {
   rows.clear();
@@ -60,10 +61,10 @@ beforeEach(() => {
 });
 
 describe('one device at a time', () => {
-  test('a second device is blocked while the first holds the session', async () => {
+  test('a second phone is blocked while the first holds the session', async () => {
     await createSession({ userId: USER, device: phone });
 
-    const blocking = await findBlockingSession(USER, tablet.deviceId);
+    const blocking = await findBlockingSession(USER, tablet.deviceId, 'mobile');
 
     expect(blocking).not.toBeNull();
     expect(blocking.deviceName).toBe('Pixel 8');
@@ -72,7 +73,7 @@ describe('one device at a time', () => {
   test('the same device signing in again is never blocked by itself', async () => {
     await createSession({ userId: USER, device: phone });
 
-    expect(await findBlockingSession(USER, phone.deviceId)).toBeNull();
+    expect(await findBlockingSession(USER, phone.deviceId, 'mobile')).toBeNull();
   });
 
   test('reinstalling on the same device replaces its session rather than stacking', async () => {
@@ -86,14 +87,14 @@ describe('one device at a time', () => {
     const first = await createSession({ userId: USER, device: phone });
     await revokeSession(first.sessionId, 'logout');
 
-    expect(await findBlockingSession(USER, tablet.deviceId)).toBeNull();
+    expect(await findBlockingSession(USER, tablet.deviceId, 'mobile')).toBeNull();
   });
 
   test('taking over revokes the other device but keeps this one', async () => {
     await createSession({ userId: USER, device: phone });
     const second = await createSession({ userId: USER, device: tablet });
 
-    await revokeOtherSessions(USER, tablet.deviceId);
+    await revokeOtherSessions(USER, tablet.deviceId, 'signed_in_elsewhere', 'mobile');
 
     const live = await listSessions(USER);
     expect(live).toHaveLength(1);
@@ -103,7 +104,7 @@ describe('one device at a time', () => {
   test('one user’s session never blocks another user', async () => {
     await createSession({ userId: 'someone-else', device: phone });
 
-    expect(await findBlockingSession(USER, tablet.deviceId)).toBeNull();
+    expect(await findBlockingSession(USER, tablet.deviceId, 'mobile')).toBeNull();
   });
 
   test('a session untouched for months stops blocking, so a dead phone is not a lockout', async () => {
@@ -111,7 +112,58 @@ describe('one device at a time', () => {
     const old = new Date(Date.now() - 200 * 24 * 60 * 60 * 1000);
     rows.set(sessionId, { ...rows.get(sessionId), lastSeenAt: old, createdAt: old });
 
-    expect(await findBlockingSession(USER, tablet.deviceId)).toBeNull();
+    expect(await findBlockingSession(USER, tablet.deviceId, 'mobile')).toBeNull();
+  });
+});
+
+describe('the agent and the phone are companions, not rivals', () => {
+  test('a signed-in desktop agent never blocks a phone', async () => {
+    await createSession({ userId: USER, device: agent });
+
+    expect(await findBlockingSession(USER, phone.deviceId, 'mobile')).toBeNull();
+  });
+
+  test('a signed-in phone never blocks the desktop agent', async () => {
+    await createSession({ userId: USER, device: phone });
+
+    expect(await findBlockingSession(USER, agent.deviceId, 'desktop')).toBeNull();
+  });
+
+  test('both stay signed in at the same time', async () => {
+    await createSession({ userId: USER, device: agent });
+    await createSession({ userId: USER, device: phone });
+
+    expect(await listSessions(USER)).toHaveLength(2);
+  });
+
+  test('a phone taking over does not sign the agent out and stop the Tally sync', async () => {
+    const pc = await createSession({ userId: USER, device: agent });
+    await createSession({ userId: USER, device: phone });
+
+    // Second phone takes the mobile slot.
+    await createSession({ userId: USER, device: tablet });
+    await revokeOtherSessions(USER, tablet.deviceId, 'signed_in_elsewhere', 'mobile');
+
+    expect(await touchSession(pc.sessionId)).not.toBeNull();
+    const live = await listSessions(USER);
+    expect(live.map((s) => s.deviceId).sort()).toEqual(['agent-pc', 'tablet-b']);
+  });
+
+  test('a second desktop agent is still blocked by the first', async () => {
+    await createSession({ userId: USER, device: agent });
+
+    const blocking = await findBlockingSession(USER, 'agent-other-pc', 'desktop');
+
+    expect(blocking?.deviceName).toBe('Office PC');
+  });
+
+  test('a password change ends every session, agent included', async () => {
+    await createSession({ userId: USER, device: agent });
+    await createSession({ userId: USER, device: phone });
+
+    await revokeOtherSessions(USER, null, 'password_reset');
+
+    expect(await listSessions(USER)).toHaveLength(0);
   });
 });
 

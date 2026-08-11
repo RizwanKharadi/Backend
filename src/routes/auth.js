@@ -25,6 +25,7 @@ import {
 } from '../services/otpService.js';
 import { sendOtpEmail } from '../services/otpEmail.js';
 import {
+  clientTypeOf,
   createSession,
   describeSession,
   findBlockingSession,
@@ -411,7 +412,10 @@ router.post('/login', [
       });
     }
 
-    const blocking = await findBlockingSession(user._id, deviceId);
+    // Scoped per client type: the agent and the phone are companions and must
+    // both stay signed in. Only another device of the same kind conflicts.
+    const clientType = clientTypeOf(device.platform);
+    const blocking = await findBlockingSession(user._id, deviceId, clientType);
 
     if (blocking && !req.body.forceLogin) {
       return res.status(409).json({
@@ -423,7 +427,7 @@ router.post('/login', [
     }
 
     if (blocking) {
-      await revokeOtherSessions(user._id, deviceId, 'signed_in_elsewhere');
+      await revokeOtherSessions(user._id, deviceId, 'signed_in_elsewhere', clientType);
     }
 
     // Reset login attempts on successful login
@@ -788,7 +792,12 @@ router.post('/verify-otp', [
       // account cannot be signed in anywhere else, so there is nothing to
       // conflict with — but any stale rows are cleared for safety.
       const device = req.body.device || {};
-      await revokeOtherSessions(user._id, device.deviceId, 'signed_in_elsewhere');
+      await revokeOtherSessions(
+        user._id,
+        device.deviceId,
+        'signed_in_elsewhere',
+        clientTypeOf(device.platform)
+      );
       const { token, refreshToken } = await createSession({
         userId: user._id,
         device,

@@ -44,6 +44,19 @@ const signRefreshToken = (userId, sessionId) =>
     expiresIn: REFRESH_TOKEN_TTL,
   });
 
+/**
+ * The desktop agent and the mobile app are companions, not rivals: the agent
+ * pushes Tally data from the PC while the phone reads it, so the same person
+ * must be signed in on both at once. The one-device rule therefore applies
+ * within a client type, never across them — a phone signing in must not knock
+ * the agent offline and stop the sync.
+ *
+ * Derived from `platform` rather than stored, so sessions created before this
+ * distinction existed classify correctly without a migration.
+ */
+export const clientTypeOf = (platform) =>
+  String(platform || '').toLowerCase() === 'desktop' ? 'desktop' : 'mobile';
+
 /** What the client is told about the device currently holding the session. */
 export const describeSession = (session) => ({
   deviceId: session.deviceId,
@@ -60,7 +73,7 @@ const staleBefore = () => new Date(Date.now() - STALE_SESSION_DAYS * 24 * 60 * 6
  * staleness window a customer who factory-reset a phone a year ago would be
  * locked out with nothing to log out from.
  */
-export async function findBlockingSession(userId, deviceId) {
+export async function findBlockingSession(userId, deviceId, clientType = 'mobile') {
   const sessions = await Session.find({
     userId: String(userId),
     revokedAt: null,
@@ -70,6 +83,9 @@ export async function findBlockingSession(userId, deviceId) {
   return (
     sessions.find((s) => {
       if (s.deviceId === deviceId) return false;
+      // A desktop agent never blocks a phone, and a phone never blocks the
+      // agent. Only another device of the same kind occupies the slot.
+      if (clientTypeOf(s.platform) !== clientType) return false;
       const seen = s.lastSeenAt || s.createdAt;
       return !seen || new Date(seen) >= cutoff;
     }) || null
@@ -85,12 +101,25 @@ export async function revokeSession(sessionId, reason = 'logout') {
   });
 }
 
-/** Used by takeover and by "sign out everywhere". */
-export async function revokeOtherSessions(userId, keepDeviceId, reason = 'signed_in_elsewhere') {
+/**
+ * Used by takeover and by "sign out everywhere".
+ *
+ * `clientType` limits the sweep to one kind of client. A phone taking over
+ * must pass it, or signing in on a new phone would also sign the desktop agent
+ * out and stop the customer's Tally sync. Omitting it revokes everything, which
+ * is what a password change wants.
+ */
+export async function revokeOtherSessions(
+  userId,
+  keepDeviceId,
+  reason = 'signed_in_elsewhere',
+  clientType = null
+) {
   const sessions = await Session.find({ userId: String(userId), revokedAt: null });
   let revoked = 0;
   for (const s of sessions) {
     if (keepDeviceId && s.deviceId === keepDeviceId) continue;
+    if (clientType && clientTypeOf(s.platform) !== clientType) continue;
     await revokeSession(s._id || s.id, reason);
     revoked += 1;
   }
