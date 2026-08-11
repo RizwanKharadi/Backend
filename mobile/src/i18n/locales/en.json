@@ -101,7 +101,11 @@
       "checkCredentials": "Please check your credentials and try again.",
       "signUpHint": "Sign up here or on the TallyFin Desktop Agent. Use the same email and password on both — after you sync from desktop, your Tally data appears in this app.",
       "noAccount": "Don't have an account?",
-      "biometricFailed": "Biometric Login Failed"
+      "biometricFailed": "Biometric Login Failed",
+      "alreadySignedInTitle": "Already signed in",
+      "alreadySignedInBody": "This account is signed in on {{device}} ({{when}}). You can use TallyFin on one device at a time.",
+      "anotherDevice": "another device",
+      "signOutOther": "Sign out that device"
     },
     "register": {
       "title": "Create account",

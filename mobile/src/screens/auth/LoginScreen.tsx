@@ -33,6 +33,7 @@ import {
 import { setSelectedCompany as setPersistedCompanyId } from '../../store/slices/settingsSlice';
 import { initializeRealtimeServices } from '../../services';
 import { pickDefaultCompany } from '../../utils/companySelection';
+import { formatRelativeTime } from '../../utils/formatters';
 import { useTranslation } from 'react-i18next';
 import { FinnyMascot } from '../../components/mascot';
 
@@ -95,12 +96,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     }, [checkBiometricAvailability, setValue])
   );
 
-  const onSubmit = async (data: LoginForm) => {
+  const onSubmit = async (data: LoginForm, forceLogin = false) => {
     try {
       const credentials: LoginCredentials = {
         email: data.email.toLowerCase().trim(),
         password: data.password,
         rememberMe: data.rememberMe,
+        // Set only on the retry after the user agreed to sign the other
+        // device out; a first attempt must never take over silently.
+        forceLogin,
       };
 
       await dispatch(login(credentials)).unwrap();
@@ -124,6 +128,28 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
           email: err.email || data.email.toLowerCase().trim(),
           purpose: 'email_verification',
         });
+        return;
+      }
+
+      // One device at a time. Rather than a dead end, offer to sign the other
+      // device out — the password has already been proven correct to get here.
+      if (err?.sessionActiveElsewhere) {
+        const device = err.activeDevice;
+        Alert.alert(
+          t('auth.login.alreadySignedInTitle'),
+          t('auth.login.alreadySignedInBody', {
+            device: device?.deviceName || t('auth.login.anotherDevice'),
+            when: device?.lastSeenAt ? formatRelativeTime(device.lastSeenAt) : '',
+          }),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            {
+              text: t('auth.login.signOutOther'),
+              style: 'destructive',
+              onPress: () => void onSubmit(data, true),
+            },
+          ]
+        );
         return;
       }
       Alert.alert(

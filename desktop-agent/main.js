@@ -37,6 +37,8 @@ class DesktopAgent {
     this.isQuitting = false;
     this.hasShownTrayBalloon = false;
     this.connectionRetryTimer = null;
+    /** Shared promise so concurrent 401s do not each burn the refresh token. */
+    this.refreshInFlight = null;
     
     // Initialize services
     this.tallyService = new TallyService();
@@ -532,6 +534,20 @@ class DesktopAgent {
    * Silently renew JWT using refresh token (customers should not need to re-login every 7 days).
    */
   async refreshStoredSession() {
+    // Refresh tokens are single-use and rotate on every call, so two refreshes
+    // racing would present the same token twice — which the server treats as a
+    // replay and answers by killing the session. Several 401 handlers can fire
+    // at once here, so they all share one in-flight attempt.
+    if (this.refreshInFlight) {
+      return this.refreshInFlight;
+    }
+    this.refreshInFlight = this.doRefreshStoredSession().finally(() => {
+      this.refreshInFlight = null;
+    });
+    return this.refreshInFlight;
+  }
+
+  async doRefreshStoredSession() {
     const config = this.configManager.getConfig();
     const apiUrl = this.resolveApiUrl(config);
     const refreshToken = String(config.server?.refreshToken || '').trim();
@@ -574,6 +590,21 @@ class DesktopAgent {
       electronLog.warn('Automatic session refresh failed', { message });
       return { success: false, reason: message || 'refresh_failed' };
     }
+  }
+
+  /**
+   * Identifies this installation to the session store. agent.id already exists,
+   * is stable across restarts and is preserved through a config reset, so a
+   * reinstall does not read as a different device and lock the user out.
+   */
+  describeThisDevice(config = null) {
+    const cfg = config || this.configManager.getConfig();
+    return {
+      deviceId: cfg.agent?.id || require('os').hostname(),
+      deviceName: cfg.agent?.name || require('os').hostname(),
+      platform: 'desktop',
+      appVersion: app.getVersion()
+    };
   }
 
   resolveApiUrl(config = null) {
@@ -793,9 +824,14 @@ class DesktopAgent {
         }
 
         try {
+          // The backend permits one signed-in device per account. agent.id is
+          // already stable across restarts and survives a config reset, so it
+          // is the natural device identity here.
           const response = await axios.post(`${apiUrl}/auth/login`, {
             email: credentials.email,
-            password: credentials.password
+            password: credentials.password,
+            device: this.describeThisDevice(config),
+            forceLogin: Boolean(credentials.forceLogin)
           }, {
             timeout: 15000
           });
@@ -831,6 +867,17 @@ class DesktopAgent {
             throw new Error(
               `Cannot reach backend at ${apiUrl}. Check that the server is online and the API URL is correct in Settings.`
             );
+          }
+          // Another device holds the session. Hand it back as data so the UI
+          // can offer to sign that device out, instead of a dead-end error.
+          if (error?.response?.status === 409 &&
+              error?.response?.data?.code === 'SESSION_ACTIVE_ELSEWHERE') {
+            return {
+              success: false,
+              sessionActiveElsewhere: true,
+              activeDevice: error.response.data.activeDevice || null,
+              message: error.response.data.message || 'This account is signed in on another device.'
+            };
           }
           // Correct password but unverified address. Hand this back as data
           // rather than an error so the UI can open the OTP step.
@@ -951,7 +998,8 @@ class DesktopAgent {
           // hole. The ticket comes from verifying an emailed OTP instead.
           const response = await axios.post(`${apiUrl}/auth/reset-password`, {
             resetTicket,
-            password
+            password,
+            device: this.describeThisDevice(config)
           }, { timeout: 15000 });
 
           return {
@@ -976,7 +1024,8 @@ ipcMain.handle('server-verify-otp', async (event, { email, otp, purpose }) => {
           const response = await axios.post(`${apiUrl}/auth/verify-otp`, {
             email,
             otp,
-            purpose
+            purpose,
+            device: this.describeThisDevice(config)
           }, { timeout: 15000 });
 
           const data = response?.data?.data || {};

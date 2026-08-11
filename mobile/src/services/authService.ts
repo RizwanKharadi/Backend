@@ -2,7 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import EncryptedStorage from 'react-native-encrypted-storage';
 import ReactNativeBiometrics from 'react-native-biometrics';
 import { apiClient } from './apiClient';
-import { LoginCredentials, RegisterData, AuthResponse, User, OtpPurpose } from '../types';
+import {
+  LoginCredentials,
+  RegisterData,
+  AuthResponse,
+  User,
+  OtpPurpose,
+  ActiveDevice,
+} from '../types';
+import { getDeviceDescriptor } from './deviceIdentity';
 
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
@@ -67,8 +75,16 @@ class AuthService {
     }
 
     try {
-      const response = await apiClient.post('/auth/login', normalized);
-      
+      // The server allows one signed-in device per account and needs to know
+      // which device this is. forceLogin is only set after the user has been
+      // shown the other device and agreed to sign it out.
+      const device = await getDeviceDescriptor();
+      const response = await apiClient.post('/auth/login', {
+        ...normalized,
+        device,
+        forceLogin: Boolean(credentials.forceLogin),
+      });
+
       if (response.data.success) {
         const { token, refreshToken, user: rawUser } = response.data.data;
         const user = normalizeUser(rawUser);
@@ -100,10 +116,18 @@ class AuthService {
       const err = new Error(data?.message || error.message || 'Login failed') as Error & {
         requiresVerification?: boolean;
         email?: string;
+        sessionActiveElsewhere?: boolean;
+        activeDevice?: ActiveDevice;
       };
       if (data?.requiresVerification) {
         err.requiresVerification = true;
         err.email = data.email || normalized.email;
+      }
+      // 409: the password was right, but another device holds the session.
+      // The screen offers to sign that device out rather than failing outright.
+      if (data?.code === 'SESSION_ACTIVE_ELSEWHERE') {
+        err.sessionActiveElsewhere = true;
+        err.activeDevice = data.activeDevice;
       }
       throw err;
     }
@@ -528,10 +552,13 @@ class AuthService {
     purpose: OtpPurpose
   ): Promise<{ success: boolean; resetTicket?: string; user?: User; token?: string }> {
     try {
+      // Verifying a signup opens a session, so the server needs to know which
+      // device it belongs to — same as login.
       const response = await apiClient.post('/auth/verify-otp', {
         email: email.toLowerCase().trim(),
         otp: otp.trim(),
         purpose,
+        device: await getDeviceDescriptor(),
       });
 
       const data = response.data?.data || {};
@@ -595,6 +622,7 @@ class AuthService {
       const response = await apiClient.post('/auth/reset-password', {
         resetTicket,
         password,
+        device: await getDeviceDescriptor(),
       });
 
       const { token, refreshToken, user: rawUser } = response.data.data;

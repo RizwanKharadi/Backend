@@ -17,6 +17,16 @@ export interface LoginCredentials {
   email: string;
   password: string;
   rememberMe?: boolean;
+  /** Set only after the user agrees to sign their other device out. */
+  forceLogin?: boolean;
+}
+
+/** The device already holding the session, shown before a takeover. */
+export interface ActiveDevice {
+  deviceId: string;
+  deviceName: string;
+  platform: string | null;
+  lastSeenAt: string | null;
 }
 
 export interface RegisterData {

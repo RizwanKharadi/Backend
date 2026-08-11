@@ -301,6 +301,11 @@ export const useElectronAPI = () => {
     if (!isElectronAvailable) return { success: false }
     try {
       const result = await window.electronAPI.serverLogin(credentials)
+      // Another device holds the session — the caller offers a takeover rather
+      // than showing this as a failure.
+      if (result?.sessionActiveElsewhere) {
+        return result
+      }
       if (result?.success) {
         toast.success('Logged in successfully')
         const updatedConfig = await window.electronAPI.getConfig()

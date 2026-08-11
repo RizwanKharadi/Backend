@@ -12,6 +12,9 @@ module.exports = {
   moduleNameMapper: {
     '^@/(.*)$': '<rootDir>/src/$1',
     '^@env$': '<rootDir>/__mocks__/@env.js',
+    // The real module constructs a NativeEventEmitter on import, which throws
+    // outside a native runtime.
+    '^react-native-device-info$': '<rootDir>/__mocks__/react-native-device-info.js',
   },
   collectCoverageFrom: [
     'src/**/*.{ts,tsx}',

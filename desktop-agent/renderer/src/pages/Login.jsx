@@ -142,15 +142,31 @@ const Login = ({ onSuccess }) => {
 
   const isLoading = status === 'loading'
 
-  const handleLogin = async (e) => {
-    e.preventDefault()
+  const handleLogin = async (e, forceLogin = false) => {
+    e?.preventDefault?.()
     if (!loginForm.email || !loginForm.password) {
       toast.error('Enter email and password')
       return
     }
     setStatus('loading')
     try {
-      const result = await serverLogin(loginForm)
+      const result = await serverLogin({ ...loginForm, forceLogin })
+      // One device at a time. The password is already proven correct at this
+      // point, so offer to sign the other device out rather than dead-ending.
+      if (result?.sessionActiveElsewhere) {
+        const d = result.activeDevice
+        const label = d?.deviceName ? `"${d.deviceName}"` : 'another device'
+        if (window.confirm(
+          `This account is signed in on ${label}.
+
+` +
+          'TallyFin allows one device at a time. Sign that device out and continue here?'
+        )) {
+          setStatus('idle')
+          return handleLogin(e, true)
+        }
+        return
+      }
       if (result?.requiresVerification) {
         // Password was right; the address just isn't verified yet.
         setOtpContext({ email: result.email || loginForm.email, purpose: 'email_verification' })

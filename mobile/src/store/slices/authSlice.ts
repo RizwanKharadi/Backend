@@ -49,6 +49,8 @@ export const login = createAsyncThunk(
         message: error.message || 'Login failed',
         requiresVerification: Boolean(error.requiresVerification),
         email: error.email,
+        sessionActiveElsewhere: Boolean(error.sessionActiveElsewhere),
+        activeDevice: error.activeDevice,
       });
     }
   }
@@ -156,11 +158,14 @@ const authSlice = createSlice({
       state.token = action.payload.token;
       state.error = null;
     },
-    forceLogout: (state) => {
+    forceLogout: (state, action: PayloadAction<string | undefined>) => {
       state.isAuthenticated = false;
       state.user = null;
       state.token = null;
-      state.error = null;
+      // Carries the server's explanation when there is one, so the login screen
+      // can say "you were signed out because this account was used on another
+      // device" instead of silently bouncing the user back.
+      state.error = action.payload || null;
       state.isLoading = false;
     },
   },

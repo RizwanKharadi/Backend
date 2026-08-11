@@ -75,6 +75,23 @@ class ApiClient {
 
         this.handleNetworkError(error);
         const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+
+        // The server ended this session — because the account signed in
+        // elsewhere, or because a refresh token was replayed. Refreshing cannot
+        // recover it, so drop straight to signed-out and say why.
+        const sessionCode = (error.response?.data as { code?: string } | undefined)?.code;
+        if (
+          error.response?.status === 401 &&
+          (sessionCode === 'SESSION_REVOKED' ||
+            sessionCode === 'SESSION_REQUIRED' ||
+            sessionCode === 'REFRESH_TOKEN_REUSED')
+        ) {
+          void this.handleUnauthorized(
+            (error.response?.data as { message?: string } | undefined)?.message
+          );
+          return Promise.reject(this.transformError(error));
+        }
+
         if (
           error.response?.status === 401 &&
           originalRequest &&
@@ -117,10 +134,10 @@ class ApiClient {
     return this.refreshInFlight;
   }
 
-  private async handleUnauthorized(): Promise<void> {
+  private async handleUnauthorized(reason?: string): Promise<void> {
     try {
       await authService.clearLocalSession();
-      store.dispatch(forceLogout());
+      store.dispatch(forceLogout(reason));
     } catch (e) {
       console.warn('Failed to clear session after 401:', e);
     }
