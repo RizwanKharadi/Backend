@@ -15,6 +15,15 @@ import {
 } from '../services/tallySerialService.js';
 import logger from '../utils/logger.js';
 import { serializeUser } from '../utils/serializeUser.js';
+import {
+  issueOtp,
+  verifyOtp,
+  clearOtp,
+  OTP_PURPOSES,
+  OTP_ERRORS,
+  OTP_CONFIG,
+} from '../services/otpService.js';
+import { sendOtpEmail } from '../services/otpEmail.js';
 
 const router = express.Router();
 
@@ -211,14 +220,21 @@ router.post('/register', [
       await user.save();
     }
 
-    // Generate email verification token
-    const emailToken = user.getEmailVerificationToken();
-    await user.save();
+    // Email verification is now by OTP. No session is issued here: the account
+    // cannot be used until the code is confirmed, so handing back a JWT would
+    // defeat the point of verifying at all.
+    const issued = await issueOtp(email, OTP_PURPOSES.EMAIL_VERIFICATION);
+    if (issued.ok) {
+      await sendOtpEmail({
+        to: email,
+        name,
+        code: issued.code,
+        purpose: OTP_PURPOSES.EMAIL_VERIFICATION,
+        expiresInMinutes: issued.expiresInMinutes,
+      });
+    }
 
-    const token = user.getSignedJwtToken();
-    const refreshToken = user.getRefreshToken();
-
-    logger.info(`New user registered: ${email}`);
+    logger.info(`New user registered (pending verification): ${email}`);
 
     const userOut = await User.findById(user._id)
       .select('-password')
@@ -226,10 +242,11 @@ router.post('/register', [
 
     res.status(201).json({
       success: true,
-      message: 'User registered successfully',
+      message:
+        'Account created. Enter the 6-digit code we emailed you to verify your address.',
+      requiresVerification: true,
+      email,
       data: {
-        token,
-        refreshToken,
         user: serializeUser(userOut),
         company: createdCompany
           ? {
@@ -332,6 +349,31 @@ router.post('/login', [
       return res.status(401).json({
         success: false,
         message: 'Invalid credentials'
+      });
+    }
+
+    // Credentials are good, but an unverified address cannot hold a session.
+    // Existing accounts were grandfathered to verified by the backfill script,
+    // so this only ever gates people who signed up after OTP shipped.
+    if (!user.isEmailVerified) {
+      const issued = await issueOtp(user.email, OTP_PURPOSES.EMAIL_VERIFICATION);
+      if (issued.ok) {
+        await sendOtpEmail({
+          to: user.email,
+          name: user.name,
+          code: issued.code,
+          purpose: OTP_PURPOSES.EMAIL_VERIFICATION,
+          expiresInMinutes: issued.expiresInMinutes,
+        });
+      }
+      // 403 rather than 401: the credentials were correct. Clients branch on
+      // requiresVerification to open the OTP screen instead of showing
+      // "wrong password".
+      return res.status(403).json({
+        success: false,
+        requiresVerification: true,
+        email: user.email,
+        message: 'Please verify your email. We have sent you a 6-digit code.',
       });
     }
 
@@ -596,6 +638,238 @@ router.post('/resend-verification', protect, async (req, res) => {
   }
 });
 
+/**
+ * Map an OTP failure to a user-facing message.
+ *
+ * Every branch is a 400 with a plain sentence: the caller must not be able to
+ * tell "no code was ever requested for this address" from "wrong code", or the
+ * endpoint becomes an account-existence oracle.
+ */
+function otpFailureMessage(reason, extra = {}) {
+  switch (reason) {
+    case OTP_ERRORS.EXPIRED:
+      return 'That code has expired. Request a new one.';
+    case OTP_ERRORS.TOO_MANY_ATTEMPTS:
+      return 'Too many incorrect attempts. Request a new code.';
+    case OTP_ERRORS.INVALID:
+      return typeof extra.attemptsRemaining === 'number' && extra.attemptsRemaining > 0
+        ? `Incorrect code. ${extra.attemptsRemaining} attempt${
+            extra.attemptsRemaining === 1 ? '' : 's'
+          } remaining.`
+        : 'Incorrect code. Request a new one.';
+    default:
+      return 'That code is not valid. Request a new one.';
+  }
+}
+
+// @desc    Verify a one-time code
+// @route   POST /api/auth/verify-otp
+// @access  Public
+router.post('/verify-otp', [
+  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
+  body('otp').trim().isLength({ min: 4, max: 8 }).withMessage('Enter the code from your email'),
+  body('purpose').isIn(Object.values(OTP_PURPOSES)).withMessage('Invalid purpose')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { email, otp, purpose } = req.body;
+    const result = await verifyOtp(email, purpose, otp);
+
+    if (!result.ok) {
+      return res.status(400).json({
+        success: false,
+        message: otpFailureMessage(result.reason, result),
+        attemptsRemaining: result.attemptsRemaining,
+      });
+    }
+
+    if (purpose === OTP_PURPOSES.EMAIL_VERIFICATION) {
+      const user = await User.findOne({ email });
+      if (!user) {
+        // The code was valid, so this is a data inconsistency rather than an
+        // attack — but there is nothing to verify.
+        return res.status(400).json({ success: false, message: 'Account not found' });
+      }
+
+      user.isEmailVerified = true;
+      user.emailVerificationToken = undefined;
+      user.emailVerificationExpire = undefined;
+      user.lastLogin = new Date();
+      await user.save();
+
+      // Verifying is the last step of signing up, so hand back a session here
+      // rather than making the user type their password again.
+      const token = user.getSignedJwtToken();
+      const refreshToken = user.getRefreshToken();
+
+      logger.info(`Email verified: ${email}`);
+
+      return res.status(200).json({
+        success: true,
+        message: 'Email verified',
+        data: { token, refreshToken, user: serializeUser(user) }
+      });
+    }
+
+    // Password reset: the code is now spent, so issue a short-lived ticket that
+    // authorises exactly one password change. Without this the client would
+    // have to hold the OTP across two screens, and a consumed code cannot be
+    // re-verified.
+    const resetTicket = jwt.sign(
+      { email: String(email).toLowerCase(), purpose: OTP_PURPOSES.PASSWORD_RESET },
+      process.env.JWT_SECRET,
+      { expiresIn: '10m' }
+    );
+
+    return res.status(200).json({
+      success: true,
+      message: 'Code verified. You can now set a new password.',
+      data: { resetTicket }
+    });
+
+  } catch (error) {
+    logger.error('Verify OTP error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Resend a one-time code
+// @route   POST /api/auth/resend-otp
+// @access  Public
+router.post('/resend-otp', [
+  body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
+  body('purpose').isIn(Object.values(OTP_PURPOSES)).withMessage('Invalid purpose')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { email, purpose } = req.body;
+    const user = await User.findOne({ email });
+
+    // Generic success regardless of whether the account exists, or is already
+    // verified. Rate-limit refusals ARE reported, because the caller already
+    // knows they just asked — it tells them nothing new about the account.
+    const genericOk = {
+      success: true,
+      message: 'If that address needs a code, we have sent one.',
+      cooldownSeconds: Math.round(OTP_CONFIG.resendCooldownMs / 1000),
+    };
+
+    const shouldSend =
+      user &&
+      (purpose === OTP_PURPOSES.PASSWORD_RESET || !user.isEmailVerified);
+
+    if (!shouldSend) return res.status(200).json(genericOk);
+
+    const issued = await issueOtp(email, purpose);
+    if (!issued.ok) {
+      return res.status(429).json({
+        success: false,
+        message:
+          issued.reason === OTP_ERRORS.COOLDOWN
+            ? `Please wait ${issued.retryAfterSeconds}s before requesting another code.`
+            : 'Too many codes requested. Try again later.',
+        retryAfterSeconds: issued.retryAfterSeconds,
+      });
+    }
+
+    await sendOtpEmail({
+      to: email,
+      name: user.name,
+      code: issued.code,
+      purpose,
+      expiresInMinutes: issued.expiresInMinutes,
+    });
+
+    return res.status(200).json(genericOk);
+
+  } catch (error) {
+    logger.error('Resend OTP error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Set a new password using a verified reset ticket
+// @route   POST /api/auth/reset-password
+// @access  Public (requires ticket from /verify-otp)
+router.post('/reset-password', [
+  body('resetTicket').notEmpty().withMessage('resetTicket is required'),
+  body('password').isLength({ min: 6 }).withMessage('Password must be at least 6 characters')
+], async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { resetTicket, password } = req.body;
+
+    let payload;
+    try {
+      payload = jwt.verify(resetTicket, process.env.JWT_SECRET);
+    } catch {
+      return res.status(400).json({
+        success: false,
+        message: 'That reset session has expired. Start again.'
+      });
+    }
+
+    if (payload.purpose !== OTP_PURPOSES.PASSWORD_RESET || !payload.email) {
+      return res.status(400).json({ success: false, message: 'Invalid reset session' });
+    }
+
+    const user = await User.findOne({ email: payload.email });
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid reset session' });
+    }
+
+    user.password = password;
+    // Any legacy emailed reset token is void once the password changes.
+    user.resetPasswordToken = undefined;
+    user.resetPasswordExpire = undefined;
+    // Completing a reset proves control of the mailbox, so the address is
+    // verified by definition.
+    user.isEmailVerified = true;
+    await user.save();
+
+    await clearOtp(payload.email, OTP_PURPOSES.PASSWORD_RESET);
+
+    logger.info(`Password reset via OTP for: ${payload.email}`);
+
+    const token = user.getSignedJwtToken();
+    const refreshToken = user.getRefreshToken();
+
+    return res.status(200).json({
+      success: true,
+      message: 'Password updated',
+      data: { token, refreshToken, user: serializeUser(user) }
+    });
+
+  } catch (error) {
+    logger.error('Reset password (OTP) error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
 // @desc    Logout user
 // @route   POST /api/auth/logout
 // @access  Private
@@ -639,27 +913,37 @@ router.post('/forgot-password', [
 
     const user = await User.findOne({ email });
 
-    if (!user) {
-      return res.status(404).json({
-        success: false,
-        message: 'User not found'
-      });
+    // SECURITY: never reveal whether an address has an account, and never
+    // return the reset token in the response.
+    //
+    // This endpoint used to answer 404 for unknown emails (letting anyone
+    // enumerate customers) and return `resetToken` in the JSON body — which
+    // meant knowing someone's email address was enough to take over their
+    // account: request a token, read it from the response, POST it to
+    // /reset-password. Both are closed here.
+    //
+    if (user) {
+      const issued = await issueOtp(email, OTP_PURPOSES.PASSWORD_RESET);
+      if (issued.ok) {
+        await sendOtpEmail({
+          to: email,
+          name: user.name,
+          code: issued.code,
+          purpose: OTP_PURPOSES.PASSWORD_RESET,
+          expiresInMinutes: issued.expiresInMinutes,
+        });
+      }
+      // A rate-limit refusal is swallowed on purpose: reporting it here would
+      // tell an attacker the address has an account.
     }
 
-    // Generate reset token
-    const resetToken = user.getResetPasswordToken();
-    await user.save();
-
-    // In a real application, you would send an email here
-    // For now, we'll just return the token (remove this in production)
-    
     logger.info(`Password reset requested for: ${email}`);
 
     res.status(200).json({
       success: true,
-      message: 'Password reset email sent',
-      // Remove this in production
-      resetToken: resetToken
+      message:
+        'If an account exists for that address, we have sent a 6-digit code.',
+      cooldownSeconds: Math.round(OTP_CONFIG.resendCooldownMs / 1000),
     });
 
   } catch (error) {

@@ -84,8 +84,11 @@ export async function connectDB() {
   } catch (error) {
     logger.error('Database connection failed:', error);
 
-    if (process.env.NODE_ENV === 'development') {
-      logger.warn('Continuing in development mode without database...');
+    // `test` is included so unit tests that mock their models can run without a
+    // live MySQL. Calling process.exit() from here during a test run kills the
+    // whole jest process, taking unrelated suites with it.
+    if (process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test') {
+      logger.warn(`Continuing in ${process.env.NODE_ENV} mode without database...`);
       return { connected: false, connection: { host: 'localhost (failed)' } };
     }
 

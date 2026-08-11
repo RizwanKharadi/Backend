@@ -68,6 +68,7 @@ export const GSTReturn = proxy('GSTReturn');
 export const Notification = proxy('Notification');
 export const TallySerialRegistration = proxy('TallySerialRegistration');
 export const TallyImportQueue = proxy('TallyImportQueue');
+export const Otp = proxy('Otp');
 
 export default {
   User,

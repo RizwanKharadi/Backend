@@ -26,14 +26,34 @@ class EmailService {
   // Initialize SMTP transporter
   initializeTransporter() {
     try {
-      this.transporter = nodemailer.createTransporter({
-        host: process.env.SMTP_HOST,
-        port: parseInt(process.env.SMTP_PORT) || 587,
-        secure: process.env.SMTP_SECURE === 'true', // true for 465, false for other ports
-        auth: {
-          user: process.env.SMTP_USER,
-          pass: process.env.SMTP_PASS
-        },
+      // NOTE: this was `nodemailer.createTransporter` — a method that does not
+      // exist. It threw, the catch below swallowed it, and `this.transporter`
+      // stayed null, so no email has ever been sent by this service.
+      //
+      // Env vars: EMAIL_* is what .env.example documents and what deployments
+      // set; SMTP_* is accepted as a fallback for older configs.
+      const host = process.env.EMAIL_HOST || process.env.SMTP_HOST;
+      const port = parseInt(process.env.EMAIL_PORT || process.env.SMTP_PORT, 10) || 587;
+      const user = process.env.EMAIL_USER || process.env.SMTP_USER;
+      const pass = process.env.EMAIL_PASS || process.env.SMTP_PASS;
+
+      if (!host || !user || !pass) {
+        logger.warn(
+          'Email disabled: set EMAIL_HOST, EMAIL_USER and EMAIL_PASS to enable outbound mail'
+        );
+        this.transporter = null;
+        return;
+      }
+
+      this.transporter = nodemailer.createTransport({
+        host,
+        port,
+        // Port 465 is implicit TLS; 587 upgrades via STARTTLS.
+        secure:
+          process.env.EMAIL_SECURE === 'true' ||
+          process.env.SMTP_SECURE === 'true' ||
+          port === 465,
+        auth: { user, pass },
         pool: true, // Use connection pooling
         maxConnections: 5,
         maxMessages: 100,
@@ -125,7 +145,12 @@ class EmailService {
       }
 
       const mailOptions = {
-        from: `"${process.env.SMTP_FROM_NAME || 'FinSync360'}" <${process.env.SMTP_FROM_EMAIL || process.env.SMTP_USER}>`,
+        // EMAIL_FROM may be a full "Name <addr>" string or a bare address.
+        from:
+          process.env.EMAIL_FROM ||
+          `"${process.env.SMTP_FROM_NAME || 'TallyFin'}" <${
+            process.env.SMTP_FROM_EMAIL || process.env.EMAIL_USER || process.env.SMTP_USER
+          }>`,
         to: Array.isArray(to) ? to.join(', ') : to,
         subject,
         html,
@@ -150,8 +175,18 @@ class EmailService {
   }
 
   // Send email immediately
+  /** True when SMTP is configured; callers can degrade rather than throw. */
+  isConfigured() {
+    return this.transporter !== null;
+  }
+
   async sendImmediately(mailOptions, trackDelivery = true) {
     try {
+      if (!this.transporter) {
+        // Explicit failure beats "Cannot read properties of null" — the caller
+        // needs to distinguish "not configured" from "server rejected it".
+        return { success: false, message: 'Email is not configured on this server' };
+      }
       const result = await this.transporter.sendMail(mailOptions);
       
       if (trackDelivery) {
