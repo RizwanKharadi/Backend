@@ -1,9 +1,19 @@
+/**
+ * The Finny card shown on each App Tour step.
+ *
+ * All copy here is ENGLISH ONLY and intentionally not routed through i18n —
+ * including the Skip / Next / Get Started chrome. The App Tour is brand voice.
+ * The one non-English string is the TallyFin tagline, which is a brand asset.
+ */
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { Button, Text, useTheme } from 'react-native-paper';
-import { AppGuideStep } from '../../constants/appGuideSteps';
+import { Button, Text } from 'react-native-paper';
+import { AppGuideStep, TALLYFIN_TAGLINE } from '../../constants/appGuideSteps';
 import { SpotlightRect } from './AppGuideOverlay';
-import FinnyMascot from './FinnyMascot';
+import FinnyMascot from '../mascot/FinnyMascot';
+import { colors } from '../../theme/colors';
+import { radius, spacing } from '../../theme/spacing';
+import { fontSize, fontWeight } from '../../theme/typography';
 
 interface GuideMascotBubbleProps {
   step: AppGuideStep;
@@ -24,56 +34,68 @@ const GuideMascotBubble: React.FC<GuideMascotBubbleProps> = ({
   fullScreen = false,
   spotlight = null,
 }) => {
-  const theme = useTheme();
   const isLastStep = stepIndex === totalSteps - 1;
+
+  // Finny waves on the intro, celebrates on the outro, and drifts gently while
+  // pointing so he does not compete with the highlighted control.
+  const animation = step.fullScreen
+    ? isLastStep
+      ? 'celebrate'
+      : 'wave'
+    : 'float';
 
   return (
     <View style={[styles.container, fullScreen && styles.fullScreenContainer]}>
       <View style={styles.contentRow}>
-        <FinnyMascot pose={step.mascotPose} size={fullScreen ? 124 : 90} />
-        <View
-          style={[
-            styles.bubble,
-            {
-              backgroundColor: theme.colors.surface,
-              borderColor: theme.colors.outlineVariant,
-            },
-          ]}
-        >
-          <Text variant="titleMedium" style={styles.title}>
-            {step.title}
-          </Text>
-          <Text
-            variant="bodyMedium"
-            style={[styles.body, { color: theme.colors.onSurfaceVariant }]}
-          >
-            {step.body}
-          </Text>
+        <FinnyMascot
+          pose={step.mascotPose}
+          size={fullScreen ? 'xl' : 'md'}
+          animation={animation}
+          decorative
+        />
+
+        <View style={styles.bubble}>
+          <Text style={styles.title}>{step.title}</Text>
+          <Text style={styles.body}>{step.body}</Text>
+
+          {step.showTagline ? (
+            <Text style={styles.tagline}>{TALLYFIN_TAGLINE}</Text>
+          ) : null}
+
           <View style={styles.actions}>
             {!isLastStep ? (
-              <Button mode="text" onPress={onSkip} compact>
+              <Button
+                mode="text"
+                onPress={onSkip}
+                compact
+                textColor={colors.textSecondary}
+              >
                 Skip tour
               </Button>
             ) : (
               <View />
             )}
-            <Button mode="contained" onPress={onNext} compact>
-              {isLastStep ? 'Get started' : 'Next'}
+            <Button
+              mode="contained"
+              onPress={onNext}
+              buttonColor={colors.green}
+              style={styles.cta}
+            >
+              {step.ctaLabel ?? (isLastStep ? 'Get Started' : 'Next')}
             </Button>
           </View>
-          <Text
-            variant="labelSmall"
-            style={[styles.progress, { color: theme.colors.onSurfaceVariant }]}
-          >
-            {stepIndex + 1} of {totalSteps}
-          </Text>
+
+          <View style={styles.dots}>
+            {Array.from({ length: totalSteps }).map((_, i) => (
+              <View
+                key={i}
+                style={[styles.dot, i === stepIndex && styles.dotActive]}
+              />
+            ))}
+          </View>
+
           {!spotlight && !fullScreen ? (
-            <Text
-              variant="labelSmall"
-              style={[styles.fallback, { color: theme.colors.onSurfaceVariant }]}
-            >
-              Loading highlight...
-            </Text>
+            <Text style={styles.fallback}>Finding it on screen…</Text>
           ) : null}
         </View>
       </View>
@@ -83,13 +105,13 @@ const GuideMascotBubble: React.FC<GuideMascotBubbleProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    paddingHorizontal: 16,
+    paddingHorizontal: spacing.md,
     alignItems: 'center',
   },
   fullScreenContainer: {
     flex: 1,
     justifyContent: 'center',
-    paddingBottom: 48,
+    paddingBottom: spacing.xxxl,
   },
   contentRow: {
     width: '100%',
@@ -98,31 +120,59 @@ const styles = StyleSheet.create({
   },
   bubble: {
     width: '100%',
-    marginTop: 10,
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
+    marginTop: -spacing.xs,
+    padding: spacing.lg,
+    borderRadius: radius.lg,
+    backgroundColor: colors.card,
   },
   title: {
-    fontWeight: '700',
-    marginBottom: 8,
+    fontSize: fontSize.title,
+    fontWeight: fontWeight.bold,
+    color: colors.navy,
+    marginBottom: spacing.xs,
   },
   body: {
-    lineHeight: 22,
-    marginBottom: 16,
+    fontSize: fontSize.body,
+    lineHeight: 21,
+    color: colors.textSecondary,
+  },
+  tagline: {
+    marginTop: spacing.sm,
+    fontSize: fontSize.body,
+    fontWeight: fontWeight.semibold,
+    color: colors.green,
+    fontStyle: 'italic',
   },
   actions: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    marginTop: spacing.lg,
   },
-  progress: {
-    marginTop: 12,
-    textAlign: 'center',
+  cta: {
+    borderRadius: radius.sm,
+  },
+  dots: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: spacing.md,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: colors.border,
+  },
+  dotActive: {
+    width: 18,
+    backgroundColor: colors.green,
   },
   fallback: {
-    marginTop: 4,
+    marginTop: spacing.xs,
     textAlign: 'center',
+    fontSize: fontSize.caption,
+    color: colors.textTertiary,
   },
 });
 

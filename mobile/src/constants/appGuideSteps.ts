@@ -1,63 +1,87 @@
+/**
+ * The Finny-guided App Tour.
+ *
+ * ENGLISH ONLY, deliberately. The tour copy is brand voice — it is not routed
+ * through i18n and must not be translated. The single non-English string is the
+ * TallyFin tagline "Har Hisaab Aasan Hai", which is a brand asset rather than
+ * translatable text. See docs/I18N.md.
+ */
+import type { FinnyPose } from '../components/mascot/finnyPoses';
+
 export type GuideTargetId =
   | 'company-picker'
+  | 'dashboard'
+  | 'bottom-nav'
+  | 'language-switcher'
   | 'tab-bar'
   | 'settings-button'
   | 'sync-button'
   | 'create-voucher';
 
-export type MascotPose = 'welcome' | 'pointing' | 'celebrate';
+/** Kept for the existing FinnyMascot import path; poses now live with the mascot. */
+export type MascotPose = FinnyPose;
+
+/** The primary TallyFin tagline. Never replace this with another line. */
+export const TALLYFIN_TAGLINE = 'Har Hisaab Aasan Hai';
 
 export interface AppGuideStep {
   id: string;
   title: string;
   body: string;
-  mascotPose: MascotPose;
+  mascotPose: FinnyPose;
   targetId?: GuideTargetId;
-  /** Full-screen intro/outro without a spotlight target */
+  /** Full-screen intro/outro without a spotlight target. */
   fullScreen?: boolean;
+  /** Show the brand tagline under the body — intro and outro only. */
+  showTagline?: boolean;
+  /** Overrides the default "Next" label. */
+  ctaLabel?: string;
 }
 
 export const APP_GUIDE_STEPS: AppGuideStep[] = [
   {
     id: 'welcome',
-    title: 'Hi, I\'m Finny!',
-    body: 'Let me show you around TallyFin — your mobile window into Tally data synced from your desktop.',
+    title: 'Welcome to TallyFin',
+    body: 'Your smart business companion for managing your business information on the go.',
     mascotPose: 'welcome',
     fullScreen: true,
+    showTagline: true,
   },
   {
     id: 'company-picker',
-    title: 'Choose your company',
-    body: 'Tap here to select the Tally company synced from your desktop-agent on your PC.',
+    title: 'Switch Companies Easily',
+    body: 'Manage multiple companies and quickly switch between them whenever you need.',
     mascotPose: 'pointing',
     targetId: 'company-picker',
   },
   {
-    id: 'tab-bar',
-    title: 'Main navigation',
-    body: 'Use these tabs for Dashboard, Transactions, Inventory, Reports, and Chat.',
+    id: 'dashboard',
+    title: 'Your Business at a Glance',
+    body: 'View your key business information, insights and important figures from one simple dashboard.',
     mascotPose: 'pointing',
-    targetId: 'tab-bar',
+    targetId: 'dashboard',
   },
   {
-    id: 'settings',
-    title: 'Settings',
-    body: 'Billing, sync options, profile, and app preferences live here.',
+    id: 'bottom-nav',
+    title: 'Everything Within Reach',
+    body: 'Quickly access your main sections and move around TallyFin using the bottom navigation.',
     mascotPose: 'pointing',
-    targetId: 'settings-button',
+    targetId: 'bottom-nav',
   },
   {
-    id: 'create-voucher',
-    title: 'Create voucher',
-    body: 'Tap here to quickly add a new voucher and keep your books updated on the go.',
+    id: 'language',
+    title: 'Choose Your Language',
+    body: "Use TallyFin in the language you're most comfortable with.",
     mascotPose: 'pointing',
-    targetId: 'create-voucher',
+    targetId: 'language-switcher',
   },
   {
     id: 'done',
-    title: 'You\'re all set!',
-    body: 'Make sure TallyPrime and desktop-agent are running on your PC, then explore your synced data.',
-    mascotPose: 'celebrate',
+    title: 'Ready to Get Started?',
+    body: 'Manage your business with confidence, wherever you are.',
+    mascotPose: 'success',
     fullScreen: true,
+    showTagline: true,
+    ctaLabel: 'Get Started',
   },
 ];

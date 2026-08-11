@@ -52,7 +52,16 @@ const AppGuideOverlay: React.FC<AppGuideOverlayProps> = ({
       }
     : null;
 
-  const bubbleBottom = step.targetId === 'tab-bar' ? 92 : 24;
+  // Keep the card clear of whatever it is pointing at: above the bottom bar for
+  // nav steps, and below a target that sits in the top third of the screen.
+  const targetIsBottomBar =
+    step.targetId === 'bottom-nav' || step.targetId === 'tab-bar';
+  const targetIsHigh = !!spotlight && spotlight.y < SCREEN_HEIGHT * 0.34;
+  const bubblePosition = targetIsBottomBar
+    ? { bottom: 108 }
+    : targetIsHigh
+      ? { top: Math.min(SCREEN_HEIGHT * 0.42, (spotlight?.y ?? 0) + (spotlight?.height ?? 0) + 28) }
+      : { bottom: 24 };
 
   return (
     <View style={styles.root} pointerEvents="box-none">
@@ -106,7 +115,7 @@ const AppGuideOverlay: React.FC<AppGuideOverlayProps> = ({
         style={[
           styles.bubbleWrapper,
           isFullScreen && styles.bubbleWrapperCenter,
-          !isFullScreen && { bottom: bubbleBottom },
+          !isFullScreen && bubblePosition,
         ]}
       >
         <GuideMascotBubble
