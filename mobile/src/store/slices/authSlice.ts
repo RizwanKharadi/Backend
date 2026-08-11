@@ -41,7 +41,15 @@ export const login = createAsyncThunk(
       }
       return response;
     } catch (error: any) {
-      return rejectWithValue(error.message || 'Login failed');
+      // Reject with the shape, not just the text. A correct password against an
+      // unverified address has to be distinguishable from a wrong password, and
+      // flattening this to a string left LoginScreen with no way to tell —
+      // so it showed "login failed" and the OTP screen was unreachable.
+      return rejectWithValue({
+        message: error.message || 'Login failed',
+        requiresVerification: Boolean(error.requiresVerification),
+        email: error.email,
+      });
     }
   }
 );
@@ -174,7 +182,11 @@ const authSlice = createSlice({
       .addCase(login.rejected, (state, action) => {
         state.isLoading = false;
         state.isAuthenticated = false;
-        state.error = action.payload as string;
+        // The payload is now an object; older callers still expect state.error
+        // to read as plain text.
+        const payload = action.payload as { message?: string } | string | undefined;
+        state.error =
+          typeof payload === 'string' ? payload : payload?.message || 'Login failed';
       });
 
     // Register
@@ -185,11 +197,23 @@ const authSlice = createSlice({
       })
       .addCase(register.fulfilled, (state, action) => {
         state.isLoading = false;
+        state.error = null;
+
+        // Registering no longer signs you in — the account is unusable until
+        // the emailed code is confirmed, so the response carries no token.
+        // Flipping isAuthenticated here anyway swapped the navigator to the
+        // main stack with a null token, which tore down the auth stack before
+        // RegisterScreen could reach the OTP screen and then bounced back to
+        // Login on the first unauthorised request.
+        if (!action.payload.token) {
+          state.isAuthenticated = false;
+          return;
+        }
+
         state.isAuthenticated = true;
         state.user = action.payload.user;
         state.token = action.payload.token;
         state.lastLoginTime = new Date().toISOString();
-        state.error = null;
       })
       .addCase(register.rejected, (state, action) => {
         state.isLoading = false;
