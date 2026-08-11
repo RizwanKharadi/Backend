@@ -2,6 +2,7 @@ import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
 import logger from '../utils/logger.js';
 import Company from '../models/Company.js';
+import { touchSession } from '../services/sessionService.js';
 
 // Protect routes - verify JWT token
 export const protect = async (req, res, next) => {
@@ -48,7 +49,30 @@ export const protect = async (req, res, next) => {
         });
       }
 
+      // Every token issued since sessions shipped carries the id of a row in
+      // `sessions`. Checking it here is what lets one device sign another one
+      // out — a JWT on its own cannot be withdrawn. Tokens minted before this
+      // existed have no sid and are refused, so the fleet re-authenticates once
+      // rather than keeping month-long sessions nobody can revoke.
+      if (!decoded.sid) {
+        return res.status(401).json({
+          success: false,
+          message: 'Please sign in again.',
+          code: 'SESSION_REQUIRED'
+        });
+      }
+
+      const session = await touchSession(decoded.sid, req.ip);
+      if (!session) {
+        return res.status(401).json({
+          success: false,
+          message: 'You were signed out because this account was used on another device.',
+          code: 'SESSION_REVOKED'
+        });
+      }
+
       req.user = user;
+      req.sessionId = String(decoded.sid);
       next();
     } catch (error) {
       const expired = error?.name === 'TokenExpiredError';

@@ -24,6 +24,15 @@ import {
   OTP_CONFIG,
 } from '../services/otpService.js';
 import { sendOtpEmail } from '../services/otpEmail.js';
+import {
+  createSession,
+  describeSession,
+  findBlockingSession,
+  listSessions,
+  revokeOtherSessions,
+  revokeSession,
+  rotateRefreshToken,
+} from '../services/sessionService.js';
 
 const router = express.Router();
 
@@ -387,14 +396,57 @@ router.post('/login', [
       }
     }
 
+    // One device at a time. A session on another device blocks this sign-in
+    // until it is released — either that device logs out, or this one takes
+    // over deliberately. Without the takeover path a lost or wiped phone would
+    // lock the account permanently, since there is nothing left to log out of.
+    const device = req.body.device || {};
+    const deviceId = device.deviceId || null;
+
+    if (!deviceId) {
+      return res.status(400).json({
+        success: false,
+        message: 'This app version is no longer supported. Please update.',
+        code: 'DEVICE_ID_REQUIRED',
+      });
+    }
+
+    const blocking = await findBlockingSession(user._id, deviceId);
+
+    if (blocking && !req.body.forceLogin) {
+      return res.status(409).json({
+        success: false,
+        code: 'SESSION_ACTIVE_ELSEWHERE',
+        message: 'This account is signed in on another device.',
+        activeDevice: describeSession(blocking),
+      });
+    }
+
+    if (blocking) {
+      await revokeOtherSessions(user._id, deviceId, 'signed_in_elsewhere');
+    }
+
+    // Reset login attempts on successful login
+    if (user.loginAttempts > 0) {
+      try {
+        await user.resetLoginAttempts();
+      } catch (error) {
+        logger.error('Error resetting login attempts:', error);
+        // Continue with successful login even if reset fails
+      }
+    }
+
     // Update last login
     user.lastLogin = new Date();
     await user.save();
 
-    const token = user.getSignedJwtToken();
-    const refreshToken = user.getRefreshToken();
+    const { token, refreshToken } = await createSession({
+      userId: user._id,
+      device,
+      ip: req.ip,
+    });
 
-    logger.info(`User logged in: ${email}`);
+    logger.info(`User logged in: ${email}`, { deviceId, tookOver: Boolean(blocking) });
 
     res.status(200).json({
       success: true,
@@ -467,15 +519,41 @@ router.post('/refresh', [
       });
     }
 
-    const token = user.getSignedJwtToken();
-    const newRefreshToken = user.getRefreshToken();
+    if (!decoded.sid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Please sign in again.',
+        code: 'SESSION_REQUIRED'
+      });
+    }
+
+    // Rotating on every use means a refresh token is valid exactly once. If one
+    // is presented a second time it was either replayed or copied to another
+    // device, and rotateRefreshToken kills the session rather than renewing it.
+    const rotated = await rotateRefreshToken({
+      userId: decoded.id,
+      sessionId: decoded.sid,
+      presentedToken: refreshToken,
+      ip: req.ip,
+    });
+
+    if (!rotated.ok) {
+      return res.status(401).json({
+        success: false,
+        message:
+          rotated.reason === 'REFRESH_TOKEN_REUSED'
+            ? 'This session was ended for security reasons. Please sign in again.'
+            : 'You were signed out because this account was used on another device.',
+        code: rotated.reason
+      });
+    }
 
     res.status(200).json({
       success: true,
       message: 'Session renewed',
       data: {
-        token,
-        refreshToken: newRefreshToken,
+        token: rotated.token,
+        refreshToken: rotated.refreshToken,
         user: serializeUser(user)
       }
     });
@@ -706,9 +784,16 @@ router.post('/verify-otp', [
       await user.save();
 
       // Verifying is the last step of signing up, so hand back a session here
-      // rather than making the user type their password again.
-      const token = user.getSignedJwtToken();
-      const refreshToken = user.getRefreshToken();
+      // rather than making the user type their password again. A brand-new
+      // account cannot be signed in anywhere else, so there is nothing to
+      // conflict with — but any stale rows are cleared for safety.
+      const device = req.body.device || {};
+      await revokeOtherSessions(user._id, device.deviceId, 'signed_in_elsewhere');
+      const { token, refreshToken } = await createSession({
+        userId: user._id,
+        device,
+        ip: req.ip,
+      });
 
       logger.info(`Email verified: ${email}`);
 
@@ -855,8 +940,17 @@ router.post('/reset-password', [
 
     logger.info(`Password reset via OTP for: ${payload.email}`);
 
-    const token = user.getSignedJwtToken();
-    const refreshToken = user.getRefreshToken();
+    // Changing the password ends every existing session. If someone else was
+    // signed in — which is the usual reason for resetting in a hurry — this is
+    // what actually removes them, and it frees the device slot for this login.
+    await revokeOtherSessions(user._id, null, 'password_reset');
+
+    const device = req.body.device || {};
+    const { token, refreshToken } = await createSession({
+      userId: user._id,
+      device,
+      ip: req.ip,
+    });
 
     return res.status(200).json({
       success: true,
@@ -875,9 +969,11 @@ router.post('/reset-password', [
 // @access  Private
 router.post('/logout', protect, async (req, res) => {
   try {
-    // In a more sophisticated setup, you might want to blacklist the token
-    // For now, we'll just send a success response
-    
+    // Logging out has to revoke the session server-side, not just clear the
+    // client's storage — otherwise the seat stays occupied and the next device
+    // is blocked by a session nobody is using.
+    await revokeSession(req.sessionId, 'logout');
+
     logger.info(`User logged out: ${req.user.email}`);
 
     res.status(200).json({
@@ -890,6 +986,43 @@ router.post('/logout', protect, async (req, res) => {
       success: false,
       message: 'Server error during logout'
     });
+  }
+});
+
+// @desc    List the devices currently holding a session
+// @route   GET /api/auth/sessions
+// @access  Private
+router.get('/sessions', protect, async (req, res) => {
+  try {
+    const sessions = await listSessions(req.user._id);
+    res.status(200).json({
+      success: true,
+      data: {
+        sessions: sessions.map((s) => ({ ...s, current: s.id === req.sessionId })),
+      },
+    });
+  } catch (error) {
+    logger.error('List sessions error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
+  }
+});
+
+// @desc    Sign every other device out, keeping this one
+// @route   POST /api/auth/sessions/revoke-others
+// @access  Private
+router.post('/sessions/revoke-others', protect, async (req, res) => {
+  try {
+    const current = await listSessions(req.user._id);
+    const keep = current.find((s) => s.id === req.sessionId);
+    const revoked = await revokeOtherSessions(req.user._id, keep?.deviceId, 'revoked_by_user');
+    res.status(200).json({
+      success: true,
+      message: revoked ? 'Other devices signed out' : 'No other devices were signed in',
+      data: { revoked },
+    });
+  } catch (error) {
+    logger.error('Revoke sessions error:', error);
+    res.status(500).json({ success: false, message: 'Server error' });
   }
 });
 
@@ -995,8 +1128,11 @@ router.put('/reset-password/:resettoken', [
     user.resetPasswordExpire = undefined;
     await user.save();
 
-    // Generate JWT token
-    const token = user.getSignedJwtToken();
+    // Legacy emailed-token reset. It has no device context to open a session
+    // for, so it ends every session and makes the user sign in again — which
+    // is also the safest outcome if this path is ever reached by an attacker.
+    await revokeOtherSessions(user._id, null, 'password_reset');
+    const token = null;
 
     logger.info(`Password reset successful for: ${user.email}`);
 

@@ -88,6 +88,44 @@ export function defineAllModels(sequelize) {
    * million possibilities, so a plain hash in a leaked dump would fall in
    * seconds; the HMAC key means an attacker needs the server secret too.
    */
+  /**
+   * One row per signed-in device.
+   *
+   * Access tokens carry this row's id as `sid`, and `protect` checks the row on
+   * every request. That is what makes "sign out my other device" possible at
+   * all: a stateless JWT cannot be withdrawn, so revocation has to live here.
+   */
+  const Session = sequelize.define(
+    'Session',
+    {
+      id: ID,
+      userId: { type: STR, allowNull: false },
+      /** Stable per-install identifier chosen by the client. */
+      deviceId: { type: STR, allowNull: false },
+      /** Shown to the user when they are asked to sign the other device out. */
+      deviceName: { type: STR, allowNull: true },
+      platform: { type: STR(32), allowNull: true },
+      appVersion: { type: STR(32), allowNull: true },
+      /**
+       * SHA-256 of the current refresh token. Storing the hash means a database
+       * leak does not hand over live sessions, and rotation can detect a token
+       * being presented twice.
+       */
+      refreshTokenHash: { type: STR, allowNull: true },
+      lastIp: { type: STR(64), allowNull: true },
+      lastSeenAt: { type: DATE, allowNull: true },
+      revokedAt: { type: DATE, allowNull: true },
+      revokeReason: { type: STR(64), allowNull: true },
+    },
+    {
+      tableName: 'sessions',
+      indexes: [
+        { fields: ['userId'], name: 'sessions_user_idx' },
+        { fields: ['userId', 'deviceId'], name: 'sessions_user_device_idx' },
+      ],
+    }
+  );
+
   const Otp = sequelize.define(
     'Otp',
     {
@@ -978,6 +1016,7 @@ export function defineAllModels(sequelize) {
     TallySerialRegistration: createCompatModel('TallySerialRegistration', TallySerialRegistration, { registry }),
     TallyImportQueue: createCompatModel('TallyImportQueue', TallyImportQueue, { registry }),
     Otp: createCompatModel('Otp', Otp, { registry }),
+    Session: createCompatModel('Session', Session, { registry }),
   };
 
   Object.assign(registry, models);

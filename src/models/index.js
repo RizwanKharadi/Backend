@@ -69,6 +69,7 @@ export const Notification = proxy('Notification');
 export const TallySerialRegistration = proxy('TallySerialRegistration');
 export const TallyImportQueue = proxy('TallyImportQueue');
 export const Otp = proxy('Otp');
+export const Session = proxy('Session');
 
 export default {
   User,
