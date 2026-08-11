@@ -32,6 +32,8 @@ import { mlService } from '../services/mlService';
 
 // Types
 import { MainStackScreenProps } from '../types/navigation';
+import { formatCurrency } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'PaymentPrediction'>;
 
@@ -45,6 +47,7 @@ interface PredictionForm {
 const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
+  const { t } = useTranslation();
   
   const { paymentPredictions } = useSelector((state: RootState) => state.ml);
   
@@ -79,7 +82,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
       const result = await dispatch(predictPaymentDelay(params)).unwrap();
       setPrediction(result.prediction);
     } catch (error: any) {
-      Alert.alert('Prediction Failed', error || 'Failed to predict payment delay');
+      Alert.alert(t('ml.prediction.failedTitle'), error || t('ml.prediction.failed'));
     } finally {
       setLoading(false);
     }
@@ -90,12 +93,6 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
     setPrediction(null);
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-    }).format(amount);
-  };
 
   const formatPercentage = (value: number): string => {
     return `${(value * 100).toFixed(1)}%`;
@@ -121,8 +118,8 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Payment Prediction"
-        subtitle="AI-Powered Payment Delay Prediction"
+        title={t('ml.prediction.title')}
+        subtitle={t('ml.prediction.subtitle')}
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -133,7 +130,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
       >
         {/* Input Form */}
         <Surface style={styles.card} elevation={2}>
-          <Title style={styles.cardTitle}>Prediction Parameters</Title>
+          <Title style={styles.cardTitle}>{t('ml.prediction.parameters')}</Title>
           
           <Controller
             control={control}
@@ -141,7 +138,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
             rules={{ required: 'Customer ID is required' }}
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Customer ID *"
+                label={t('ml.prediction.customerId')}
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -162,7 +159,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
             name="amount"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Payment Amount (Optional)"
+                label={t('ml.prediction.amount')}
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -179,7 +176,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
             name="due_date"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Due Date (Optional)"
+                label={t('ml.prediction.dueDate')}
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -196,7 +193,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
             name="days_ahead"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Prediction Period (Days)"
+                label={t('ml.prediction.period')}
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
@@ -215,7 +212,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
               style={styles.clearButton}
               disabled={loading}
             >
-              Clear
+              {t('vouchers.createScreen.clear')}
             </Button>
             
             <Button
@@ -226,7 +223,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
               style={styles.predictButton}
               icon="crystal-ball"
             >
-              Predict
+              {t('ml.prediction.predict')}
             </Button>
           </View>
         </Surface>
@@ -234,7 +231,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
         {/* Prediction Results */}
         {prediction && (
           <Surface style={styles.card} elevation={2}>
-            <Title style={styles.cardTitle}>Prediction Results</Title>
+            <Title style={styles.cardTitle}>{t('ml.prediction.results')}</Title>
             
             {/* Risk Level */}
             <View style={styles.riskHeader}>
@@ -259,7 +256,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
                 <Card.Content style={styles.metricContent}>
                   <Icon name="percent" size={24} color={theme.colors.primary} />
                   <View style={styles.metricText}>
-                    <Paragraph style={styles.metricLabel}>Delay Probability</Paragraph>
+                    <Paragraph style={styles.metricLabel}>{t('ml.prediction.delayProbability')}</Paragraph>
                     <Title style={styles.metricValue}>
                       {formatPercentage(prediction.delay_probability)}
                     </Title>
@@ -271,7 +268,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
                 <Card.Content style={styles.metricContent}>
                   <Icon name="calendar-clock" size={24} color={theme.colors.secondary} />
                   <View style={styles.metricText}>
-                    <Paragraph style={styles.metricLabel}>Predicted Delay</Paragraph>
+                    <Paragraph style={styles.metricLabel}>{t('ml.prediction.predictedDelay')}</Paragraph>
                     <Title style={styles.metricValue}>
                       {prediction.predicted_delay_days} days
                     </Title>
@@ -283,7 +280,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
                 <Card.Content style={styles.metricContent}>
                   <Icon name="shield-check" size={24} color={theme.colors.tertiary} />
                   <View style={styles.metricText}>
-                    <Paragraph style={styles.metricLabel}>Confidence</Paragraph>
+                    <Paragraph style={styles.metricLabel}>{t('ml.prediction.confidence')}</Paragraph>
                     <Title style={styles.metricValue}>
                       {formatPercentage(prediction.confidence_score)}
                     </Title>
@@ -310,7 +307,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
             {/* Key Factors */}
             {prediction.factors && Object.keys(prediction.factors).length > 0 && (
               <View style={styles.factorsContainer}>
-                <Title style={styles.factorsTitle}>Key Influencing Factors</Title>
+                <Title style={styles.factorsTitle}>{t('ml.prediction.keyFactors')}</Title>
                 <View style={styles.factorsGrid}>
                   {Object.entries(prediction.factors).map(([factor, importance]) => (
                     <Chip
@@ -328,7 +325,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* Recommendations */}
             <View style={styles.recommendationsContainer}>
-              <Title style={styles.recommendationsTitle}>Recommendations</Title>
+              <Title style={styles.recommendationsTitle}>{t('ml.prediction.recommendations')}</Title>
               <View style={styles.recommendationsList}>
                 {prediction.risk_level === 'High' && (
                   <>

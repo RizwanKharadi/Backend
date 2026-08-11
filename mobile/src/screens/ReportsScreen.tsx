@@ -16,6 +16,7 @@ import { CompositeScreenProps } from '@react-navigation/native';
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
 import { MainTabParamList, ReportsStackParamList } from '../types/navigation';
+import { useTranslation } from 'react-i18next';
 
 type Props = CompositeScreenProps<
   NativeStackScreenProps<ReportsStackParamList, 'ReportsHome'>,
@@ -120,6 +121,7 @@ const GROUP_LABELS: Record<Exclude<ReportCategory, 'all'>, string> = {
 };
 
 const ReportsScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const parentNavigation = navigation.getParent();
   const { selectedCompany } = useCompany();
 
@@ -168,7 +170,7 @@ const ReportsScreen: React.FC<Props> = ({ navigation }) => {
         parentNavigation?.navigate('Inventory');
         break;
       default:
-        Alert.alert('Coming soon', 'This report will be available in a future update.');
+        Alert.alert(t('common.comingSoon'), t('reports.comingSoonMessage'));
     }
   };
 

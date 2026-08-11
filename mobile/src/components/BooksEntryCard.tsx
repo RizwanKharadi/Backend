@@ -12,7 +12,7 @@ import { colors, hexToRgba } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { TxnTypeSummary } from '../types/transactions';
-import { formatIndianCompact } from '../utils/formatters';
+import { formatCompactAmount } from '../utils/formatters';
 
 interface BooksEntryCardProps {
   summary: TxnTypeSummary;
@@ -30,7 +30,7 @@ const BooksEntryCard: React.FC<BooksEntryCardProps> = ({
     onPress={onPress}
     style={[styles.card, shadows.card]}
     accessibilityRole="button"
-    accessibilityLabel={`${summary.title}, ${formatIndianCompact(summary.amount)}`}
+    accessibilityLabel={`${summary.title}, ${formatCompactAmount(summary.amount)}`}
   >
     <View style={styles.headerRow}>
       <View style={[styles.iconChip, { backgroundColor: hexToRgba(summary.color, 0.14) }]}>
@@ -48,7 +48,7 @@ const BooksEntryCard: React.FC<BooksEntryCardProps> = ({
     <View style={styles.bottomRow}>
       <View style={styles.flex}>
         <Text style={[styles.amount, { color: summary.color }]} numberOfLines={1}>
-          {summary.amount > 0 ? formatIndianCompact(summary.amount) : '₹0'}
+          {summary.amount > 0 ? formatCompactAmount(summary.amount) : '₹0'}
         </Text>
         <Text style={styles.count}>
           {summary.count} {countSuffix}

@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { TextInput, Text, IconButton } from 'react-native-paper';
 import { voucherFormTheme } from './voucherFormTheme';
+import { useTranslation } from 'react-i18next';
 
 const { height: SCREEN_H } = Dimensions.get('window');
 
@@ -33,6 +34,8 @@ interface SearchableSelectProps {
   loading?: boolean;
   /** Modal title override */
   pickerTitle?: string;
+  /** Bump this number to open the picker programmatically (0 = never). */
+  openToken?: number;
 }
 
 const SearchableSelect: React.FC<SearchableSelectProps> = ({
@@ -46,9 +49,15 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   disabled = false,
   loading = false,
   pickerTitle,
+  openToken = 0,
 }) => {
+  const { t } = useTranslation();
   const [visible, setVisible] = useState(false);
   const [query, setQuery] = useState('');
+
+  useEffect(() => {
+    if (openToken > 0 && !disabled && !loading) setVisible(true);
+  }, [openToken, disabled, loading]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -136,7 +145,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             </View>
 
             <TextInput
-              placeholder="Search by name, code, GSTIN..."
+              placeholder={t('masters.searchPlaceholder')}
               value={query}
               onChangeText={setQuery}
               mode="outlined"
@@ -162,7 +171,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               windowSize={12}
               ListEmptyComponent={
                 <View style={styles.emptyWrap}>
-                  <Text style={styles.empty}>No matches found</Text>
+                  <Text style={styles.empty}>{t('masters.noMatches')}</Text>
                 </View>
               }
             />

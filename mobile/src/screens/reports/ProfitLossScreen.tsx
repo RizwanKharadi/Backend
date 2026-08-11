@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useCompany } from '../../store/hooks';
 import { reportService, ProfitLossGroup } from '../../services/reportService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import ReportPeriodFilterModal, {
   ReportPeriodKey,
   REPORT_PERIOD_OPTIONS,
@@ -26,6 +27,7 @@ const periodLabel = (key: ReportPeriodKey) =>
   REPORT_PERIOD_OPTIONS.find((o) => o.key === key)?.label ?? 'This Month';
 
 const ProfitLossScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
@@ -112,7 +114,7 @@ const ProfitLossScreen = () => {
   if (!selectedCompany) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Select a company to view reports.</Text>
+        <Text style={styles.emptyText}>{t('reports.selectCompany')}</Text>
       </View>
     );
   }
@@ -125,13 +127,13 @@ const ProfitLossScreen = () => {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
               <Icon name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.title}>Profit & Loss</Text>
+            <Text style={styles.title}>{t('reports.item.profitLoss.title')}</Text>
             <TouchableOpacity
               onPress={() => setFilterVisible(true)}
               style={styles.filterBtn}
             >
               <Icon name="filter-variant" size={22} color="#fff" />
-              <Text style={styles.filterBtnText}>Filter</Text>
+              <Text style={styles.filterBtnText}>{t('reports.filter')}</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.subtitle}>{selectedCompany.name}</Text>
@@ -154,20 +156,20 @@ const ProfitLossScreen = () => {
           <View style={styles.centered}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity onPress={fetchProfitLoss} style={styles.retryBtn}>
-              <Text style={styles.retryText}>Retry</Text>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
             <View style={styles.summaryRow}>
               <Card style={[styles.summaryCard, styles.revenueCard]}>
-                <Text style={styles.summaryLabel}>Revenue</Text>
+                <Text style={styles.summaryLabel}>{t('reports.profitLoss.revenue')}</Text>
                 <Text style={styles.summaryValue}>
                   {formatCurrency(summary.totalRevenue || 0)}
                 </Text>
               </Card>
               <Card style={[styles.summaryCard, styles.expenseCard]}>
-                <Text style={styles.summaryLabel}>Expenses</Text>
+                <Text style={styles.summaryLabel}>{t('reports.profitLoss.expenses')}</Text>
                 <Text style={styles.summaryValue}>
                   {formatCurrency(summary.totalExpenses || 0)}
                 </Text>
@@ -175,7 +177,7 @@ const ProfitLossScreen = () => {
             </View>
 
             <Card style={[styles.detailCard, styles.netCard]}>
-              <Text style={styles.summaryLabel}>Net Profit</Text>
+              <Text style={styles.summaryLabel}>{t('dashboard.netProfit')}</Text>
               <Text
                 style={[
                   styles.summaryValue,
@@ -190,7 +192,7 @@ const ProfitLossScreen = () => {
             </Card>
 
             <View style={styles.breakdownHeader}>
-              <Text style={styles.sectionTitle}>Income Breakdown</Text>
+              <Text style={styles.sectionTitle}>{t('reports.profitLoss.incomeBreakdown')}</Text>
             </View>
             <Card style={styles.detailCard}>
               {revenueGroups.length > 0 ? (
@@ -199,13 +201,13 @@ const ProfitLossScreen = () => {
                 getCategoryRows(revenueCategories)
               ) : (
                 <Text style={styles.emptyText}>
-                  No income groups synced. Run desktop-agent sync.
+                  {t('reports.profitLoss.noIncomeGroups')}
                 </Text>
               )}
             </Card>
 
             <View style={styles.breakdownHeader}>
-              <Text style={styles.sectionTitle}>Expense Breakdown</Text>
+              <Text style={styles.sectionTitle}>{t('reports.profitLoss.expenseBreakdown')}</Text>
             </View>
             <Card style={styles.detailCard}>
               {expenseGroups.length > 0 ? (
@@ -214,22 +216,22 @@ const ProfitLossScreen = () => {
                 getCategoryRows(expenseCategories)
               ) : (
                 <Text style={styles.emptyText}>
-                  No expense groups synced. Run desktop-agent sync.
+                  {t('reports.profitLoss.noExpenseGroups')}
                 </Text>
               )}
             </Card>
 
             <Card style={styles.detailCard}>
-              <Text style={styles.sectionTitle}>Summary</Text>
+              <Text style={styles.sectionTitle}>{t('vouchers.item.summary')}</Text>
               <Divider style={styles.divider} />
               <View style={styles.summaryLine}>
-                <Text style={styles.summaryLineLabel}>Total Income</Text>
+                <Text style={styles.summaryLineLabel}>{t('reports.profitLoss.totalIncome')}</Text>
                 <Text style={styles.summaryLineValue}>
                   {formatCurrency(data?.revenue?.total || 0)}
                 </Text>
               </View>
               <View style={styles.summaryLine}>
-                <Text style={styles.summaryLineLabel}>Total Expenses</Text>
+                <Text style={styles.summaryLineLabel}>{t('reports.profitLoss.totalExpenses')}</Text>
                 <Text style={styles.summaryLineValue}>
                   {formatCurrency(data?.expenses?.total || 0)}
                 </Text>

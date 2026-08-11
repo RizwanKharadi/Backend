@@ -10,6 +10,7 @@ import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dashboardColors } from '../dashboard/dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 interface TransactionsHeaderProps {
   subtitle?: string;
@@ -20,6 +21,7 @@ const TransactionsHeader: React.FC<TransactionsHeaderProps> = ({
   subtitle = 'Browse by voucher type',
   onBackPress,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -32,7 +34,7 @@ const TransactionsHeader: React.FC<TransactionsHeaderProps> = ({
           </TouchableOpacity>
         ) : null}
         <View style={styles.textBlock}>
-          <Text style={styles.title}>Transactions</Text>
+          <Text style={styles.title}>{t('nav.transactions')}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
         <View style={styles.decorIcon}>

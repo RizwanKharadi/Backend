@@ -10,11 +10,14 @@ import { inventoryService } from '../../services/inventoryService';
 import { masterService } from '../../services/masterService';
 import { useCompany } from '../../store/hooks';
 import { lineTaxableAmount } from '../../utils/salesVoucherCalc';
+import { formatCurrency } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'AddInvoiceItem'>;
 
 const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedCompany } = useCompany();
+  const { t } = useTranslation();
   const editIndex = route.params?.itemIndex;
   const existing = route.params?.item;
 
@@ -111,17 +114,17 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const buildResult = (): SalesVoucherItemLine | null => {
     if (!itemName.trim()) {
-      Alert.alert('Item required', 'Select or enter an item name');
+      Alert.alert(t('vouchers.form.itemRequired'), t('vouchers.form.itemRequiredMessage'));
       return null;
     }
     const qty = parseFloat(quantity);
     const r = parseFloat(rate);
     if (!qty || qty <= 0) {
-      Alert.alert('Invalid quantity', 'Enter a valid quantity');
+      Alert.alert(t('vouchers.form.invalidQuantity'), t('vouchers.form.invalidQuantityMessage'));
       return null;
     }
     if (!r || r <= 0) {
-      Alert.alert('Invalid rate', 'Enter a valid rate');
+      Alert.alert(t('vouchers.form.invalidRate'), t('vouchers.form.invalidRateMessage'));
       return null;
     }
     return {
@@ -158,8 +161,8 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <VoucherFormHeader
-        title="Add Item"
-        subtitle="Tax via Ledger on invoice"
+        title={t('vouchers.addItem.title')}
+        subtitle={t('vouchers.addItem.subtitle')}
         onBack={() => navigation.goBack()}
         rightIcon="barcode-scan"
         onRightPress={handleScanBarcode}
@@ -167,7 +170,7 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <SearchableSelect
-          label="Item Name"
+          label={t('vouchers.addItem.itemName')}
           pickerTitle="Select stock item"
           value={itemName}
           options={itemOptions}
@@ -177,23 +180,23 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
             const mapped = itemUnitMap[o.id];
             if (mapped) setUnit(mapped);
           }}
-          placeholder="Tap to choose item"
+          placeholder={t('vouchers.addItem.chooseItem')}
           leftIcon="package-variant"
           loading={loadingItems}
         />
 
         <SearchableSelect
-          label="Godown"
+          label={t('vouchers.addItem.godown')}
           pickerTitle="Select godown"
           value={godownName}
           options={godownOptions}
           onSelect={(o) => setGodownName(o.label)}
-          placeholder="Tap to choose godown"
+          placeholder={t('vouchers.addItem.chooseGodown')}
           leftIcon="warehouse"
         />
 
         <TextInput
-          label="Description (optional)"
+          label={t('vouchers.addItem.description')}
           value={description}
           onChangeText={setDescription}
           mode="outlined"
@@ -204,7 +207,7 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <View style={styles.row}>
           <TextInput
-            label="Quantity"
+            label={t('vouchers.addItem.quantity')}
             value={quantity}
             onChangeText={setQuantity}
             keyboardType="decimal-pad"
@@ -213,19 +216,19 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
           />
           <View style={styles.half}>
             <SearchableSelect
-              label="Unit"
+              label={t('vouchers.addItem.unit')}
               pickerTitle="Select unit"
               value={unit}
               options={unitOptions}
               onSelect={(o) => setUnit(o.label)}
-              placeholder="Unit"
+              placeholder={t('vouchers.addItem.unit')}
             />
           </View>
         </View>
 
         <View style={styles.row}>
           <TextInput
-            label="Rate"
+            label={t('vouchers.addItem.rate')}
             value={rate}
             onChangeText={setRate}
             keyboardType="decimal-pad"
@@ -234,7 +237,7 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
             left={<TextInput.Affix text="₹" />}
           />
           <TextInput
-            label="Discount %"
+            label={t('vouchers.addItem.discount')}
             value={discountPercent}
             onChangeText={setDiscountPercent}
             keyboardType="decimal-pad"
@@ -251,8 +254,8 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
         <Divider style={styles.divider} />
         <View style={styles.summaryCard}>
           <View style={styles.summaryRow}>
-            <Text style={styles.summaryLabel}>Line amount</Text>
-            <Text style={styles.summaryValue}>₹ {lineAmount.toLocaleString('en-IN')}</Text>
+            <Text style={styles.summaryLabel}>{t('vouchers.item.lineAmount')}</Text>
+            <Text style={styles.summaryValue}>{formatCurrency(lineAmount)}</Text>
           </View>
         </View>
       </ScrollView>
@@ -267,9 +270,7 @@ const AddSalesItemScreen: React.FC<Props> = ({ navigation, route }) => {
           buttonColor={voucherFormTheme.primary}
           style={styles.doneBtn}
           labelStyle={styles.doneLabel}
-        >
-          DONE
-        </Button>
+        >{t('common.done').toUpperCase()}</Button>
       </View>
     </View>
   );

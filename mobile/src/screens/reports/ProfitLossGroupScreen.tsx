@@ -14,6 +14,7 @@ import { useCompany } from '../../store/hooks';
 import { reportService, ProfitLossGroupLedger } from '../../services/reportService';
 import { formatCurrency } from '../../utils/formatters';
 import { ReportPeriodKey } from '../../components/reports/ReportPeriodFilterModal';
+import { useTranslation } from 'react-i18next';
 
 const PRIMARY = '#1565C0';
 
@@ -25,6 +26,7 @@ type RouteParams = {
 };
 
 const ProfitLossGroupScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { selectedCompany } = useCompany();
@@ -130,8 +132,8 @@ const ProfitLossGroupScreen = () => {
       </View>
 
       <View style={styles.colHeader}>
-        <Text style={styles.colLeft}>Ledger</Text>
-        <Text style={styles.colRight}>Amount</Text>
+        <Text style={styles.colLeft}>{t('vouchers.item.ledger')}</Text>
+        <Text style={styles.colRight}>{t('vouchers.form.amount')}</Text>
       </View>
 
       {loading ? (
@@ -142,7 +144,7 @@ const ProfitLossGroupScreen = () => {
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -162,7 +164,7 @@ const ProfitLossGroupScreen = () => {
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              No ledgers synced for this group. Run desktop-agent sync.
+              {t('reports.noLedgersSynced')}
             </Text>
           }
         />

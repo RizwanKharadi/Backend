@@ -13,10 +13,12 @@ import Header from '../components/common/Header';
 import { RootState } from '../store';
 import { userService } from '../services/userService';
 import { MainStackScreenProps } from '../types/navigation';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'ChangePassword'>;
 
 const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const { user } = useSelector((state: RootState) => state.auth);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -27,19 +29,19 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSubmit = async () => {
     if (!user?.id) {
-      Alert.alert('Error', 'You must be signed in to change your password.');
+      Alert.alert(t('common.error'), t('password.mustSignIn'));
       return;
     }
     if (!currentPassword || !newPassword) {
-      Alert.alert('Required', 'Enter your current and new password.');
+      Alert.alert(t('password.requiredTitle'), t('password.enterBoth'));
       return;
     }
     if (newPassword.length < 6) {
-      Alert.alert('Weak password', 'New password must be at least 6 characters.');
+      Alert.alert(t('password.weakTitle'), t('password.tooShort'));
       return;
     }
     if (newPassword !== confirmPassword) {
-      Alert.alert('Mismatch', 'New password and confirmation do not match.');
+      Alert.alert(t('password.mismatchTitle'), t('password.mismatch'));
       return;
     }
 
@@ -50,15 +52,15 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
         currentPassword,
         newPassword
       );
-      Alert.alert('Success', result.message || 'Password changed successfully.', [
+      Alert.alert(t('common.success'), result.message || t('password.changed'), [
         { text: 'OK', onPress: () => navigation.goBack() },
       ]);
     } catch (error: any) {
       Alert.alert(
-        'Failed',
+        t('password.failedTitle'),
         error?.response?.data?.message ||
           error?.message ||
-          'Could not change password.'
+          t('password.couldNotChange')
       );
     } finally {
       setLoading(false);
@@ -68,7 +70,7 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Change password"
+        title={t('profile.changePassword')}
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -79,7 +81,7 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
           </Text>
 
           <TextInput
-            label="Current password"
+            label={t('password.current')}
             value={currentPassword}
             onChangeText={setCurrentPassword}
             secureTextEntry={!showCurrent}
@@ -94,7 +96,7 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
             }
           />
           <TextInput
-            label="New password"
+            label={t('password.new')}
             value={newPassword}
             onChangeText={setNewPassword}
             secureTextEntry={!showNew}
@@ -109,7 +111,7 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
             }
           />
           <TextInput
-            label="Confirm new password"
+            label={t('password.confirmNew')}
             value={confirmPassword}
             onChangeText={setConfirmPassword}
             secureTextEntry={!showNew}
@@ -124,9 +126,7 @@ const ChangePasswordScreen: React.FC<Props> = ({ navigation }) => {
             loading={loading}
             disabled={loading}
             style={styles.btn}
-          >
-            Update password
-          </Button>
+          >{t('password.update')}</Button>
           {loading ? <ActivityIndicator style={styles.spinner} /> : null}
         </Surface>
       </ScrollView>

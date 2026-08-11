@@ -16,6 +16,7 @@ import {
   InactiveCustomerRow,
 } from '../../services/reportService';
 import { formatDate } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import InactiveDaysFilterModal, {
   InactiveDaysFilterId,
   inactiveFilterLabel,
@@ -24,6 +25,7 @@ import InactiveDaysFilterModal, {
 const PRIMARY = '#1565C0';
 
 const InactiveCustomerScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { selectedCompany } = useCompany();
 
@@ -91,7 +93,7 @@ const InactiveCustomerScreen = () => {
           <Icon name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Customer</Text>
+          <Text style={styles.headerTitle}>{t('reports.category.customer')}</Text>
           <Text style={styles.headerSub}>{filterSubtitle}</Text>
         </View>
         <TouchableOpacity
@@ -104,16 +106,15 @@ const InactiveCustomerScreen = () => {
 
       <View style={styles.statsBar}>
         <Text style={styles.statText}>
-          <Text style={styles.statBold}>{summary.inactiveCount}</Text> Customers
-        </Text>
+          <Text style={styles.statBold}>{summary.inactiveCount}</Text>{t('reports.topTen.customers')}</Text>
         <Text style={styles.statText}>
           <Text style={styles.statBold}>{summary.percentOfTotal}%</Text> of total Customers
         </Text>
       </View>
 
       <View style={styles.colHeader}>
-        <Text style={styles.colLeft}>Name</Text>
-        <Text style={styles.colRight}>LAST SALE DATE</Text>
+        <Text style={styles.colLeft}>{t('reports.name')}</Text>
+        <Text style={styles.colRight}>{t('reports.lastSaleDate').toUpperCase()}</Text>
       </View>
 
       {loading ? (
@@ -124,7 +125,7 @@ const InactiveCustomerScreen = () => {
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -139,7 +140,7 @@ const InactiveCustomerScreen = () => {
             }} colors={[PRIMARY]} />
           }
           ListEmptyComponent={
-            <Text style={styles.empty}>No inactive customers for this filter.</Text>
+            <Text style={styles.empty}>{t('reports.noInactiveCustomers')}</Text>
           }
         />
       )}

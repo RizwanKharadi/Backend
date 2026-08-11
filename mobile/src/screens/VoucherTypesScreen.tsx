@@ -22,7 +22,8 @@ import { MainStackParamList, MainTabScreenProps } from '../types/navigation';
 import { useCompany } from '../store/hooks';
 import { voucherService } from '../services/voucherService';
 import { Voucher } from '../types';
-import { formatIndianCompact } from '../utils/formatters';
+import { formatCompactAmount } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import {
   matchesVoucherType,
   monthStartToToday,
@@ -35,6 +36,7 @@ type Props = MainTabScreenProps<'Transactions'>;
 const MIN_RELOAD_MS = 45_000;
 
 const VoucherTypesScreen: React.FC<Props> = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<StackNav>();
   const { selectedCompany } = useCompany();
 
@@ -130,7 +132,7 @@ const VoucherTypesScreen: React.FC<Props> = () => {
         ) : (
           <>
             <Text style={[styles.typeAmount, { color: item.color }]}>
-              {amount > 0 ? formatIndianCompact(amount) : '—'}
+              {amount > 0 ? formatCompactAmount(amount) : '—'}
             </Text>
             <Text style={styles.typeCount}>
               {count} this month
@@ -196,9 +198,9 @@ const VoucherTypesScreen: React.FC<Props> = () => {
               <Icon name="book-open-page-variant" size={32} color="#fff" />
             </View>
             <View style={styles.dayBookText}>
-              <Text style={styles.dayBookTitle}>Day Book</Text>
+              <Text style={styles.dayBookTitle}>{t('reports.item.dayBook.title')}</Text>
               <Text style={styles.dayBookDesc}>
-                Chronological entries for any date range
+                {t('reports.item.dayBook.chronological')}
               </Text>
             </View>
             <Icon name="chevron-right" size={28} color="rgba(255,255,255,0.85)" />
@@ -208,7 +210,7 @@ const VoucherTypesScreen: React.FC<Props> = () => {
         {!selectedCompany?.id ? (
           <View style={styles.hintBox}>
             <Text style={styles.hintText}>
-              Select a company to see transaction totals for this month.
+              {t('vouchers.selectCompanyTotals')}
             </Text>
           </View>
         ) : null}

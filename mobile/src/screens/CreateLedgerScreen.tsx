@@ -7,6 +7,7 @@ import { useCompany } from '../store/hooks';
 import { partyService } from '../services/partyService';
 import { voucherFormTheme } from '../components/voucher/voucherFormTheme';
 import { describeTallyPush } from '../utils/tallyPushMessage';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'CreateLedger'>;
 
@@ -16,6 +17,7 @@ const PARENT_OPTIONS = [
 ];
 
 const CreateLedgerScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const { selectedCompany } = useCompany();
   const [name, setName] = useState('');
   const [parent, setParent] = useState('Sundry Debtors');
@@ -29,15 +31,15 @@ const CreateLedgerScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSave = async () => {
     if (!selectedCompany?.id) {
-      Alert.alert('Company', 'Select a company first');
+      Alert.alert(t('vouchers.form.companyTitle'), t('vouchers.form.selectCompanyFirst'));
       return;
     }
     if (!name.trim()) {
-      Alert.alert('Name', 'Enter ledger name');
+      Alert.alert(t('masters.nameTitle'), t('masters.ledger.enterName'));
       return;
     }
     if (!mobile.trim()) {
-      Alert.alert('Mobile', 'Enter mobile number');
+      Alert.alert(t('masters.ledger.mobile'), t('masters.ledger.enterMobile'));
       return;
     }
 
@@ -65,7 +67,7 @@ const CreateLedgerScreen: React.FC<Props> = ({ navigation }) => {
       const { title, message } = describeTallyPush(res.tallyPush, 'Ledger');
       Alert.alert(title, message, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save');
+      Alert.alert(t('common.error'), e.message || t('vouchers.form.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -73,7 +75,7 @@ const CreateLedgerScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header title="Create Ledger" showBack onBackPress={() => navigation.goBack()} />
+      <Header title={t('masters.ledger.title')} showBack onBackPress={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>Creates a ledger in Tally (All Masters import) and stores it as a party.</Text>
 
@@ -84,19 +86,19 @@ const CreateLedgerScreen: React.FC<Props> = ({ navigation }) => {
             setParent(v === 'supplier' ? 'Sundry Creditors' : 'Sundry Debtors');
           }}
           buttons={[
-            { value: 'customer', label: 'Customer' },
-            { value: 'supplier', label: 'Supplier' },
+            { value: 'customer', label: t('masters.ledger.customer') },
+            { value: 'supplier', label: t('masters.ledger.supplier') },
           ]}
           style={styles.segment}
         />
 
-        <TextInput label="Name *" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
-        <TextInput label="Parent (Tally group) *" value={parent} onChangeText={setParent} mode="outlined" style={styles.input} />
-        <TextInput label="Mobile *" value={mobile} onChangeText={setMobile} mode="outlined" keyboardType="phone-pad" style={styles.input} />
-        <TextInput label="Address" value={address} onChangeText={setAddress} mode="outlined" multiline style={styles.input} />
-        <TextInput label="PIN Code" value={pincode} onChangeText={setPincode} mode="outlined" keyboardType="number-pad" style={styles.input} />
-        <TextInput label="State" value={state} onChangeText={setState} mode="outlined" style={styles.input} />
-        <TextInput label="Country" value={country} onChangeText={setCountry} mode="outlined" style={styles.input} />
+        <TextInput label={t('masters.nameRequired')} value={name} onChangeText={setName} mode="outlined" style={styles.input} />
+        <TextInput label={t('masters.ledger.parent')} value={parent} onChangeText={setParent} mode="outlined" style={styles.input} />
+        <TextInput label={t('masters.ledger.mobileRequired')} value={mobile} onChangeText={setMobile} mode="outlined" keyboardType="phone-pad" style={styles.input} />
+        <TextInput label={t('masters.ledger.address')} value={address} onChangeText={setAddress} mode="outlined" multiline style={styles.input} />
+        <TextInput label={t('masters.ledger.pincode')} value={pincode} onChangeText={setPincode} mode="outlined" keyboardType="number-pad" style={styles.input} />
+        <TextInput label={t('masters.ledger.state')} value={state} onChangeText={setState} mode="outlined" style={styles.input} />
+        <TextInput label={t('masters.ledger.country')} value={country} onChangeText={setCountry} mode="outlined" style={styles.input} />
 
         <Button
           mode="contained"
@@ -105,9 +107,7 @@ const CreateLedgerScreen: React.FC<Props> = ({ navigation }) => {
           disabled={saving}
           buttonColor={voucherFormTheme.primary}
           style={styles.saveBtn}
-        >
-          Save & sync to Tally
-        </Button>
+        >{t('masters.saveAndSync')}</Button>
       </ScrollView>
     </View>
   );

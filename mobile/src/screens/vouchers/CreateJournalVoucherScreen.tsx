@@ -20,6 +20,8 @@ import { voucherFormTheme } from '../../components/voucher/voucherFormTheme';
 import { useCompany } from '../../store/hooks';
 import { voucherService } from '../../services/voucherService';
 import { describeTallyPush } from '../../utils/tallyPushMessage';
+import { formatCurrency, formatDateShortYear } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'CreateJournal'>;
 
@@ -31,6 +33,7 @@ interface JournalLine {
 
 const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
   const { selectedCompany } = useCompany();
+  const { t } = useTranslation();
   const [isOptional, setIsOptional] = useState(false);
   const [date, setDate] = useState(new Date());
   const [showDatePicker, setShowDatePicker] = useState(false);
@@ -53,8 +56,7 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
       .catch(() => setAutoNumbering(false));
   }, [selectedCompany?.id]);
 
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+  const formatDate = (d: Date) => formatDateShortYear(d);
 
   const totalDebit = lines
     .filter((l) => l.side === 'debit')
@@ -66,7 +68,7 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
   const addLine = () => {
     const amt = parseFloat(amount);
     if (!ledgerName.trim() || !amt) {
-      Alert.alert('Ledger', 'Enter ledger name and amount');
+      Alert.alert(t('vouchers.item.ledger'), t('vouchers.form.ledgerNameAndAmount'));
       return;
     }
     setLines((prev) => [...prev, { ledgerName: ledgerName.trim(), amount: amt, side }]);
@@ -78,17 +80,20 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleSave = async () => {
     if (!selectedCompany?.id) {
-      Alert.alert('Company', 'Select a company first');
+      Alert.alert(t('vouchers.form.companyTitle'), t('vouchers.form.selectCompanyFirst'));
       return;
     }
     if (lines.length < 2) {
-      Alert.alert('Ledgers', 'Add at least two ledger lines');
+      Alert.alert(t('vouchers.journal.ledgersTitle'), t('vouchers.journal.needTwoLines'));
       return;
     }
     if (Math.abs(totalDebit - totalCredit) > 0.01) {
       Alert.alert(
-        'Not balanced',
-        `Debit ₹${totalDebit.toLocaleString('en-IN')} must equal Credit ₹${totalCredit.toLocaleString('en-IN')}`
+        t('vouchers.journal.notBalanced'),
+        t('vouchers.journal.mustBalance', {
+          debit: formatCurrency(totalDebit),
+          credit: formatCurrency(totalCredit),
+        })
       );
       return;
     }
@@ -115,9 +120,9 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
       setSaving(true);
       const response = await voucherService.createVoucher(payload);
       const { title, message } = describeTallyPush(response.tallyPush, 'Journal entry');
-      Alert.alert(title, message, [{ text: 'OK', onPress: () => navigation.popToTop() }]);
+      Alert.alert(title, message, [{ text: t('common.ok'), onPress: () => navigation.popToTop() }]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save');
+      Alert.alert(t('common.error'), e.message || t('vouchers.form.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -125,14 +130,14 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <VoucherFormHeader title="Journal Entry" onBack={() => navigation.goBack()} />
+      <VoucherFormHeader title={t('vouchers.journal.title')} onBack={() => navigation.goBack()} />
 
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <OptionalEntryRow checked={isOptional} onToggle={() => setIsOptional(!isOptional)} />
 
         <TouchableOpacity onPress={() => setShowDatePicker(true)}>
           <TextInput
-            label="Date"
+            label={t('vouchers.form.date')}
             value={formatDate(date)}
             mode="outlined"
             editable={false}
@@ -153,7 +158,7 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
         ) : null}
 
         <TextInput
-          label="Voucher No. (optional)"
+          label={t('vouchers.form.voucherNumber')}
           value={voucherNumber}
           onChangeText={setVoucherNumber}
           mode="outlined"
@@ -162,12 +167,12 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
           style={[styles.input, autoNumbering && styles.inputDisabled]}
         />
         {autoNumbering ? (
-          <Text style={styles.hint}>Disabled due to autonumbering in Tally</Text>
+          <Text style={styles.hint}>{t('vouchers.form.autoNumbering')}</Text>
         ) : null}
 
         <TouchableOpacity style={styles.linkRow} onPress={() => setModalVisible(true)}>
-          <Text style={styles.sectionTitle}>Ledger</Text>
-          <Text style={styles.addLink}>ADD</Text>
+          <Text style={styles.sectionTitle}>{t('vouchers.item.ledger')}</Text>
+          <Text style={styles.addLink}>{t('vouchers.form.addLink')}</Text>
         </TouchableOpacity>
 
         {lines.map((l, i) => (
@@ -182,22 +187,22 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
               />
             </View>
             <Text style={styles.lineMeta}>
-              {l.side === 'debit' ? 'Debit' : 'Credit'} · ₹ {l.amount.toLocaleString('en-IN')}
+              {l.side === 'debit' ? t('vouchers.journal.debit') : t('vouchers.journal.credit')} · {formatCurrency(l.amount)}
             </Text>
           </View>
         ))}
 
         <View style={styles.balanceCard}>
           <View style={styles.balanceRow}>
-            <Text style={styles.muted}>Total Debit</Text>
-            <Text>₹ {totalDebit.toLocaleString('en-IN')}</Text>
+            <Text style={styles.muted}>{t('vouchers.journal.totalDebit')}</Text>
+            <Text>{formatCurrency(totalDebit)}</Text>
           </View>
           <View style={styles.balanceRow}>
-            <Text style={styles.muted}>Total Credit</Text>
-            <Text>₹ {totalCredit.toLocaleString('en-IN')}</Text>
+            <Text style={styles.muted}>{t('vouchers.journal.totalCredit')}</Text>
+            <Text>{formatCurrency(totalCredit)}</Text>
           </View>
           <View style={styles.balanceRow}>
-            <Text style={styles.muted}>Difference</Text>
+            <Text style={styles.muted}>{t('vouchers.journal.difference')}</Text>
             <Text
               style={{
                 color:
@@ -207,19 +212,19 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
                 fontWeight: '700',
               }}
             >
-              ₹ {Math.abs(totalDebit - totalCredit).toLocaleString('en-IN')}
+              {formatCurrency(Math.abs(totalDebit - totalCredit))}
             </Text>
           </View>
         </View>
 
-        <Text style={styles.narrationLabel}>Narration</Text>
+        <Text style={styles.narrationLabel}>{t('vouchers.item.narration')}</Text>
         <TextInput
           value={narration}
           onChangeText={(t) => setNarration(t.slice(0, 300))}
           mode="outlined"
           multiline
           numberOfLines={5}
-          placeholder="Enter narration..."
+          placeholder={t('vouchers.form.narrationPlaceholder')}
           style={styles.narrationInput}
         />
         <Text style={styles.charCount}>{narration.length}/300</Text>
@@ -231,12 +236,12 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Ledger</Text>
+              <Text style={styles.modalTitle}>{t('vouchers.item.ledger')}</Text>
               <IconButton icon="close" onPress={() => setModalVisible(false)} />
             </View>
 
             <TextInput
-              label="Ledger Name"
+              label={t('vouchers.form.ledgerName')}
               value={ledgerName}
               onChangeText={setLedgerName}
               mode="outlined"
@@ -244,7 +249,7 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
               style={styles.input}
             />
             <TextInput
-              label="Amount"
+              label={t('vouchers.form.amount')}
               value={amount}
               onChangeText={setAmount}
               keyboardType="decimal-pad"
@@ -268,7 +273,7 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
               onPress={() => {
                 const amt = parseFloat(amount);
                 if (!ledgerName.trim() || !amt) {
-                  Alert.alert('Ledger', 'Enter ledger name and amount');
+                  Alert.alert(t('vouchers.item.ledger'), t('vouchers.form.ledgerNameAndAmount'));
                   return;
                 }
                 setLines((prev) => [
@@ -289,9 +294,7 @@ const CreateJournalVoucherScreen: React.FC<Props> = ({ navigation }) => {
               onPress={addLine}
               buttonColor={voucherFormTheme.primary}
               style={styles.modalSave}
-            >
-              DONE
-            </Button>
+            >{t('common.done').toUpperCase()}</Button>
           </View>
         </View>
       </Modal>

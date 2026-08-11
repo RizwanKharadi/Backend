@@ -4,7 +4,8 @@ import { Text, ActivityIndicator } from 'react-native-paper';
 import { LineChart } from 'react-native-chart-kit';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { dashboardColors } from './dashboardTheme';
-import { formatIndianCompact } from '../../utils/formatters';
+import { formatCompactAmount } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const chartWidth = Dimensions.get('window').width - 64;
 
@@ -19,6 +20,7 @@ const DashboardSalesTrend: React.FC<DashboardSalesTrendProps> = ({
   values,
   loading,
 }) => {
+  const { t } = useTranslation();
   const hasData = values.some((v) => v > 0);
   const total = useMemo(() => values.reduce((s, v) => s + v, 0), [values]);
 
@@ -43,14 +45,14 @@ const DashboardSalesTrend: React.FC<DashboardSalesTrendProps> = ({
             <Icon name="chart-areaspline" size={20} color={dashboardColors.accent} />
           </View>
           <View>
-            <Text style={styles.title}>Sales trend</Text>
-            <Text style={styles.subtitle}>Last 7 days</Text>
+            <Text style={styles.title}>{t('dashboard.salesTrend')}</Text>
+            <Text style={styles.subtitle}>{t('dashboard.salesTrendSubtitle')}</Text>
           </View>
         </View>
         {!loading && hasData ? (
           <View style={styles.totalPill}>
-            <Text style={styles.totalLabel}>Week total</Text>
-            <Text style={styles.totalValue}>{formatIndianCompact(total)}</Text>
+            <Text style={styles.totalLabel}>{t('dashboard.weekTotal')}</Text>
+            <Text style={styles.totalValue}>{formatCompactAmount(total)}</Text>
           </View>
         ) : null}
       </View>
@@ -101,7 +103,7 @@ const DashboardSalesTrend: React.FC<DashboardSalesTrendProps> = ({
         <View style={styles.empty}>
           <Icon name="chart-line-variant" size={40} color={dashboardColors.muted} />
           <Text style={styles.emptyText}>
-            Sales data will appear after syncing vouchers from Tally
+            {t('dashboard.salesAfterSync')}
           </Text>
         </View>
       )}

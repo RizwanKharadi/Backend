@@ -31,8 +31,10 @@ import {
   cancelPaymentLink,
 } from '../store/slices/paymentSlice';
 import { formatCurrency, formatDate } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const PaymentScreen: React.FC = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { orders, paymentLinks, stats, isLoading, error } = usePayment();
   const { selectedCompany } = useCompany();
@@ -76,12 +78,12 @@ const PaymentScreen: React.FC = () => {
 
   const handleCreatePaymentOrder = () => {
     Alert.prompt(
-      'Create Payment Order',
-      'Enter amount:',
+      t('payments.createOrder.title'),
+      t('payments.enterAmount'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Create',
+          text: t('payments.create'),
           onPress: async (amount) => {
             if (amount && selectedCompany) {
               try {
@@ -90,10 +92,10 @@ const PaymentScreen: React.FC = () => {
                   companyId: selectedCompany.id,
                   receipt: `order_${Date.now()}`,
                 }));
-                Alert.alert('Success', 'Payment order created successfully');
+                Alert.alert(t('common.success'), t('payments.createOrder.success'));
                 loadPaymentData();
               } catch (error) {
-                Alert.alert('Error', 'Failed to create payment order');
+                Alert.alert(t('common.error'), t('payments.createOrder.failed'));
               }
             }
           },
@@ -107,24 +109,24 @@ const PaymentScreen: React.FC = () => {
 
   const handleCreatePaymentLink = () => {
     Alert.prompt(
-      'Create Payment Link',
-      'Enter amount:',
+      t('payments.createLink.title'),
+      t('payments.enterAmount'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Create',
+          text: t('payments.create'),
           onPress: async (amount) => {
             if (amount && selectedCompany) {
               try {
                 await dispatch(createPaymentLink({
                   amount: parseFloat(amount) * 100, // Convert to paise
-                  description: 'Payment for services',
+                  description: t('payments.defaultDescription'),
                   companyId: selectedCompany.id,
                 }));
-                Alert.alert('Success', 'Payment link created successfully');
+                Alert.alert(t('common.success'), t('payments.createLink.success'));
                 loadPaymentData();
               } catch (error) {
-                Alert.alert('Error', 'Failed to create payment link');
+                Alert.alert(t('common.error'), t('payments.createLink.failed'));
               }
             }
           },
@@ -138,12 +140,12 @@ const PaymentScreen: React.FC = () => {
 
   const handleGenerateUPIQR = () => {
     Alert.prompt(
-      'Generate UPI QR Code',
-      'Enter amount:',
+      t('payments.upiQr.title'),
+      t('payments.enterAmount'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Generate',
+          text: t('payments.generate'),
           onPress: async (amount) => {
             if (amount && selectedCompany) {
               try {
@@ -152,9 +154,9 @@ const PaymentScreen: React.FC = () => {
                   merchant_name: selectedCompany.name,
                   companyId: selectedCompany.id,
                 }));
-                Alert.alert('Success', 'UPI QR code generated successfully');
+                Alert.alert(t('common.success'), t('payments.upiQr.success'));
               } catch (error) {
-                Alert.alert('Error', 'Failed to generate UPI QR code');
+                Alert.alert(t('common.error'), t('payments.upiQr.failed'));
               }
             }
           },
@@ -168,19 +170,19 @@ const PaymentScreen: React.FC = () => {
 
   const handleCancelPaymentLink = async (linkId: string) => {
     Alert.alert(
-      'Cancel Payment Link',
-      'Are you sure you want to cancel this payment link?',
+      t('payments.cancelLink.title'),
+      t('payments.cancelLink.message'),
       [
-        { text: 'No', style: 'cancel' },
+        { text: t('common.no'), style: 'cancel' },
         {
-          text: 'Yes',
+          text: t('common.yes'),
           onPress: async () => {
             try {
               await dispatch(cancelPaymentLink(linkId));
-              Alert.alert('Success', 'Payment link cancelled successfully');
+              Alert.alert(t('common.success'), t('payments.cancelLink.success'));
               loadPaymentData();
             } catch (error) {
-              Alert.alert('Error', 'Failed to cancel payment link');
+              Alert.alert(t('common.error'), t('payments.cancelLink.failed'));
             }
           },
         },
@@ -204,29 +206,29 @@ const PaymentScreen: React.FC = () => {
         <>
           <Card style={styles.card}>
             <Card.Content>
-              <Title>Payment Overview</Title>
+              <Title>{t('payments.overview')}</Title>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{formatCurrency(stats.totalAmount / 100)}</Text>
-                  <Text style={styles.statLabel}>Total Amount</Text>
+                  <Text style={styles.statLabel}>{t('payments.totalAmount')}</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{stats.totalTransactions}</Text>
-                  <Text style={styles.statLabel}>Total Transactions</Text>
+                  <Text style={styles.statLabel}>{t('payments.totalTransactions')}</Text>
                 </View>
               </View>
               <View style={styles.statsRow}>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{stats.successfulPayments}</Text>
-                  <Text style={styles.statLabel}>Successful</Text>
+                  <Text style={styles.statLabel}>{t('payments.successful')}</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{stats.failedPayments}</Text>
-                  <Text style={styles.statLabel}>Failed</Text>
+                  <Text style={styles.statLabel}>{t('payments.failed')}</Text>
                 </View>
                 <View style={styles.statItem}>
                   <Text style={styles.statValue}>{stats.pendingPayments}</Text>
-                  <Text style={styles.statLabel}>Pending</Text>
+                  <Text style={styles.statLabel}>{t('payments.pending')}</Text>
                 </View>
               </View>
             </Card.Content>
@@ -234,7 +236,7 @@ const PaymentScreen: React.FC = () => {
 
           <Card style={styles.card}>
             <Card.Content>
-              <Title>Payment Methods</Title>
+              <Title>{t('payments.methods')}</Title>
               <View style={styles.methodsContainer}>
                 {Object.entries(stats.byMethod).map(([method, count]) => (
                   <Chip key={method} style={styles.methodChip}>
@@ -253,10 +255,10 @@ const PaymentScreen: React.FC = () => {
     <View style={styles.container}>
       <DataTable>
         <DataTable.Header>
-          <DataTable.Title>Order ID</DataTable.Title>
-          <DataTable.Title>Amount</DataTable.Title>
-          <DataTable.Title>Status</DataTable.Title>
-          <DataTable.Title>Date</DataTable.Title>
+          <DataTable.Title>{t('payments.orderId')}</DataTable.Title>
+          <DataTable.Title>{t('payments.amount')}</DataTable.Title>
+          <DataTable.Title>{t('payments.status.label')}</DataTable.Title>
+          <DataTable.Title>{t('payments.date')}</DataTable.Title>
         </DataTable.Header>
 
         {filteredOrders.map((order) => (
@@ -285,10 +287,10 @@ const PaymentScreen: React.FC = () => {
     <View style={styles.container}>
       <DataTable>
         <DataTable.Header>
-          <DataTable.Title>Link ID</DataTable.Title>
-          <DataTable.Title>Amount</DataTable.Title>
-          <DataTable.Title>Status</DataTable.Title>
-          <DataTable.Title>Actions</DataTable.Title>
+          <DataTable.Title>{t('payments.linkId')}</DataTable.Title>
+          <DataTable.Title>{t('payments.amount')}</DataTable.Title>
+          <DataTable.Title>{t('payments.status.label')}</DataTable.Title>
+          <DataTable.Title>{t('payments.actions')}</DataTable.Title>
         </DataTable.Header>
 
         {filteredLinks.map((link) => (
@@ -313,7 +315,7 @@ const PaymentScreen: React.FC = () => {
                   compact
                   onPress={() => handleCancelPaymentLink(link.id)}
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </Button>
               )}
             </DataTable.Cell>
@@ -327,7 +329,7 @@ const PaymentScreen: React.FC = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
-        <Text>Loading payments...</Text>
+        <Text>{t('payments.loading')}</Text>
       </View>
     );
   }
@@ -336,7 +338,7 @@ const PaymentScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <Searchbar
-          placeholder="Search payments..."
+          placeholder={t('payments.searchPlaceholder')}
           onChangeText={setSearchQuery}
           value={searchQuery}
           style={styles.searchbar}
@@ -355,10 +357,10 @@ const PaymentScreen: React.FC = () => {
             </Button>
           }
         >
-          <Menu.Item onPress={() => { setSelectedStatus('all'); setMenuVisible(false); }} title="All" />
-          <Menu.Item onPress={() => { setSelectedStatus('created'); setMenuVisible(false); }} title="Created" />
-          <Menu.Item onPress={() => { setSelectedStatus('paid'); setMenuVisible(false); }} title="Paid" />
-          <Menu.Item onPress={() => { setSelectedStatus('failed'); setMenuVisible(false); }} title="Failed" />
+          <Menu.Item onPress={() => { setSelectedStatus('all'); setMenuVisible(false); }} title={t('common.all')} />
+          <Menu.Item onPress={() => { setSelectedStatus('created'); setMenuVisible(false); }} title={t('payments.status.created')} />
+          <Menu.Item onPress={() => { setSelectedStatus('paid'); setMenuVisible(false); }} title={t('payments.status.paid')} />
+          <Menu.Item onPress={() => { setSelectedStatus('failed'); setMenuVisible(false); }} title={t('payments.status.failed')} />
         </Menu>
       </View>
 
@@ -368,21 +370,21 @@ const PaymentScreen: React.FC = () => {
           onPress={() => setActiveTab('stats')}
           style={styles.tabButton}
         >
-          Stats
+          {t('payments.tab.stats')}
         </Button>
         <Button
           mode={activeTab === 'orders' ? 'contained' : 'outlined'}
           onPress={() => setActiveTab('orders')}
           style={styles.tabButton}
         >
-          Orders
+          {t('payments.tab.orders')}
         </Button>
         <Button
           mode={activeTab === 'links' ? 'contained' : 'outlined'}
           onPress={() => setActiveTab('links')}
           style={styles.tabButton}
         >
-          Links
+          {t('payments.tab.links')}
         </Button>
       </View>
 

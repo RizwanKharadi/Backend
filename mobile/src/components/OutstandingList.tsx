@@ -17,11 +17,12 @@ import { colors } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { OutstandingItem, OutstandingStatus } from '../types/dashboard';
+import { useTranslation } from 'react-i18next';
 
-const STATUS_STYLE: Record<OutstandingStatus, { label: string; color: string }> = {
-  overdue: { label: 'Overdue', color: colors.danger },
-  dueSoon: { label: 'Due Soon', color: colors.warning },
-  paid: { label: 'Paid', color: colors.success },
+const STATUS_STYLE: Record<OutstandingStatus, { labelKey: string; color: string }> = {
+  overdue: { labelKey: 'dashboard.status.overdue', color: colors.danger },
+  dueSoon: { labelKey: 'dashboard.status.dueSoon', color: colors.warning },
+  paid: { labelKey: 'dashboard.status.paid', color: colors.success },
 };
 
 interface RowProps {
@@ -32,6 +33,7 @@ interface RowProps {
 }
 
 const Row: React.FC<RowProps> = ({ item, index, isLast, onPress }) => {
+  const { t } = useTranslation();
   const anim = useRef(new Animated.Value(0)).current;
   const status = STATUS_STYLE[item.status];
 
@@ -59,7 +61,7 @@ const Row: React.FC<RowProps> = ({ item, index, isLast, onPress }) => {
         activeOpacity={0.7}
         onPress={onPress}
         accessibilityRole="button"
-        accessibilityLabel={`${item.name}, ${item.amount}, ${status.label}`}
+        accessibilityLabel={`${item.name}, ${item.amount}, ${t(status.labelKey)}`}
       >
         <View style={styles.numBadge}>
           <Text style={styles.numText}>{String(index + 1).padStart(2, '0')}</Text>
@@ -69,7 +71,7 @@ const Row: React.FC<RowProps> = ({ item, index, isLast, onPress }) => {
         </Text>
         <View style={styles.right}>
           <Text style={styles.amount}>{item.amount}</Text>
-          <Text style={[styles.status, { color: status.color }]}>{status.label}</Text>
+          <Text style={[styles.status, { color: status.color }]}>{t(status.labelKey)}</Text>
         </View>
       </TouchableOpacity>
     </Animated.View>
@@ -88,15 +90,16 @@ const OutstandingList: React.FC<OutstandingListProps> = ({
   items,
   onViewAll,
   onItemPress,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <View style={[styles.card, shadows.card]}>
     <View style={styles.header}>
       <Text style={styles.cardTitle} numberOfLines={1}>
         {title}
       </Text>
       <TouchableOpacity onPress={onViewAll} activeOpacity={0.7} accessibilityRole="button">
-        <Text style={styles.viewAll}>
-          View all <Text style={styles.chev}>›</Text>
+        <Text style={styles.viewAll}>{t('common.viewAll')}<Text style={styles.chev}>›</Text>
         </Text>
       </TouchableOpacity>
     </View>
@@ -111,7 +114,8 @@ const OutstandingList: React.FC<OutstandingListProps> = ({
       />
     ))}
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {

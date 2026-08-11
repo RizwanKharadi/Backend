@@ -3,6 +3,7 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { dashboardColors } from './dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 export interface AttentionItem {
   id: string;
@@ -23,11 +24,12 @@ const toneColors = {
 };
 
 const AttentionBanner: React.FC<AttentionBannerProps> = ({ items }) => {
+  const { t } = useTranslation();
   if (!items.length) return null;
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.sectionTitle}>Needs attention</Text>
+      <Text style={styles.sectionTitle}>{t('dashboard.needsAttention')}</Text>
       {items.map((item) => {
         const colors = toneColors[item.tone];
         const inner = (

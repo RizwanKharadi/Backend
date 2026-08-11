@@ -18,6 +18,7 @@ import {
   OutstandingLedgerSummary,
 } from '../../services/reportService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const PRIMARY = '#1565C0';
 const AMOUNT_COLOR = '#8B4513';
@@ -37,6 +38,7 @@ const COPY: Record<OutstandingKind, { title: string; empty: string; error: strin
 };
 
 const OutstandingReceivableScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute();
   const kind: OutstandingKind =
@@ -172,7 +174,7 @@ const OutstandingReceivableScreen = () => {
             style={styles.searchInput}
             value={query}
             onChangeText={setQuery}
-            placeholder="Search party name"
+            placeholder={t('reports.searchParty')}
             placeholderTextColor="#9e9e9e"
             autoFocus
             returnKeyType="search"
@@ -186,7 +188,7 @@ const OutstandingReceivableScreen = () => {
       ) : null}
 
       <View style={styles.tabRow}>
-        <Text style={styles.tabActive}>Ledgers</Text>
+        <Text style={styles.tabActive}>{t('reports.ledgers')}</Text>
         <Icon name="chart-bar" size={20} color={PRIMARY} style={styles.tabChart} />
       </View>
 
@@ -194,7 +196,7 @@ const OutstandingReceivableScreen = () => {
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (

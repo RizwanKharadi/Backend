@@ -5,6 +5,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import LoginScreen from '../screens/auth/LoginScreen';
 import RegisterScreen from '../screens/auth/RegisterScreen';
 import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import OtpVerificationScreen from '../screens/auth/OtpVerificationScreen';
 import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 import BiometricSetupScreen from '../screens/auth/BiometricSetupScreen';
 
@@ -24,6 +25,7 @@ const AuthNavigator: React.FC = () => {
       <Stack.Screen name="Login" component={LoginScreen} />
       <Stack.Screen name="Register" component={RegisterScreen} />
       <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
+      <Stack.Screen name="OtpVerification" component={OtpVerificationScreen} />
       <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
       <Stack.Screen name="BiometricSetup" component={BiometricSetupScreen} />
     </Stack.Navigator>

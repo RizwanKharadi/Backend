@@ -18,6 +18,11 @@ import { AppDispatch } from '../store';
 import { useInventory } from '../store/hooks';
 import { fetchItemById, deleteItem } from '../store/slices/inventorySlice';
 import { InventoryItem } from '../types';
+import {
+  formatCurrency,
+  formatDate as sharedFormatDate,
+} from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import { MainStackScreenProps } from '../types/navigation';
 import { MDI } from '../utils/mdiIcons';
 
@@ -34,6 +39,7 @@ function getStockMeta(item: InventoryItem) {
 }
 
 const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
+  const { t } = useTranslation();
   const { itemId } = route.params;
   const dispatch = useDispatch<AppDispatch>();
   const { selectedItem, isLoading, error } = useInventory();
@@ -43,7 +49,7 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       await dispatch(fetchItemById(itemId)).unwrap();
     } catch {
-      Alert.alert('Error', 'Failed to load item details');
+      Alert.alert(t('common.error'), t('inventory.detail.loadFailed'));
     }
   }, [dispatch, itemId]);
 
@@ -51,22 +57,8 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     loadItemDetail();
   }, [loadItemDetail]);
 
-  const formatCurrency = (amount: number) =>
-    new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 2,
-    }).format(amount);
-
-  const formatDate = (dateString?: string) => {
-    if (!dateString) return '—';
-    return new Date(dateString).toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
+  const formatDate = (dateString?: string) =>
+    (dateString && sharedFormatDate(dateString)) || '—';
 
   const stockValue = useMemo(() => {
     if (!selectedItem) return 0;
@@ -79,11 +71,11 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleDelete = () => {
     Alert.alert(
-      'Delete item',
-      'Are you sure? This cannot be undone.',
+      t('inventory.detail.deleteTitle'),
+      t('inventory.detail.deleteConfirm'),
       [
-        { text: 'Cancel', style: 'cancel' },
-        { text: 'Delete', style: 'destructive', onPress: confirmDelete },
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('common.delete'), style: 'destructive', onPress: confirmDelete },
       ]
     );
   };
@@ -92,11 +84,11 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setIsDeleting(true);
       await dispatch(deleteItem(itemId)).unwrap();
-      Alert.alert('Deleted', 'Item removed successfully', [
-        { text: 'OK', onPress: () => navigation.goBack() },
+      Alert.alert(t('inventory.detail.deleted'), t('inventory.detail.deleteSuccess'), [
+        { text: t('common.ok'), onPress: () => navigation.goBack() },
       ]);
     } catch {
-      Alert.alert('Error', 'Failed to delete item');
+      Alert.alert(t('common.error'), t('inventory.detail.deleteFailed'));
     } finally {
       setIsDeleting(false);
     }
@@ -121,7 +113,7 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   if (isLoading && !selectedItem) {
     return (
       <View style={styles.container}>
-        <DetailScreenHeader title="Item" subtitle="Loading…" onBackPress={() => navigation.goBack()} />
+        <DetailScreenHeader title={t('inventory.detail.item')} subtitle={t('common.loading')} onBackPress={() => navigation.goBack()} />
         <View style={styles.centered}>
           <ActivityIndicator size="large" color={dashboardColors.accent} />
         </View>
@@ -132,13 +124,13 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   if (error || !selectedItem) {
     return (
       <View style={styles.container}>
-        <DetailScreenHeader title="Item" onBackPress={() => navigation.goBack()} />
+        <DetailScreenHeader title={t('inventory.detail.item')} onBackPress={() => navigation.goBack()} />
         <View style={styles.centered}>
           <Icon name="package-variant-remove" size={56} color={dashboardColors.muted} />
-          <Text style={styles.emptyTitle}>Item not found</Text>
+          <Text style={styles.emptyTitle}>{t('inventory.detail.notFound')}</Text>
           <Text style={styles.emptyDesc}>{error || 'This item may have been removed.'}</Text>
           <TouchableOpacity style={styles.primaryBtn} onPress={() => navigation.goBack()}>
-            <Text style={styles.primaryBtnText}>Go back</Text>
+            <Text style={styles.primaryBtnText}>{t('inventory.detail.goBack')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -213,15 +205,15 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           <Text style={styles.heroStock}>
             {selectedItem.currentStock} <Text style={styles.heroUnit}>{selectedItem.unit}</Text>
           </Text>
-          <Text style={styles.heroSub}>Current quantity on hand</Text>
+          <Text style={styles.heroSub}>{t('inventory.detail.quantityOnHand')}</Text>
           <View style={styles.heroMetrics}>
             <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricLabel}>Stock value</Text>
+              <Text style={styles.heroMetricLabel}>{t('inventory.stockValue')}</Text>
               <Text style={styles.heroMetricValue}>{formatCurrency(stockValue)}</Text>
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroMetric}>
-              <Text style={styles.heroMetricLabel}>Rate</Text>
+              <Text style={styles.heroMetricLabel}>{t('vouchers.addItem.rate')}</Text>
               <Text style={styles.heroMetricValue}>{formatCurrency(selectedItem.rate || 0)}</Text>
             </View>
           </View>
@@ -229,7 +221,7 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {stockBalances ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Stock balances</Text>
+            <Text style={styles.cardTitle}>{t('inventory.detail.stockBalances')}</Text>
             {[
               { label: 'Opening balance', value: stockBalances.openingBalance },
               { label: 'Inward quantity', value: stockBalances.inwardQuantity },
@@ -248,13 +240,13 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {selectedItem.description ? (
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Description</Text>
+            <Text style={styles.cardTitle}>{t('inventory.detail.description')}</Text>
             <Text style={styles.descriptionText}>{selectedItem.description}</Text>
           </View>
         ) : null}
 
         <View style={styles.card}>
-          <Text style={styles.cardTitle}>Details</Text>
+          <Text style={styles.cardTitle}>{t('inventory.detail.details')}</Text>
           {infoRows.map((row, index) => (
             <View
               key={row.label}
@@ -279,14 +271,14 @@ const ItemDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       <View style={styles.actionBar}>
         <TouchableOpacity style={styles.outlineBtn} onPress={handleEdit} activeOpacity={0.8}>
           <Icon name="pencil" size={18} color={dashboardColors.accent} />
-          <Text style={styles.outlineBtnText}>Edit</Text>
+          <Text style={styles.outlineBtnText}>{t('common.edit')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.primaryBtnBar}
           onPress={() => navigation.goBack()}
           activeOpacity={0.85}
         >
-          <Text style={styles.primaryBtnText}>Done</Text>
+          <Text style={styles.primaryBtnText}>{t('common.done')}</Text>
         </TouchableOpacity>
       </View>
     </View>

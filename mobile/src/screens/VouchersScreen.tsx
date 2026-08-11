@@ -35,6 +35,8 @@ import { fetchVouchers, deleteVoucher, clearError, setFilters } from '../store/s
 import { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { ReportsStackParamList } from '../types/navigation';
 import { Voucher } from '../types';
+import { formatCurrency, formatDate } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 interface VoucherFilters {
   type: string;
@@ -49,6 +51,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
   const rootNavigation = navigation.getParent()?.getParent() ?? navigation.getParent();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
+  const { t } = useTranslation();
 
   const { vouchers, error, pagination, isLoading } = useVoucher();
 
@@ -71,10 +74,10 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Error', error);
+      Alert.alert(t('common.error'), error);
       dispatch(clearError());
     }
-  }, [error, dispatch]);
+  }, [error, dispatch, t]);
 
   const loadVouchers = useCallback(async () => {
     try {
@@ -129,25 +132,25 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleDeleteVoucher = useCallback(async (voucherId: string) => {
     Alert.alert(
-      'Delete Voucher',
-      'Are you sure you want to delete this voucher? This action cannot be undone.',
+      t('vouchers.delete.title'),
+      t('vouchers.delete.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await dispatch(deleteVoucher(voucherId)).unwrap();
-              Alert.alert('Success', 'Voucher deleted successfully');
+              Alert.alert(t('common.success'), t('vouchers.delete.success'));
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete voucher');
+              Alert.alert(t('common.error'), t('vouchers.delete.failed'));
             }
           },
         },
       ]
     );
-  }, [dispatch]);
+  }, [dispatch, t]);
 
   const getVoucherTypeIcon = (type: string): string => {
     switch (type.toLowerCase()) {
@@ -170,28 +173,11 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
 
-  const formatAmount = (amount: number): string => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
   const renderVoucherItem = ({ item }: { item: Voucher }) => (
     <Surface style={[styles.voucherCard, { backgroundColor: theme.colors.surface }]} elevation={1}>
       <List.Item
         title={`${item.voucherNumber} - ${item.voucherType}`}
-        description={`${item.narration || 'No description'} • ${formatDate(item.date)}`}
+        description={`${item.narration || t('common.noDescription')} • ${formatDate(item.date)}`}
         left={() => (
           <View style={styles.iconContainer}>
             <Icon
@@ -207,7 +193,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
               variant="titleMedium"
               style={[styles.amount, { color: theme.colors.onSurface }]}
             >
-              {formatAmount(item.amount)}
+              {formatCurrency(item.amount)}
             </Text>
             <Chip
               mode="outlined"
@@ -240,7 +226,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
                   setSelectedVoucher(null);
                   handleVoucherPress(item.id);
                 }}
-                title="View Details"
+                title={t('common.viewDetails')}
                 leadingIcon="eye"
               />
               <Menu.Item
@@ -249,7 +235,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
                   setSelectedVoucher(null);
                   rootNavigation?.navigate('CreateVoucher', { type: 'edit', voucherId: item.id });
                 }}
-                title="Edit"
+                title={t('common.edit')}
                 leadingIcon="pencil"
               />
               <Divider />
@@ -259,7 +245,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
                   setSelectedVoucher(null);
                   handleDeleteVoucher(item.id);
                 }}
-                title="Delete"
+                title={t('common.delete')}
                 leadingIcon="delete"
                 titleStyle={{ color: theme.colors.error }}
               />
@@ -275,8 +261,10 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Vouchers"
-        subtitle={`${pagination.total || vouchers.length} vouchers`}
+        title={t('vouchers.title')}
+        subtitle={t('vouchers.count', {
+          count: pagination.total || vouchers.length,
+        })}
         showBack
         showSync
         onBackPress={() => navigation.goBack()}
@@ -288,7 +276,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
         {/* Search and Filters */}
         <Surface style={[styles.searchContainer, { backgroundColor: theme.colors.surface }]} elevation={1}>
           <Searchbar
-            placeholder="Search vouchers..."
+            placeholder={t('vouchers.searchPlaceholder')}
             onChangeText={handleSearch}
             value={searchQuery}
             style={styles.searchbar}
@@ -301,7 +289,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
             compact
             style={styles.filterButton}
           >
-            Filters
+            {t('vouchers.filters')}
           </Button>
         </Surface>
 
@@ -329,13 +317,15 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
                 variant="headlineSmall"
                 style={[styles.emptyTitle, { color: theme.colors.onSurface }]}
               >
-                No Vouchers Found
+                {t('vouchers.emptyTitle')}
               </Text>
               <Text
                 variant="bodyMedium"
                 style={[styles.emptySubtitle, { color: theme.colors.onSurfaceVariant }]}
               >
-                {searchQuery ? 'Try adjusting your search criteria' : 'Create your first voucher to get started'}
+                {searchQuery
+                  ? t('vouchers.emptySearchHint')
+                  : t('vouchers.emptyCreateHint')}
               </Text>
               {!searchQuery && (
                 <Button
@@ -344,7 +334,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
                   icon="plus"
                   style={styles.emptyButton}
                 >
-                  Create Voucher
+                  {t('vouchers.create')}
                 </Button>
               )}
             </View>
@@ -357,7 +347,7 @@ const VouchersScreen: React.FC<Props> = ({ navigation }) => {
         icon="plus"
         style={[styles.fab, { backgroundColor: theme.colors.primary }]}
         onPress={() => rootNavigation?.navigate('CreateNewVoucher')}
-        label="New Voucher"
+        label={t('vouchers.newVoucher')}
       />
     </View>
   );

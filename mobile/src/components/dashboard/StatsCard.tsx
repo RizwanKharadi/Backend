@@ -6,6 +6,7 @@ import {
   useTheme,
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { formatCompactNumber } from '../../utils/formatters';
 
 interface StatsCardProps {
   title: string;
@@ -26,17 +27,8 @@ const StatsCard: React.FC<StatsCardProps> = ({
 }) => {
   const theme = useTheme();
 
-  const formatValue = (val: number | string): string => {
-    if (typeof val === 'number') {
-      if (val >= 1000000) {
-        return `${(val / 1000000).toFixed(1)}M`;
-      } else if (val >= 1000) {
-        return `${(val / 1000).toFixed(1)}K`;
-      }
-      return val.toLocaleString();
-    }
-    return val;
-  };
+  const formatValue = (val: number | string): string =>
+    typeof val === 'number' ? formatCompactNumber(val) : val;
 
   const CardContent = (
     <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={2}>

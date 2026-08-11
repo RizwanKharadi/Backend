@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Voucher } from '../../types';
 import { formatCurrencyAbs, formatRelativeTime } from '../../utils/formatters';
 import { dashboardColors, voucherTypeColor } from './dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 interface DashboardRecentActivitiesProps {
   vouchers: Voucher[];
@@ -18,18 +19,20 @@ const DashboardRecentActivities: React.FC<DashboardRecentActivitiesProps> = ({
   loading,
   onActivityPress,
   onSeeAllPress,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <View style={styles.card}>
     <View style={styles.header}>
       <View style={styles.headerLeft}>
         <View style={styles.iconWrap}>
           <Icon name="history" size={20} color="#8b5cf6" />
         </View>
-        <Text style={styles.title}>Recent activities</Text>
+        <Text style={styles.title}>{t('dashboard.recentActivities')}</Text>
       </View>
       {onSeeAllPress ? (
         <TouchableOpacity onPress={onSeeAllPress} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-          <Text style={styles.seeAll}>View all</Text>
+          <Text style={styles.seeAll}>{t('common.viewAll')}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -39,9 +42,7 @@ const DashboardRecentActivities: React.FC<DashboardRecentActivitiesProps> = ({
     ) : vouchers.length === 0 ? (
       <View style={styles.empty}>
         <Icon name="timeline-clock-outline" size={36} color={dashboardColors.muted} />
-        <Text style={styles.emptyText}>
-          No recent activity yet. Sync from Tally to see vouchers here.
-        </Text>
+        <Text style={styles.emptyText}>{t('dashboard.noRecentActivity')}</Text>
       </View>
     ) : (
       vouchers.map((v, index) => {
@@ -58,7 +59,7 @@ const DashboardRecentActivities: React.FC<DashboardRecentActivitiesProps> = ({
             </View>
             <View style={styles.rowBody}>
               <Text style={styles.voucherTitle} numberOfLines={1}>
-                {v.partyName || v.voucherType || 'Voucher'}
+                {v.partyName || v.voucherType || t('vouchers.fallbackName')}
               </Text>
               <Text style={styles.meta} numberOfLines={1}>
                 {v.voucherNumber || v.voucherType} · {formatRelativeTime(v.date || v.createdAt)}
@@ -73,7 +74,8 @@ const DashboardRecentActivities: React.FC<DashboardRecentActivitiesProps> = ({
       })
     )}
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {

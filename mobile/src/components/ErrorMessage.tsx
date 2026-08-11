@@ -2,6 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text, useTheme, Button } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 
 interface ErrorMessageProps {
   message: string;
@@ -14,6 +15,7 @@ const ErrorMessage: React.FC<ErrorMessageProps> = ({
   onRetry,
   showRetry = true
 }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
 
   return (
@@ -35,9 +37,7 @@ const ErrorMessage: React.FC<ErrorMessageProps> = ({
           onPress={onRetry}
           style={styles.retryButton}
           textColor={theme.colors.error}
-        >
-          Try Again
-        </Button>
+        >{t('common.retry')}</Button>
       )}
     </View>
   );

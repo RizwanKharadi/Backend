@@ -40,6 +40,8 @@ import { voucherService } from '../services/voucherService';
 // Types
 import { MainStackScreenProps } from '../types/navigation';
 import { VoucherType, CreateVoucherData, VoucherEntry } from '../types';
+import { formatCurrency } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'CreateVoucher'>;
 
@@ -60,6 +62,7 @@ interface CreateVoucherForm {
 const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
+  const { t } = useTranslation();
   const companyState = useCompany();
   const selectedCompanyId = companyState?.selectedCompany?.id;
   
@@ -100,25 +103,25 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
   });
 
   const voucherTypeLabels: Record<VoucherType, string> = {
-    sales: 'Sales',
-    purchase: 'Purchase',
-    receipt: 'Receipt',
-    payment: 'Payment',
-    journal: 'Journal',
-    contra: 'Contra',
-    debit_note: 'Debit Note',
-    credit_note: 'Credit Note',
+    sales: t('vouchers.kind.sales'),
+    purchase: t('vouchers.kind.purchase'),
+    receipt: t('vouchers.kind.receipt'),
+    payment: t('vouchers.kind.payment'),
+    journal: t('vouchers.kind.journal'),
+    contra: t('vouchers.kind.contra'),
+    debit_note: t('vouchers.kind.debitNote'),
+    credit_note: t('vouchers.kind.creditNote'),
   };
 
   const voucherTypeDescriptions: Record<VoucherType, string> = {
-    sales: 'Create a sales invoice with customer details and line items.',
-    purchase: 'Create a purchase invoice with supplier details and line items.',
-    receipt: 'Record money received from customers or miscellaneous receipts.',
-    payment: 'Record payments made to suppliers or other payables.',
-    journal: 'Record general ledger journal entries.',
-    contra: 'Transfer cash or bank amounts between accounts.',
-    debit_note: 'Create a debit note for returns or adjustments.',
-    credit_note: 'Create a credit note for returns or adjustments.',
+    sales: t('vouchers.kindDescription.sales'),
+    purchase: t('vouchers.kindDescription.purchase'),
+    receipt: t('vouchers.kindDescription.receipt'),
+    payment: t('vouchers.kindDescription.payment'),
+    journal: t('vouchers.kindDescription.journal'),
+    contra: t('vouchers.kindDescription.contra'),
+    debit_note: t('vouchers.kindDescription.debitNote'),
+    credit_note: t('vouchers.kindDescription.creditNote'),
   };
 
   const { fields, append, remove } = useFieldArray({
@@ -236,13 +239,13 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
   const onSubmit = async (data: CreateVoucherForm) => {
     try {
       if (!selectedCompanyId) {
-        Alert.alert('Validation Error', 'Please select a company before creating a voucher');
+        Alert.alert(t('errors.validation.title'), t('vouchers.createScreen.needCompany'));
         return;
       }
 
       // Validate entries
       if (data.entries.length === 0) {
-        Alert.alert('Validation Error', 'Please add at least one entry');
+        Alert.alert(t('errors.validation.title'), t('vouchers.createScreen.needEntry'));
         return;
       }
 
@@ -251,13 +254,13 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
       );
 
       if (hasInvalidEntries) {
-        Alert.alert('Validation Error', 'Please fill all required fields in entries');
+        Alert.alert(t('errors.validation.title'), t('vouchers.createScreen.needFields'));
         return;
       }
 
       // Validate balance
       if (!isBalanced()) {
-        Alert.alert('Validation Error', 'Total Debit and Credit must be equal');
+        Alert.alert(t('errors.validation.title'), t('vouchers.createScreen.mustBalance'));
         return;
       }
 
@@ -284,9 +287,9 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
       // Dispatch create action
       const result = await dispatch(createVoucher(createVoucherData)).unwrap();
 
-      Alert.alert('Success', 'Voucher created successfully', [
+      Alert.alert(t('common.success'), t('vouchers.createScreen.success'), [
         {
-          text: 'OK',
+          text: t('common.ok'),
           onPress: () => {
             navigation.goBack();
           },
@@ -295,7 +298,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
 
       reset();
     } catch (error: any) {
-      Alert.alert('Error', error || 'Failed to create voucher');
+      Alert.alert(t('common.error'), error || t('vouchers.createScreen.failed'));
     }
   };
 
@@ -316,7 +319,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
       style={styles.container}
     >
       <Header
-        title="Create Voucher"
+        title={t('vouchers.create')}
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -324,7 +327,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Voucher Type Selection */}
         <Surface style={styles.card} elevation={2}>
-          <Title style={styles.cardTitle}>Voucher Type</Title>
+          <Title style={styles.cardTitle}>{t('vouchers.createScreen.voucherType')}</Title>
           <Controller
             control={control}
             name="voucherType"
@@ -347,7 +350,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {/* Basic Details */}
         <Surface style={styles.card} elevation={2}>
-          <Title style={styles.cardTitle}>Voucher Details</Title>
+          <Title style={styles.cardTitle}>{t('vouchers.createScreen.voucherDetails')}</Title>
 
           {/* Voucher Number */}
           <Controller
@@ -355,7 +358,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
             name="voucherNumber"
             render={({ field: { onChange, value } }) => (
               <TextInput
-                label="Voucher Number"
+                label={t('vouchers.createScreen.voucherNumber')}
                 value={value}
                 onChangeText={onChange}
                 mode="outlined"
@@ -374,7 +377,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
               rules={{ required: 'Date is required' }}
               render={({ field: { onChange, value } }) => (
                 <TextInput
-                  label="Date *"
+                  label={t('vouchers.createScreen.dateRequired')}
                   value={value}
                   editable={false}
                   mode="outlined"
@@ -405,12 +408,12 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
             name="reference"
             render={({ field: { onChange, value } }) => (
               <TextInput
-                label="Reference"
+                label={t('vouchers.createScreen.referenceLabel')}
                 value={value}
                 onChangeText={onChange}
                 mode="outlined"
                 style={styles.input}
-                placeholder="Enter reference number"
+                placeholder={t('vouchers.createScreen.referencePlaceholder')}
               />
             )}
           />
@@ -421,14 +424,14 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
             name="narration"
             render={({ field: { onChange, value } }) => (
               <TextInput
-                label="Narration"
+                label={t('vouchers.item.narration')}
                 value={value}
                 onChangeText={onChange}
                 mode="outlined"
                 style={styles.input}
                 multiline
                 numberOfLines={3}
-                placeholder="Enter narration"
+                placeholder={t('vouchers.createScreen.narrationPlaceholder')}
               />
             )}
           />
@@ -439,10 +442,10 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={styles.entriesHeader}>
             <Title style={styles.cardTitle}>
               {['sales', 'purchase'].includes(watchVoucherType)
-                ? 'Invoice Entries'
+                ? t('vouchers.createScreen.invoiceEntries')
                 : ['receipt', 'payment'].includes(watchVoucherType)
-                ? 'Payment Entries'
-                : 'Journal Entries'}
+                ? t('vouchers.createScreen.paymentEntries')
+                : t('vouchers.createScreen.journalEntries')}
             </Title>
             <Button
               icon="plus"
@@ -451,12 +454,12 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                 append({ accountName: '', debitAmount: 0, creditAmount: 0, narration: '' })
               }
             >
-              Add Entry
+              {t('vouchers.createScreen.addEntry')}
             </Button>
           </View>
           {['sales', 'purchase'].includes(watchVoucherType) && (
             <Paragraph style={styles.typeDescription}>
-              Sales/purchase vouchers can include invoice lines and item details.
+              {t('vouchers.createScreen.invoiceHint')}
             </Paragraph>
           )}
 
@@ -464,7 +467,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
             <Card key={field.id} style={styles.entryCard}>
               <Card.Content>
                 <View style={styles.entryHeader}>
-                  <Title style={styles.entryTitle}>Entry {index + 1}</Title>
+                  <Title style={styles.entryTitle}>{t('vouchers.createScreen.entryNumber', { number: index + 1 })}</Title>
                   {fields.length > 1 && (
                     <IconButton
                       icon="delete"
@@ -486,7 +489,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                       onDismiss={() => setAccountsMenuOpen(null)}
                       anchor={
                         <TextInput
-                          label="Account *"
+                          label={t('vouchers.createScreen.accountRequired')}
                           value={value}
                           onFocus={() => setAccountsMenuOpen(index)}
                           mode="outlined"
@@ -523,7 +526,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                     name={`entries.${index}.debitAmount`}
                     render={({ field: { onChange, value } }) => (
                       <TextInput
-                        label="Debit"
+                        label={t('vouchers.journal.debit')}
                         value={value?.toString()}
                         onChangeText={(text) => onChange(parseFloat(text) || 0)}
                         mode="outlined"
@@ -539,7 +542,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                     name={`entries.${index}.creditAmount`}
                     render={({ field: { onChange, value } }) => (
                       <TextInput
-                        label="Credit"
+                        label={t('vouchers.journal.credit')}
                         value={value?.toString()}
                         onChangeText={(text) => onChange(parseFloat(text) || 0)}
                         mode="outlined"
@@ -557,12 +560,12 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                   name={`entries.${index}.narration`}
                   render={({ field: { onChange, value } }) => (
                     <TextInput
-                      label="Narration"
+                      label={t('vouchers.item.narration')}
                       value={value}
                       onChangeText={onChange}
                       mode="outlined"
                       style={styles.input}
-                      placeholder="Optional narration for this entry"
+                      placeholder={t('vouchers.createScreen.entryNarrationPlaceholder')}
                     />
                   )}
                 />
@@ -574,17 +577,17 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
           <Card style={[styles.totalsCard, { backgroundColor: balanced ? theme.colors.surfaceVariant : theme.colors.errorContainer }]}>
             <Card.Content>
               <View style={styles.totalsRow}>
-                <Paragraph style={styles.totalsLabel}>Total Debit:</Paragraph>
-                <Title style={styles.totalsValue}>₹ {totalDebit.toFixed(2)}</Title>
+                <Paragraph style={styles.totalsLabel}>{t('vouchers.createScreen.totalDebitLabel')}</Paragraph>
+                <Title style={styles.totalsValue}>{formatCurrency(totalDebit)}</Title>
               </View>
               <Divider style={styles.totalsDivider} />
               <View style={styles.totalsRow}>
-                <Paragraph style={styles.totalsLabel}>Total Credit:</Paragraph>
-                <Title style={styles.totalsValue}>₹ {totalCredit.toFixed(2)}</Title>
+                <Paragraph style={styles.totalsLabel}>{t('vouchers.createScreen.totalCreditLabel')}</Paragraph>
+                <Title style={styles.totalsValue}>{formatCurrency(totalCredit)}</Title>
               </View>
               <Divider style={styles.totalsDivider} />
               <View style={styles.totalsRow}>
-                <Paragraph style={[styles.totalsLabel, { fontWeight: 'bold' }]}>Difference:</Paragraph>
+                <Paragraph style={[styles.totalsLabel, { fontWeight: 'bold' }]}>{t('vouchers.createScreen.differenceLabel')}</Paragraph>
                 <Title
                   style={[
                     styles.totalsValue,
@@ -593,7 +596,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                     },
                   ]}
                 >
-                  ₹ {Math.abs(totalDebit - totalCredit).toFixed(2)}
+                  {formatCurrency(Math.abs(totalDebit - totalCredit))}
                 </Title>
               </View>
             </Card.Content>
@@ -605,7 +608,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
               style={[styles.balanceWarning, { backgroundColor: theme.colors.errorContainer }]}
               textStyle={{ color: theme.colors.error }}
             >
-              Voucher must be balanced
+              {t('vouchers.createScreen.mustBalanceChip')}
             </Chip>
           )}
         </Surface>
@@ -620,7 +623,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
             style={styles.button}
             disabled={isSubmitting || loading}
           >
-            Clear
+            {t('vouchers.createScreen.clear')}
           </Button>
           <Button
             mode="contained"
@@ -629,7 +632,7 @@ const CreateVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
             loading={isSubmitting || loading}
             disabled={!balanced || isSubmitting || loading}
           >
-            Create Voucher
+            {t('vouchers.create')}
           </Button>
         </View>
       </ScrollView>

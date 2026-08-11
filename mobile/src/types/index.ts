@@ -30,10 +30,18 @@ export interface RegisterData {
 
 export interface AuthResponse {
   success: boolean;
-  token: string;
-  user: User;
+  /** Null when the account still needs OTP verification. */
+  token: string | null;
+  user: User | null;
+  refreshToken?: string | null;
   message?: string;
+  /** Set when the caller must collect an emailed OTP before a session exists. */
+  requiresVerification?: boolean;
+  email?: string;
 }
+
+/** Which flow an OTP belongs to. Must match the backend's OTP_PURPOSES. */
+export type OtpPurpose = 'email_verification' | 'password_reset';
 
 // Company Types
 export interface Company {
@@ -127,6 +135,19 @@ export interface Voucher {
   purchaseLedgerName?: string;
   tallyVoucherTypeName?: string;
   placeOfSupply?: string;
+  /** Tally consignee/dispatch details, used by the printed invoice. */
+  shipping?: {
+    address?: {
+      line1?: string;
+      line2?: string;
+      city?: string;
+      state?: string;
+      pincode?: string;
+      country?: string;
+    };
+    method?: string;
+    trackingNumber?: string;
+  };
   isSummaryOnly?: boolean;
   detailCached?: boolean;
 }

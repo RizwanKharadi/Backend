@@ -3,20 +3,26 @@ import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { dashboardColors } from './dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 export interface QuickActionItem {
   id: string;
-  label: string;
+  /** Literal label. Ignored when `labelKey` is set. */
+  label?: string;
+  /** Translation key — preferred, so the label follows the active language. */
+  labelKey?: string;
   icon: string;
   color: string;
 }
 
+// Defaults live at module scope, where no hook can reach them, so they carry
+// keys rather than text and are translated at render time.
 const DEFAULT_ACTIONS: QuickActionItem[] = [
-  { id: 'daybook', label: 'Day Book', icon: 'book-open-page-variant', color: '#3b82f6' },
-  { id: 'reports', label: 'Reports', icon: 'chart-line', color: '#8b5cf6' },
-  { id: 'outstanding', label: 'Outstanding', icon: 'account-clock', color: '#10b981' },
-  { id: 'sync', label: 'Sync', icon: 'sync', color: '#f59e0b' },
-  { id: 'vouchers', label: 'Vouchers', icon: 'receipt', color: '#6366f1' },
+  { id: 'daybook', labelKey: 'dashboard.quickAction.daybook', icon: 'book-open-page-variant', color: '#3b82f6' },
+  { id: 'reports', labelKey: 'dashboard.quickAction.reports', icon: 'chart-line', color: '#8b5cf6' },
+  { id: 'outstanding', labelKey: 'dashboard.quickAction.outstanding', icon: 'account-clock', color: '#10b981' },
+  { id: 'sync', labelKey: 'dashboard.quickAction.sync', icon: 'sync', color: '#f59e0b' },
+  { id: 'vouchers', labelKey: 'dashboard.quickAction.vouchers', icon: 'receipt', color: '#6366f1' },
 ];
 
 interface DashboardQuickActionsProps {
@@ -27,9 +33,11 @@ interface DashboardQuickActionsProps {
 const DashboardQuickActions: React.FC<DashboardQuickActionsProps> = ({
   onActionPress,
   actions = DEFAULT_ACTIONS,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <View style={styles.wrapper}>
-    <Text style={styles.sectionTitle}>Quick actions</Text>
+    <Text style={styles.sectionTitle}>{t('dashboard.quickActions')}</Text>
     <View style={styles.grid}>
       {actions.map((action) => (
         <TouchableOpacity
@@ -42,13 +50,14 @@ const DashboardQuickActions: React.FC<DashboardQuickActionsProps> = ({
             <Icon name={action.icon} size={24} color={action.color} />
           </View>
           <Text style={styles.label} numberOfLines={2}>
-            {action.label}
+            {action.labelKey ? t(action.labelKey) : action.label}
           </Text>
         </TouchableOpacity>
       ))}
     </View>
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   wrapper: {

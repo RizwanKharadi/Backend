@@ -47,7 +47,8 @@ import { navigateToTab } from '../navigation/reportNavigation';
 import { fetchInventoryStats } from '../store/slices/inventorySlice';
 import { inventoryService } from '../services/inventoryService';
 import { InventoryItem } from '../types';
-import { formatIndianCompact, toLocalDateString } from '../utils/formatters';
+import { formatCompactAmount, toLocalDateString } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const SCREEN_PADDING = spacing.md;
 const MIN_RELOAD_MS = 45_000;
@@ -61,6 +62,7 @@ const TAB_ROUTE: Record<Exclude<DashboardTab, 'inventory'>, string> = {
 const CATEGORY_COLORS = [colors.info, colors.kpiPurple, colors.green, colors.warning];
 
 const PremiumInventoryScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
@@ -188,10 +190,10 @@ const PremiumInventoryScreen: React.FC = () => {
     subtitle: string;
     filter: 'all' | 'ok' | 'low' | 'out';
   }> = [
-    { kind: 'total', icon: 'package-variant-closed', color: colors.info, value: String(total), label: 'Total Items', subtitle: 'All items', filter: 'all' },
-    { kind: 'in', icon: 'check-circle-outline', color: colors.success, value: String(inStock), label: 'In Stock', subtitle: pctOf(inStock), filter: 'ok' },
-    { kind: 'low', icon: 'alert-outline', color: colors.warning, value: String(low), label: 'Low Stock', subtitle: pctOf(low), filter: 'low' },
-    { kind: 'out', icon: 'close-circle-outline', color: colors.danger, value: String(out), label: 'Out of Stock', subtitle: pctOf(out), filter: 'out' },
+    { kind: 'total', icon: 'package-variant-closed', color: colors.info, value: String(total), label: t('inventory.totalItems'), subtitle: t('inventory.allItems'), filter: 'all' },
+    { kind: 'in', icon: 'check-circle-outline', color: colors.success, value: String(inStock), label: t('inventory.filters.inStock'), subtitle: pctOf(inStock), filter: 'ok' },
+    { kind: 'low', icon: 'alert-outline', color: colors.warning, value: String(low), label: t('inventory.filters.lowStock'), subtitle: pctOf(low), filter: 'low' },
+    { kind: 'out', icon: 'close-circle-outline', color: colors.danger, value: String(out), label: t('inventory.filters.outOfStock'), subtitle: pctOf(out), filter: 'out' },
   ];
 
   return (
@@ -221,7 +223,7 @@ const PremiumInventoryScreen: React.FC = () => {
         <View style={styles.content}>
           <View style={styles.heroWrap}>
             <InventoryHeroPanel
-              value={formatIndianCompact(stats.totalValue || 0)}
+              value={formatCompactAmount(stats.totalValue || 0)}
               itemsLabel={`Across ${total} items`}
               healthPct={healthPct}
               healthSubtitle={`${inStock} of ${total} in stock`}
@@ -230,7 +232,7 @@ const PremiumInventoryScreen: React.FC = () => {
 
           {!selectedCompany?.id ? (
             <View style={styles.hint}>
-              <Text style={styles.hintText}>Select a company to see your inventory.</Text>
+              <Text style={styles.hintText}>{t('inventory.selectCompanyHint')}</Text>
             </View>
           ) : loading && !loaded ? (
             <View style={styles.loadingBlock}>
@@ -240,7 +242,7 @@ const PremiumInventoryScreen: React.FC = () => {
             <>
               {/* Warehouse overview — 2x2 grid */}
               <SectionHeader
-                title="Warehouse Overview"
+                title={t('inventory.warehouseOverview')}
                 icon="warehouse"
                 accentColor={colors.navy}
                 onViewAll={() => goStack('InventoryList')}
@@ -265,7 +267,7 @@ const PremiumInventoryScreen: React.FC = () => {
                 <>
                   <View style={styles.sectionGap} />
                   <SectionHeader
-                    title="Items Needing Attention"
+                    title={t('inventory.needingAttention')}
                     icon="alert-decagram-outline"
                     accentColor={colors.danger}
                     onViewAll={() => goStack('InventoryList')}
@@ -285,7 +287,7 @@ const PremiumInventoryScreen: React.FC = () => {
                 <>
                   <View style={styles.sectionGap} />
                   <SectionHeader
-                    title="Category Summary"
+                    title={t('inventory.categorySummary')}
                     icon="shape-outline"
                     accentColor={colors.kpiPurple}
                     onViewAll={() => goStack('InventoryList')}

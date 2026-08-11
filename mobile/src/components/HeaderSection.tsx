@@ -20,6 +20,8 @@ import { colors, gradients } from '../theme/colors';
 import { radius, spacing, hitSlop } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { HeaderData } from '../types/dashboard';
+import { useTranslation } from 'react-i18next';
+import LanguageSwitcher from './LanguageSwitcher';
 
 interface HeaderSectionProps {
   data: HeaderData;
@@ -68,6 +70,7 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
   onSettingsPress,
   onSubscriptionPress,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const subscriptionActive = data.subscription.type === 'active';
 
@@ -92,34 +95,37 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
         <View style={styles.logoRow}>
           <BrandLogo size={38} />
           <View>
-            <Text style={styles.logoWord}>TallyFin</Text>
-            <Text style={styles.tagline}>Har Hisaab Aasan Hai</Text>
+            <Text style={styles.logoWord}>{t('common.appName')}</Text>
+            <Text style={styles.tagline}>{t('common.tagline')}</Text>
           </View>
         </View>
 
         <View style={styles.actionsRow}>
           <GlassButton
             icon="bell-outline"
-            label="Notifications"
+            label={t('notifications.title')}
             onPress={onNotificationsPress}
             badgeCount={data.unreadNotifications}
           />
           <GlassButton
             icon="account-outline"
-            label="Profile"
+            label={t('profile.title')}
             onPress={onProfilePress}
           />
           <GlassButton
             icon="cog-outline"
-            label="Settings"
+            label={t('settings.title')}
             onPress={onSettingsPress}
           />
         </View>
       </View>
 
-      <Text style={styles.greeting}>
-        {data.greeting}, {data.userName} 👋
-      </Text>
+      <View style={styles.greetingRow}>
+        <Text style={styles.greeting} numberOfLines={1}>
+          {data.greeting}, {data.userName} 👋
+        </Text>
+        <LanguageSwitcher />
+      </View>
 
       <TouchableOpacity
         style={styles.companyRow}
@@ -164,7 +170,9 @@ const HeaderSection: React.FC<HeaderSectionProps> = ({
               { color: subscriptionActive ? colors.greenBright : '#FFD479' },
             ]}
           >
-            {data.subscription.label}
+            {data.subscription.labelKey
+              ? t(data.subscription.labelKey, data.subscription.labelParams)
+              : data.subscription.label}
           </Text>
         </TouchableOpacity>
       </View>
@@ -256,10 +264,18 @@ const styles = StyleSheet.create({
     fontSize: 9,
     fontWeight: fontWeight.bold,
   },
+  greetingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: spacing.sm,
+    marginTop: spacing.lg,
+  },
   greeting: {
     color: '#CFE0F5',
     fontSize: fontSize.body,
-    marginTop: spacing.lg,
+    // The margin moved to greetingRow so the chip sits on the same line.
+    flexShrink: 1,
   },
   companyRow: {
     flexDirection: 'row',

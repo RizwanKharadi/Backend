@@ -38,9 +38,29 @@ import { offlineCacheService } from '../services/offlineCacheService';
 import { Voucher } from '../types';
 import { MainTabScreenProps } from '../types/navigation';
 import { navigateToReportTab } from '../navigation/reportNavigation';
-import { formatIndianCompact, formatCurrency, parseLocalDateString } from '../utils/formatters';
+import {
+  formatCompactAmount,
+  formatCurrency,
+  formatWeekday,
+  parseLocalDateString,
+} from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainTabScreenProps<'Dashboard'>;
+
+/**
+ * Billing state is held structurally, never as its display string.
+ *
+ * It used to be a `string | null` that the attention banner then inspected with
+ * `=== 'Trial ended'` and `parseInt(label.replace(/\D/g, ''))`. That works only
+ * while the label is English — translating it would have silently stopped the
+ * "subscription inactive" warning from ever showing.
+ */
+type TrialState =
+  | { kind: 'trial'; days: number }
+  | { kind: 'ended' }
+  | { kind: 'active' }
+  | { kind: 'pastDue' };
 
 const MIN_AUTO_RELOAD_MS = 45_000;
 
@@ -50,11 +70,7 @@ function trendFromSummary(
   const labels: string[] = [];
   const values: number[] = [];
   for (const row of rows || []) {
-    labels.push(
-      parseLocalDateString(row.date)
-        .toLocaleDateString(undefined, { weekday: 'short' })
-        .slice(0, 3)
-    );
+    labels.push(formatWeekday(parseLocalDateString(row.date)));
     values.push(row.amount || 0);
   }
   return { labels, values };
@@ -63,6 +79,7 @@ function trendFromSummary(
 const DashboardScreen: React.FC<Props> = ({ navigation }) => {
   const parentNavigation = navigation.getParent();
   const dispatch = useDispatch<AppDispatch>();
+  const { t } = useTranslation();
 
   const { user } = useAuth();
   const { isOnline, isSyncing, lastSyncTime } = useSync();
@@ -74,7 +91,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
   const [refreshing, setRefreshing] = useState(false);
   const [loadingExtra, setLoadingExtra] = useState(true);
   const [summary, setSummary] = useState<DashboardSummaryData | null>(null);
-  const [trialLabel, setTrialLabel] = useState<string | null>(null);
+  const [trialState, setTrialState] = useState<TrialState | null>(null);
 
   const lastLoadAtRef = useRef(0);
   const loadInFlightRef = useRef(false);
@@ -136,13 +153,15 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
                   (1000 * 60 * 60 * 24)
               )
             );
-            setTrialLabel(days > 0 ? `Trial · ${days}d left` : 'Trial ended');
+            setTrialState(
+              days > 0 ? { kind: 'trial', days } : { kind: 'ended' }
+            );
           } else if (sub?.status === 'active') {
-            setTrialLabel('Active plan');
+            setTrialState({ kind: 'active' });
           } else if (sub?.status === 'past_due') {
-            setTrialLabel('Payment due');
+            setTrialState({ kind: 'pastDue' });
           } else {
-            setTrialLabel(null);
+            setTrialState(null);
           }
         }
       } finally {
@@ -216,6 +235,20 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
 
   const lowStockCount = inventoryStats?.lowStock ?? 0;
 
+  const trialLabel = useMemo(() => {
+    if (!trialState) return null;
+    switch (trialState.kind) {
+      case 'trial':
+        return t('dashboard.trial.daysLeft', { count: trialState.days });
+      case 'ended':
+        return t('dashboard.trial.ended');
+      case 'active':
+        return t('dashboard.trial.active');
+      case 'pastDue':
+        return t('dashboard.trial.paymentDue');
+    }
+  }, [trialState, t]);
+
   const goDayBook = useCallback(() => {
     parentNavigation?.navigate('DayBook', {});
   }, [parentNavigation]);
@@ -223,9 +256,9 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
   const goSales = useCallback(() => {
     parentNavigation?.navigate('FilteredVouchers', {
       voucherType: 'sales',
-      title: 'Sales',
+      title: t('reports.sales'),
     });
-  }, [parentNavigation]);
+  }, [parentNavigation, t]);
 
   const goOutstanding = useCallback(() => {
     navigateToReportTab(navigation, 'OutstandingReceivable');
@@ -261,38 +294,35 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
     if (overdueParties > 0) {
       items.push({
         id: 'overdue',
-        message: `${overdueParties} ${overdueParties === 1 ? 'party has' : 'parties have'} overdue receivables`,
+        message: t('dashboard.attention.overdue', { count: overdueParties }),
         icon: 'alert-circle-outline',
         tone: 'warning',
         onPress: goOutstanding,
       });
     }
 
-    if (trialLabel === 'Trial ended' || trialLabel === 'Payment due') {
+    if (trialState?.kind === 'ended' || trialState?.kind === 'pastDue') {
       items.push({
         id: 'billing',
-        message: 'Subscription inactive — renew to keep syncing',
+        message: t('dashboard.attention.subscriptionInactive'),
         icon: 'credit-card-outline',
         tone: 'error',
         onPress: () => parentNavigation?.navigate('Billing'),
       });
-    } else if (trialLabel?.startsWith('Trial ·')) {
-      const days = parseInt(trialLabel.replace(/\D/g, ''), 10);
-      if (days <= 3) {
-        items.push({
-          id: 'trial',
-          message: `${trialLabel} — subscribe to continue after trial`,
-          icon: 'clock-alert-outline',
-          tone: 'warning',
-          onPress: () => parentNavigation?.navigate('Billing'),
-        });
-      }
+    } else if (trialState?.kind === 'trial' && trialState.days <= 3) {
+      items.push({
+        id: 'trial',
+        message: t('dashboard.attention.trialEnding', { label: trialLabel }),
+        icon: 'clock-alert-outline',
+        tone: 'warning',
+        onPress: () => parentNavigation?.navigate('Billing'),
+      });
     }
 
     if (!selectedCompany?.id) {
       items.unshift({
         id: 'company',
-        message: 'Select a company to view your business dashboard',
+        message: t('dashboard.attention.selectCompany'),
         icon: 'office-building-outline',
         tone: 'info',
         onPress: () => parentNavigation?.navigate('CompanySelection'),
@@ -302,7 +332,9 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
     return items;
   }, [
     overdueParties,
+    trialState,
     trialLabel,
+    t,
     selectedCompany?.id,
     parentNavigation,
     goOutstanding,
@@ -313,7 +345,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
       <View style={styles.container}>
         <DashboardHeader
           userName={user?.name}
-          companyName="Select company"
+          companyName={t('dashboard.selectCompany')}
           isOnline={isOnline}
           isSyncing={isSyncing}
           lastSyncTime={tallyLastSync}
@@ -321,10 +353,8 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           onSettingsPress={() => parentNavigation?.navigate('Settings')}
         />
         <View style={styles.emptyState}>
-          <Text style={styles.emptyTitle}>Welcome to FinSync360</Text>
-          <Text style={styles.emptyBody}>
-            Choose a company linked from Tally to see your financial dashboard.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('dashboard.welcomeTitle')}</Text>
+          <Text style={styles.emptyBody}>{t('dashboard.welcomeBody')}</Text>
         </View>
       </View>
     );
@@ -363,9 +393,7 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
       >
         {!isOnline ? (
           <View style={styles.offlineBanner}>
-            <Text style={styles.offlineText}>
-              You&apos;re offline — showing last synced data
-            </Text>
+            <Text style={styles.offlineText}>{t('dashboard.offlineNotice')}</Text>
           </View>
         ) : null}
 
@@ -373,26 +401,30 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           <AttentionBanner items={attentionItems} />
         ) : null}
 
-        <Text style={styles.sectionLabel}>Today at a glance</Text>
+        <Text style={styles.sectionLabel}>{t('dashboard.sectionToday')}</Text>
 
         <DashboardMetricCard
           variant="hero"
-          title="Today's sales"
-          value={formatIndianCompact(todaySales)}
-          subtitle={`${todayInvoiceCount} invoice(s) today`}
+          title={t('dashboard.todaySales')}
+          value={formatCompactAmount(todaySales)}
+          subtitle={t('dashboard.invoicesToday', { count: todayInvoiceCount })}
           icon="cash-register"
           accentColor={metricAccentColors.todaySales}
           onPress={goDayBook}
           loading={loadingExtra}
         />
 
-        <Text style={styles.sectionLabel}>Business overview</Text>
+        <Text style={styles.sectionLabel}>{t('dashboard.sectionOverview')}</Text>
 
         <View style={styles.gridRow}>
           <DashboardMetricCard
-            title="Monthly revenue"
-            value={formatIndianCompact(monthlyRevenue)}
-            subtitle={monthFromDate ? `${monthFromDate} to today` : 'Month to date'}
+            title={t('dashboard.monthlyRevenue')}
+            value={formatCompactAmount(monthlyRevenue)}
+            subtitle={
+              monthFromDate
+                ? t('dashboard.monthRange', { from: monthFromDate })
+                : t('dashboard.monthToDate')
+            }
             icon="chart-timeline-variant"
             accentColor={metricAccentColors.monthlyRevenue}
             onPress={goSales}
@@ -400,27 +432,31 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           />
           <View style={styles.gridGap} />
           <DashboardMetricCard
-            title="Outstanding"
-            value={formatIndianCompact(receivablesTotal)}
+            title={t('dashboard.outstanding')}
+            value={formatCompactAmount(receivablesTotal)}
             subtitle={
               overdueParties > 0
-                ? `${overdueParties} overdue`
-                : 'Receivables due'
+                ? t('dashboard.overdueCount', { count: overdueParties })
+                : t('dashboard.receivablesDue')
             }
             icon="account-cash-outline"
             accentColor={metricAccentColors.outstanding}
             onPress={goOutstanding}
             loading={loadingExtra}
-            badge={overdueParties > 0 ? `${overdueParties} due` : undefined}
+            badge={
+              overdueParties > 0
+                ? t('dashboard.dueBadge', { count: overdueParties })
+                : undefined
+            }
             badgeTone="warning"
           />
         </View>
 
         <View style={styles.gridRow}>
           <DashboardMetricCard
-            title="Bank balance"
-            value={formatIndianCompact(bankBalance)}
-            subtitle="Cash & bank accounts"
+            title={t('dashboard.bankBalance')}
+            value={formatCompactAmount(bankBalance)}
+            subtitle={t('dashboard.bankSubtitle')}
             icon="bank"
             accentColor={metricAccentColors.bankBalance}
             onPress={goCashBankBook}
@@ -428,9 +464,13 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           />
           <View style={styles.gridGap} />
           <DashboardMetricCard
-            title="Profit this month"
-            value={formatIndianCompact(profitThisMonth)}
-            subtitle={profitThisMonth >= 0 ? 'Net profit' : 'Net loss'}
+            title={t('dashboard.profitThisMonth')}
+            value={formatCompactAmount(profitThisMonth)}
+            subtitle={
+              profitThisMonth >= 0
+                ? t('dashboard.netProfit')
+                : t('dashboard.netLoss')
+            }
             icon="finance"
             accentColor={
               profitThisMonth >= 0
@@ -445,12 +485,12 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.gridRow}>
           <DashboardMetricCard
             variant="wide"
-            title="Top customer"
-            value={topCustomerName || '—'}
+            title={t('dashboard.topCustomer')}
+            value={topCustomerName || t('common.none')}
             subtitle={
               topCustomerName
                 ? formatCurrency(topCustomerAmount)
-                : 'No customer data yet'
+                : t('dashboard.noCustomerData')
             }
             icon="account-star"
             accentColor={metricAccentColors.topCustomer}
@@ -460,18 +500,18 @@ const DashboardScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.gridGap} />
           <DashboardMetricCard
             variant="wide"
-            title="Low stock alerts"
+            title={t('dashboard.lowStockAlerts')}
             value={String(lowStockCount)}
             subtitle={
               lowStockCount > 0
-                ? `${lowStockCount} item(s) need attention`
-                : 'All stock levels OK'
+                ? t('dashboard.lowStockNeedAttention', { count: lowStockCount })
+                : t('dashboard.stockLevelsOk')
             }
             icon="package-variant-closed"
             accentColor={metricAccentColors.lowStock}
             onPress={goInventory}
             loading={loadingExtra && inventoryStats === undefined}
-            badge={lowStockCount > 0 ? 'Alert' : undefined}
+            badge={lowStockCount > 0 ? t('dashboard.alertBadge') : undefined}
             badgeTone="error"
           />
         </View>

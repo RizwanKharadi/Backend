@@ -10,6 +10,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
+import { useTranslation } from 'react-i18next';
 
 const DAY_BOOK_GRADIENT: [string, string] = ['#1D4ED8', '#0B2F86'];
 
@@ -17,7 +18,9 @@ interface DayBookCardProps {
   onPress?: () => void;
 }
 
-const DayBookCard: React.FC<DayBookCardProps> = ({ onPress }) => (
+const DayBookCard: React.FC<DayBookCardProps> = ({ onPress }) => {
+  const { t } = useTranslation();
+  return (
   <TouchableOpacity activeOpacity={0.9} onPress={onPress} style={shadows.cardStrong}>
     <LinearGradient
       colors={DAY_BOOK_GRADIENT}
@@ -29,15 +32,16 @@ const DayBookCard: React.FC<DayBookCardProps> = ({ onPress }) => (
         <Icon name="book-open-page-variant" size={28} color={colors.white} />
       </View>
       <View style={styles.text}>
-        <Text style={styles.title}>Day Book</Text>
-        <Text style={styles.subtitle}>Chronological entries for any date range</Text>
+        <Text style={styles.title}>{t('reports.item.dayBook.title')}</Text>
+        <Text style={styles.subtitle}>{t('reports.item.dayBook.chronological')}</Text>
       </View>
       <View style={styles.arrow}>
         <Icon name="chevron-right" size={22} color={colors.white} />
       </View>
     </LinearGradient>
   </TouchableOpacity>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {

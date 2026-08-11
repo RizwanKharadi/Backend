@@ -12,9 +12,10 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useCompany } from '../../store/hooks';
 import { reportService, ProfitLossVoucherRow } from '../../services/reportService';
-import { formatCurrency } from '../../utils/formatters';
+import { formatCurrency, formatDate } from '../../utils/formatters';
 import { ReportPeriodKey } from '../../components/reports/ReportPeriodFilterModal';
 import MonthFilterBar, { MonthRange } from '../../components/reports/MonthFilterBar';
+import { useTranslation } from 'react-i18next';
 
 const PRIMARY = '#1565C0';
 
@@ -26,6 +27,7 @@ type RouteParams = {
 };
 
 const ProfitLossLedgerVouchersScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { selectedCompany } = useCompany();
@@ -87,7 +89,7 @@ const ProfitLossLedgerVouchersScreen = () => {
         <Text style={styles.amount}>{formatCurrency(item.amount)}</Text>
         <Text style={styles.date}>
           {item.dateDisplay ||
-            (item.date ? new Date(item.date).toLocaleDateString() : '—')}
+            (item.date ? formatDate(item.date) : '—')}
         </Text>
       </View>
     </TouchableOpacity>
@@ -117,7 +119,7 @@ const ProfitLossLedgerVouchersScreen = () => {
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (

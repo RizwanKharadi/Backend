@@ -1,0 +1,391 @@
+{
+  "common": {
+    "cancel": "रद्द करें",
+    "done": "हो गया",
+    "close": "बंद करें",
+    "ok": "ठीक है",
+    "save": "सहेजें",
+    "delete": "हटाएँ",
+    "edit": "संपादित करें",
+    "add": "जोड़ें",
+    "retry": "फिर कोशिश करें",
+    "dismiss": "खारिज करें",
+    "loading": "लोड हो रहा है...",
+    "search": "खोजें",
+    "all": "सभी",
+    "none": "—",
+    "success": "सफल",
+    "error": "त्रुटि",
+    "warning": "चेतावनी",
+    "information": "जानकारी",
+    "viewAll": "सभी देखें",
+    "viewDetails": "विवरण देखें",
+    "noDescription": "कोई विवरण नहीं",
+    "comingSoon": "जल्द आ रहा है",
+    "appName": "TallyFin"
+  },
+  "time": {
+    "never": "कभी नहीं",
+    "justNow": "अभी-अभी",
+    "minutesAgo": "{{count}} मिनट पहले",
+    "hoursAgo": "{{count}} घंटे पहले",
+    "daysAgo": "{{count}} दिन पहले"
+  },
+  "greeting": {
+    "morning": "सुप्रभात",
+    "afternoon": "नमस्कार",
+    "evening": "शुभ संध्या"
+  },
+  "errors": {
+    "generic": "एक त्रुटि हुई",
+    "technicalDetails": "तकनीकी विवरण:",
+    "boundary": {
+      "title": "कुछ गड़बड़ हो गई",
+      "message": "एक अप्रत्याशित त्रुटि हुई। कृपया ऐप को फिर से शुरू करें।",
+      "debugInfo": "डिबग जानकारी:"
+    },
+    "network": {
+      "title": "कनेक्शन त्रुटि",
+      "message": "सर्वर से संपर्क नहीं हो पा रहा। कृपया अपना इंटरनेट कनेक्शन जाँचें और फिर कोशिश करें।"
+    },
+    "notFound": {
+      "title": "नहीं मिला",
+      "message": "आप जो {{resource}} खोज रहे हैं वह नहीं मिला।",
+      "defaultResource": "वस्तु"
+    },
+    "permission": {
+      "title": "अनुमति नहीं है",
+      "message": "आपके पास {{action}} की अनुमति नहीं है। कृपया अपने प्रशासक से संपर्क करें।",
+      "defaultAction": "यह कार्य करने"
+    },
+    "validation": {
+      "title": "मान्यता त्रुटि"
+    }
+  },
+  "offline": {
+    "title": "ऑफ़लाइन मोड",
+    "unknown": "अज्ञात",
+    "cached": "अंतिम सिंक किया गया डेटा दिखाया जा रहा है (अंतिम अपडेट {{lastSync}})।",
+    "manual": "सेटिंग्स में ऑफ़लाइन मोड चालू है। सर्वर से लाइव डेटा लाने के लिए इसे बंद करें।",
+    "noNetwork": "कोई नेटवर्क कनेक्शन नहीं। वापस ऑनलाइन होने तक कैश किया गया डेटा दिखाया जा रहा है।"
+  },
+  "nav": {
+    "dashboard": "डैशबोर्ड",
+    "transactions": "लेन-देन",
+    "inventory": "स्टॉक",
+    "reports": "रिपोर्ट",
+    "chat": "चैट"
+  },
+  "transactions": {
+    "salesFlow": "बिक्री प्रवाह",
+    "purchaseFlow": "खरीद प्रवाह",
+    "booksEntries": "बही एवं प्रविष्टियाँ",
+    "customRange": "कस्टम तिथि सीमा",
+    "from": "से",
+    "apply": "लागू करें"
+  },
+  "dashboard": {
+    "selectCompany": "कंपनी चुनें",
+    "there": "जी",
+    "netWorth": "कुल संपत्ति",
+    "receivablesOverview": "प्राप्य अवलोकन",
+    "totalOutstanding": "कुल बकाया",
+    "payables": "देय",
+    "subscriptionActive": "सदस्यता सक्रिय",
+    "awaitingSync": "Tally सिंक की प्रतीक्षा",
+    "bankPlusCash": "बैंक खाता + नकद",
+    "billCount": "{{count}} बिल",
+    "billCount_plural": "{{count}} बिल",
+    "invoiceCount": "{{count}} चालान",
+    "invoiceCount_plural": "{{count}} चालान",
+    "noSalesData": "इस अवधि के लिए कोई बिक्री डेटा नहीं",
+    "period": {
+      "7d": "7 दिन",
+      "30d": "30 दिन",
+      "90d": "90 दिन"
+    },
+    "status": {
+      "overdue": "अतिदेय",
+      "dueSoon": "जल्द देय",
+      "paid": "भुगतान हुआ"
+    },
+    "welcomeTitle": "TallyFin में आपका स्वागत है",
+    "welcomeBody": "अपना वित्तीय डैशबोर्ड देखने के लिए Tally से जुड़ी कंपनी चुनें।",
+    "offlineNotice": "आप ऑफ़लाइन हैं — अंतिम सिंक किया गया डेटा दिखाया जा रहा है",
+    "sectionToday": "आज एक नज़र में",
+    "sectionOverview": "व्यवसाय अवलोकन",
+    "todaySales": "आज की बिक्री",
+    "invoicesToday": "आज {{count}} चालान",
+    "invoicesToday_plural": "आज {{count}} चालान",
+    "monthlyRevenue": "मासिक राजस्व",
+    "monthToDate": "इस माह अब तक",
+    "monthRange": "{{from}} से आज तक",
+    "outstanding": "बकाया",
+    "receivablesDue": "प्राप्य राशि",
+    "overdueCount": "{{count}} अतिदेय",
+    "dueBadge": "{{count}} देय",
+    "bankBalance": "बैंक शेष",
+    "bankSubtitle": "नकद और बैंक खाते",
+    "profitThisMonth": "इस माह का लाभ",
+    "netProfit": "शुद्ध लाभ",
+    "netLoss": "शुद्ध हानि",
+    "topCustomer": "शीर्ष ग्राहक",
+    "noCustomerData": "अभी कोई ग्राहक डेटा नहीं",
+    "lowStockAlerts": "कम स्टॉक चेतावनी",
+    "lowStockNeedAttention": "{{count}} वस्तु पर ध्यान चाहिए",
+    "lowStockNeedAttention_plural": "{{count}} वस्तुओं पर ध्यान चाहिए",
+    "stockLevelsOk": "सभी स्टॉक स्तर ठीक हैं",
+    "alertBadge": "चेतावनी",
+    "salesTrend": "बिक्री रुझान",
+    "salesTrendSubtitle": "पिछले 7 दिन",
+    "weekTotal": "साप्ताहिक कुल",
+    "recentActivities": "हाल की गतिविधियाँ",
+    "recentVouchers": "हाल के वाउचर",
+    "seeAll": "सभी देखें",
+    "noVouchersYet": "अभी कोई वाउचर नहीं। गतिविधि देखने के लिए Tally से सिंक करें।",
+    "noRecentActivity": "अभी कोई हाल की गतिविधि नहीं। वाउचर देखने के लिए Tally से सिंक करें।",
+    "thisMonth": "इस माह",
+    "monthActivity": "कुल वाउचर गतिविधि (माह अब तक)",
+    "noComparison": "अभी कोई तुलना डेटा नहीं",
+    "changeVsLastMonth": "पिछले माह की तुलना में {{value}}",
+    "voucherMix": "वाउचर मिश्रण",
+    "noVouchersSynced": "अभी कोई वाउचर सिंक नहीं हुआ। desktop-agent सिंक चलाएँ।",
+    "totalCount": "कुल {{count}}",
+    "todaysPulse": "आज की गतिविधि",
+    "needsAttention": "ध्यान देने योग्य",
+    "createVoucher": "वाउचर बनाएँ",
+    "quickActions": "त्वरित कार्य",
+    "quickActionsTitle": "त्वरित कार्य",
+    "receivablesTitle": "प्राप्य",
+    "salesMtd": "बिक्री (माह अब तक)",
+    "partyCount": "{{count}} पार्टी",
+    "partyCount_plural": "{{count}} पार्टियाँ",
+    "voucherCount": "{{count}} वाउचर",
+    "voucherCount_plural": "{{count}} वाउचर",
+    "quickAction": {
+      "daybook": "दैनिक बही",
+      "reports": "रिपोर्ट",
+      "outstanding": "बकाया",
+      "sync": "सिंक",
+      "vouchers": "वाउचर",
+      "newVoucher": "नया वाउचर",
+      "addItem": "वस्तु जोड़ें",
+      "syncNow": "अभी सिंक करें"
+    },
+    "attention": {
+      "overdue": "{{count}} पार्टी की प्राप्य राशि अतिदेय है",
+      "overdue_plural": "{{count}} पार्टियों की प्राप्य राशि अतिदेय है",
+      "subscriptionInactive": "सदस्यता निष्क्रिय — सिंक जारी रखने के लिए नवीनीकरण करें",
+      "trialEnding": "{{label}} — परीक्षण के बाद जारी रखने के लिए सदस्यता लें",
+      "selectCompany": "अपना व्यवसाय डैशबोर्ड देखने के लिए कंपनी चुनें"
+    },
+    "trial": {
+      "daysLeft": "परीक्षण · {{count}} दिन शेष",
+      "daysLeft_plural": "परीक्षण · {{count}} दिन शेष",
+      "daysLeftLong": "परीक्षण · {{count}} दिन शेष",
+      "daysLeftLong_plural": "परीक्षण · {{count}} दिन शेष",
+      "label": "परीक्षण",
+      "ended": "परीक्षण समाप्त",
+      "active": "सक्रिय योजना",
+      "paymentDue": "भुगतान देय"
+    }
+  },
+  "reports": {
+    "sales": "बिक्री",
+    "mostUsed": "सर्वाधिक उपयोग",
+    "category": {
+      "all": "सभी रिपोर्ट",
+      "financial": "वित्तीय",
+      "inventory": "स्टॉक",
+      "customer": "ग्राहक"
+    },
+    "section": {
+      "financial": "वित्तीय रिपोर्ट",
+      "inventory": "स्टॉक रिपोर्ट",
+      "customer": "ग्राहक रिपोर्ट"
+    },
+    "item": {
+      "profitLoss": {
+        "title": "लाभ-हानि",
+        "description": "आय विवरण और लाभप्रदता"
+      },
+      "balanceSheet": {
+        "title": "तुलन पत्र",
+        "description": "संपत्ति, देनदारी और पूँजी"
+      },
+      "cashBankBook": {
+        "title": "नकद / बैंक बही",
+        "description": "नकद, बैंक खाते और OD शेष"
+      },
+      "receivables": {
+        "description": "लेजर अनुसार प्राप्य बिल"
+      },
+      "payables": {
+        "description": "लेजर अनुसार देय बिल"
+      },
+      "dayBook": {
+        "title": "दैनिक बही",
+        "description": "तिथि सीमा अनुसार सभी वाउचर"
+      },
+      "inventoryValuation": {
+        "title": "स्टॉक मूल्यांकन",
+        "description": "स्टॉक मूल्य और उपलब्ध मात्रा"
+      },
+      "stockMovement": {
+        "title": "स्टॉक संचलन",
+        "description": "स्टॉक स्थानांतरण और समायोजन"
+      },
+      "inactiveItems": {
+        "title": "निष्क्रिय वस्तुएँ",
+        "description": "30+ दिनों से न बिकी वस्तुएँ"
+      },
+      "lowStock": {
+        "title": "कम स्टॉक रिपोर्ट",
+        "description": "पुनःक्रम स्तर से नीचे की वस्तुएँ"
+      },
+      "outOfStock": {
+        "description": "शून्य स्टॉक वाली वस्तुएँ"
+      },
+      "fastMoving": {
+        "title": "तेज़ बिकने वाली वस्तुएँ",
+        "description": "सर्वाधिक बिकने वाली वस्तुएँ"
+      },
+      "topTen": {
+        "title": "शीर्ष 10 रिपोर्ट",
+        "description": "शीर्ष ग्राहक, आपूर्तिकर्ता और वस्तुएँ"
+      },
+      "outstandingReceivable": {
+        "title": "बकाया प्राप्य"
+      },
+      "inactiveCustomers": {
+        "title": "निष्क्रिय ग्राहक",
+        "description": "30+ दिनों से बिल रहित ग्राहक"
+      },
+      "salesAnalysis": {
+        "title": "बिक्री विश्लेषण",
+        "description": "अवधि और पार्टी अनुसार बिक्री"
+      }
+    }
+  },
+  "inventory": {
+    "totalItems": "कुल वस्तुएँ",
+    "allItems": "सभी वस्तुएँ",
+    "selectCompanyHint": "अपना स्टॉक देखने के लिए कंपनी चुनें।",
+    "warehouseOverview": "गोदाम अवलोकन",
+    "needingAttention": "ध्यान देने योग्य वस्तुएँ",
+    "categorySummary": "श्रेणी सारांश",
+    "filters": {
+      "all": "सभी",
+      "inStock": "स्टॉक में",
+      "lowStock": "कम स्टॉक",
+      "outOfStock": "स्टॉक समाप्त"
+    }
+  },
+  "sync": {
+    "title": "सिंक",
+    "subtitle": "डेटा समन्वयन",
+    "status": "सिंक स्थिति",
+    "lastSync": "अंतिम सिंक",
+    "lastSyncInline": "अंतिम सिंक: {{value}}",
+    "syncedAgo": "{{value}} सिंक हुआ",
+    "pendingChanges": "लंबित परिवर्तन",
+    "syncing": "सिंक हो रहा है... {{percent}}%",
+    "state": {
+      "error": "त्रुटि",
+      "syncing": "सिंक हो रहा है...",
+      "offline": "ऑफ़लाइन",
+      "pending": "लंबित परिवर्तन",
+      "upToDate": "अद्यतित"
+    },
+    "errorTitle": "सिंक त्रुटि",
+    "successMessage": "सिंक सफलतापूर्वक पूरा हुआ",
+    "failedMessage": "डेटा सिंक करने में विफल",
+    "connection": "कनेक्शन",
+    "online": "ऑनलाइन",
+    "actions": "सिंक कार्य",
+    "start": "सिंक शुरू करें",
+    "pause": "सिंक रोकें",
+    "forceButton": "बलपूर्वक सिंक",
+    "settings": "सिंक सेटिंग्स",
+    "recentHistory": "हाल का सिंक इतिहास",
+    "noHistory": "कोई सिंक इतिहास उपलब्ध नहीं",
+    "force": {
+      "title": "बलपूर्वक सिंक",
+      "message": "इससे सभी लंबित परिवर्तन अधिलेखित हो जाएँगे और सर्वर से पूरा डेटा सिंक होगा। जारी रखें?",
+      "confirm": "जारी रखें",
+      "success": "बलपूर्वक सिंक पूरा हुआ",
+      "failed": "बलपूर्वक सिंक विफल"
+    },
+    "settingsFailed": "सिंक सेटिंग्स अपडेट करने में विफल"
+  },
+  "vouchers": {
+    "title": "वाउचर",
+    "fallbackName": "वाउचर",
+    "count": "{{count}} वाउचर",
+    "count_plural": "{{count}} वाउचर",
+    "searchPlaceholder": "वाउचर खोजें...",
+    "filters": "फ़िल्टर",
+    "emptyTitle": "कोई वाउचर नहीं मिला",
+    "emptySearchHint": "अपने खोज मापदंड बदलकर देखें",
+    "emptyCreateHint": "शुरू करने के लिए अपना पहला वाउचर बनाएँ",
+    "create": "वाउचर बनाएँ",
+    "newVoucher": "नया वाउचर",
+    "delete": {
+      "title": "वाउचर हटाएँ",
+      "message": "क्या आप वाकई यह वाउचर हटाना चाहते हैं? यह क्रिया वापस नहीं ली जा सकती।",
+      "success": "वाउचर सफलतापूर्वक हटाया गया",
+      "failed": "वाउचर हटाने में विफल"
+    },
+    "journal": {
+      "title": "जर्नल प्रविष्टि",
+      "notBalanced": "संतुलित नहीं",
+      "needTwoLines": "कम से कम दो लेजर पंक्तियाँ जोड़ें",
+      "ledgersTitle": "लेजर",
+      "totalDebit": "कुल नामे",
+      "totalCredit": "कुल जमा",
+      "difference": "अंतर",
+      "debit": "नामे",
+      "credit": "जमा"
+    },
+    "type": {
+      "receipt": "रसीद",
+      "payment": "भुगतान"
+    }
+  },
+  "settings": {
+    "title": "सेटिंग्स",
+    "subtitle": "ऐप कॉन्फ़िगरेशन",
+    "sectionAccount": "खाता",
+    "sectionSync": "समन्वयन",
+    "sectionSecurity": "सुरक्षा",
+    "sectionApp": "ऐप सेटिंग्स",
+    "sectionAi": "AI/ML सुविधाएँ",
+    "sectionData": "डेटा प्रबंधन",
+    "sectionHelp": "सहायता",
+    "sectionAbout": "परिचय",
+    "companySelection": "कंपनी चयन",
+    "syncInterval": "सिंक अंतराल",
+    "appVersion": "ऐप संस्करण",
+    "theme": "थीम",
+    "themeValue": "{{name}} थीम",
+    "themeName": {
+      "light": "हल्की",
+      "dark": "गहरी",
+      "system": "सिस्टम"
+    },
+    "notifications": "सूचनाएँ",
+    "notificationsDescription": "पुश सूचनाएँ और अलर्ट",
+    "debugMode": "डिबग मोड",
+    "debugModeDescription": "डिबग लॉगिंग सक्षम करें",
+    "logout": {
+      "title": "लॉग आउट",
+      "message": "क्या आप वाकई लॉग आउट करना चाहते हैं?",
+      "confirm": "लॉग आउट"
+    },
+    "language": {
+      "title": "भाषा",
+      "pickerTitle": "भाषा चुनें",
+      "note": "लेजर, वस्तु और वाउचर के नाम आपकी Tally कंपनी से आते हैं और उसी भाषा में रहते हैं जिसमें वे दर्ज किए गए थे।"
+    }
+  }
+}

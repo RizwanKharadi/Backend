@@ -17,6 +17,7 @@ import {
   OutstandingKind,
 } from '../../services/reportService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const PRIMARY = '#1565C0';
 const AMOUNT_COLOR = '#8B4513';
@@ -24,6 +25,7 @@ const AMOUNT_COLOR = '#8B4513';
 type RouteParams = { partyName: string; kind?: OutstandingKind };
 
 const OutstandingLedgerDetailScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation();
   const rootNavigation =
     navigation.getParent()?.getParent() ?? navigation.getParent();
@@ -100,7 +102,7 @@ const OutstandingLedgerDetailScreen = () => {
           </Text>
         ) : null}
         {canOpenVoucher ? (
-          <Text style={styles.billLink}>View voucher</Text>
+          <Text style={styles.billLink}>{t('reports.viewVoucher')}</Text>
         ) : null}
       </TouchableOpacity>
     );
@@ -138,7 +140,7 @@ const OutstandingLedgerDetailScreen = () => {
       </View>
 
       <View style={styles.listHeader}>
-        <Text style={styles.selectLink}>Select</Text>
+        <Text style={styles.selectLink}>{t('reports.select')}</Text>
         <Icon name="chart-bar" size={20} color={PRIMARY} />
       </View>
 
@@ -146,7 +148,7 @@ const OutstandingLedgerDetailScreen = () => {
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -165,7 +167,7 @@ const OutstandingLedgerDetailScreen = () => {
             />
           }
           ListEmptyComponent={
-            <Text style={styles.empty}>No outstanding bills for this ledger.</Text>
+            <Text style={styles.empty}>{t('reports.noOutstandingBills')}</Text>
           }
         />
       )}

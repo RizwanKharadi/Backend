@@ -11,6 +11,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { colors, gradients } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
+import { useTranslation } from 'react-i18next';
 
 interface InventoryHeroPanelProps {
   value: string;
@@ -30,6 +31,7 @@ const InventoryHeroPanel: React.FC<InventoryHeroPanelProps> = ({
   healthPct,
   healthSubtitle,
 }) => {
+  const { t } = useTranslation();
   const pct = Math.max(0, Math.min(1, healthPct));
   const offset = CIRC * (1 - pct);
 
@@ -41,7 +43,7 @@ const InventoryHeroPanel: React.FC<InventoryHeroPanelProps> = ({
       style={[styles.panel, shadows.card]}
     >
       <View style={styles.left}>
-        <Text style={styles.label}>Inventory Value</Text>
+        <Text style={styles.label}>{t('inventory.inventoryValue')}</Text>
         <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
           {value}
         </Text>
@@ -72,7 +74,7 @@ const InventoryHeroPanel: React.FC<InventoryHeroPanelProps> = ({
           </View>
         </View>
         <View style={styles.rightText}>
-          <Text style={styles.rightTitle}>Stock Health</Text>
+          <Text style={styles.rightTitle}>{t('inventory.stockHealth')}</Text>
           <Text style={styles.sub}>{healthSubtitle}</Text>
         </View>
       </View>

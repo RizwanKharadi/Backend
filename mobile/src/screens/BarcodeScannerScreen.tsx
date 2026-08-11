@@ -3,10 +3,12 @@ import { StyleSheet, View, Text, TouchableOpacity } from 'react-native';
 import { RNCamera } from 'react-native-camera';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { MainStackScreenProps } from '../types/navigation';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'BarcodeScanner'>;
 
 const BarcodeScannerScreen: React.FC<Props> = ({ navigation, route }) => {
+  const { t } = useTranslation();
   const { onScanned, title } = route.params;
   const [lastValue, setLastValue] = useState<string>('');
   const busyRef = useRef(false);
@@ -72,7 +74,7 @@ const BarcodeScannerScreen: React.FC<Props> = ({ navigation, route }) => {
       </View>
 
       <View style={styles.hintWrap}>
-        <Text style={styles.hintText}>Align the barcode within the frame</Text>
+        <Text style={styles.hintText}>{t('scanner.alignBarcode')}</Text>
       </View>
     </View>
   );

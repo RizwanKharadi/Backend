@@ -13,8 +13,12 @@ import {
 import { useDispatch, useSelector } from 'react-redux';
 import { askBusinessQuestion, clearAiChat, AiMessage } from '../store/slices/aiSlice';
 import { RootState, AppDispatch } from '../store';
+import { formatTime } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
+import { FinnyMascot, FinnyState } from '../components/mascot';
 
 const AskYourBusinessScreen: React.FC = () => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const { messages, isLoading } = useSelector((state: RootState) => state.ai);
@@ -59,7 +63,7 @@ const AskYourBusinessScreen: React.FC = () => {
               {item.text}
             </Text>
             <Text style={[styles.timestamp, { color: isUser ? theme.colors.onPrimary : theme.colors.onSurfaceVariant }]}>
-              {new Date(item.timestamp).toLocaleTimeString()}
+              {formatTime(item.timestamp)}
             </Text>
           </Card.Content>
         </Card>
@@ -75,10 +79,14 @@ const AskYourBusinessScreen: React.FC = () => {
     >
       <Surface elevation={0} style={[styles.header, { backgroundColor: theme.colors.surface }]}>
         <View style={styles.headerTopRow}>
+          {/* Finny is the visual identity for help / assistant. The screen's
+              existing Q&A stays as-is — this is presentation only, so a future
+              AI assistant inherits the same character. */}
+          <FinnyMascot pose="help" size="sm" animation="float" decorative />
           <View style={{ flex: 1 }}>
-            <Text variant="titleLarge">Ask your business</Text>
+            <Text variant="titleLarge">{t('ask.title')}</Text>
             <Text variant="bodySmall" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
-              Your data stays in MongoDB. AI only explains small backend summaries.
+              {t('ask.privacyNote')}
             </Text>
             {selectedCompany && (
               <Text variant="bodySmall" style={[styles.company, { color: theme.colors.onSurfaceVariant }]}>
@@ -92,9 +100,7 @@ const AskYourBusinessScreen: React.FC = () => {
             onPress={handleClear}
             disabled={messages.length === 0}
             style={styles.clearBtn}
-          >
-            Clear
-          </Button>
+          >{t('vouchers.createScreen.clear')}</Button>
         </View>
 
         <View style={styles.suggestionsRow}>
@@ -119,7 +125,13 @@ const AskYourBusinessScreen: React.FC = () => {
         contentContainerStyle={styles.listContent}
         ListEmptyComponent={
           <View style={styles.emptyState}>
-            <Text variant="titleMedium">Try asking:</Text>
+            <FinnyState
+              variant="help"
+              title="Hi! I'm Finny."
+              message="Need help with your business?"
+              compact
+            />
+            <Text variant="titleMedium">{t('ask.tryAsking')}</Text>
             <Text style={{ color: theme.colors.onSurfaceVariant, marginTop: 6 }}>
               - “Sales in May 2026”
               {'\n'}- “Who has highest outstanding?”
@@ -132,7 +144,7 @@ const AskYourBusinessScreen: React.FC = () => {
       <View style={styles.inputContainer}>
         <TextInput
           mode="outlined"
-          placeholder="Ask anything about sales, outstanding, profit, expenses..."
+          placeholder={t('ask.placeholder')}
           value={question}
           onChangeText={setQuestion}
           style={styles.input}

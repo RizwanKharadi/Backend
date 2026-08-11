@@ -28,6 +28,9 @@ import {
 
 import { MainTabScreenProps } from '../types/navigation';
 import { InventoryItem } from '../types';
+import { formatCurrencyWhole } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
+import { FinnyState } from '../components/mascot';
 import { MDI } from '../utils/mdiIcons';
 
 type StockFilter = 'all' | 'low' | 'out' | 'ok';
@@ -36,16 +39,17 @@ type Props = MainTabScreenProps<'Inventory'>;
 
 const MIN_RELOAD_MS = 45_000;
 
-const STOCK_FILTERS: { id: StockFilter; label: string }[] = [
-  { id: 'all', label: 'All' },
-  { id: 'ok', label: 'In stock' },
-  { id: 'low', label: 'Low stock' },
-  { id: 'out', label: 'Out of stock' },
+const STOCK_FILTERS: { id: StockFilter; labelKey: string }[] = [
+  { id: 'all', labelKey: 'inventory.filters.all' },
+  { id: 'ok', labelKey: 'inventory.filters.inStock' },
+  { id: 'low', labelKey: 'inventory.filters.lowStock' },
+  { id: 'out', labelKey: 'inventory.filters.outOfStock' },
 ];
 
 const InventoryScreen: React.FC<Props> = ({ navigation }) => {
   const parentNavigation = navigation.getParent();
   const dispatch = useDispatch<AppDispatch>();
+  const { t } = useTranslation();
 
   const { items, error, pagination, isLoading, stats, lastFetchedAt, statsFetchedAt } =
     useInventory();
@@ -129,7 +133,7 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
 
   useEffect(() => {
     if (error) {
-      Alert.alert('Error', error);
+      Alert.alert(t('common.error'), error);
       dispatch(clearError());
     }
   }, [error, dispatch]);
@@ -208,29 +212,23 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
     });
   }, [stackNav]);
 
-  const formatCurrency = (amount: number): string =>
-    new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
-    }).format(amount);
+  const formatCurrency = (amount: number): string => formatCurrencyWhole(amount);
 
   const getStockMeta = (item: InventoryItem) => {
     if (item.currentStock <= 0) {
-      return { label: 'Out', color: dashboardColors.negative, icon: 'alert-circle' as const };
+      return { label: t('inventory.stock.out'), color: dashboardColors.negative, icon: 'alert-circle' as const };
     }
     if (item.currentStock <= item.reorderLevel) {
-      return { label: 'Low', color: dashboardColors.warning, icon: MDI.alert as const };
+      return { label: t('inventory.stock.low'), color: dashboardColors.warning, icon: MDI.alert as const };
     }
-    return { label: 'OK', color: dashboardColors.positive, icon: 'check-circle' as const };
+    return { label: t('inventory.stock.ok'), color: dashboardColors.positive, icon: 'check-circle' as const };
   };
 
   const displayTotal = pagination.total || stats.total || items.length;
 
   const subtitle = selectedCompany?.name
-    ? `${selectedCompany.name} · ${displayTotal} items`
-    : `${displayTotal} items`;
+    ? `${selectedCompany.name} · ${t('inventory.itemCount', { count: displayTotal })}`
+    : t('inventory.itemCount', { count: displayTotal });
 
   const renderItem = useCallback(
     ({ item }: { item: InventoryItem }) => {
@@ -288,19 +286,19 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.statCard}>
             <Icon name="package-variant-closed" size={20} color={dashboardColors.accent} />
             <Text style={styles.statValue}>{stats.total || displayTotal}</Text>
-            <Text style={styles.statLabel}>Total items</Text>
+            <Text style={styles.statLabel}>{t('inventory.totalItems')}</Text>
           </View>
           <View style={styles.statCard}>
             <Icon name="alert" size={20} color={dashboardColors.warning} />
             <Text style={styles.statValue}>{stats.lowStock ?? 0}</Text>
-            <Text style={styles.statLabel}>Low stock</Text>
+            <Text style={styles.statLabel}>{t('inventory.filters.lowStock')}</Text>
           </View>
           <View style={styles.statCard}>
             <Icon name="currency-inr" size={20} color={dashboardColors.positive} />
             <Text style={styles.statValue} numberOfLines={1} adjustsFontSizeToFit>
               {formatCurrency(stats.totalValue ?? 0)}
             </Text>
-            <Text style={styles.statLabel}>Stock value</Text>
+            <Text style={styles.statLabel}>{t('inventory.stockValue')}</Text>
           </View>
         </View>
 
@@ -308,7 +306,7 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.searchWrap}>
           <Icon name="magnify" size={20} color={dashboardColors.muted} style={styles.searchIcon} />
           <TextInput
-            placeholder="Search by name or code…"
+            placeholder={t('inventory.searchPlaceholder')}
             placeholderTextColor={dashboardColors.muted}
             value={searchQuery}
             onChangeText={handleSearchChange}
@@ -345,7 +343,7 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
                 style={[styles.chip, active && styles.chipActive]}
                 onPress={() => handleStockFilter(f.id)}
               >
-                <Text style={[styles.chipText, active && styles.chipTextActive]}>{f.label}</Text>
+                <Text style={[styles.chipText, active && styles.chipTextActive]}>{t(f.labelKey)}</Text>
               </TouchableOpacity>
             );
           })}
@@ -377,15 +375,15 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
         {isLoading && items.length === 0 ? (
           <ActivityIndicator size="large" color={dashboardColors.accent} />
         ) : (
-          <>
-            <Icon name="package-variant-closed" size={56} color={dashboardColors.muted} />
-            <Text style={styles.emptyTitle}>No items found</Text>
-            <Text style={styles.emptySubtitle}>
-              {searchQuery || stockFilter !== 'all'
-                ? 'Try a different search or filter'
-                : 'Sync from Tally or add your first item'}
-            </Text>
-          </>
+          <FinnyState
+            variant="empty"
+            title={t('inventory.noItems')}
+            message={
+              searchQuery || stockFilter !== 'all'
+                ? t('inventory.tryDifferentFilter')
+                : t('inventory.syncOrAddFirst')
+            }
+          />
         )}
       </View>
     ),
@@ -432,7 +430,7 @@ const InventoryScreen: React.FC<Props> = ({ navigation }) => {
         style={styles.fab}
         color="#fff"
         onPress={() => stackNav.navigate('CreateItem')}
-        label="Add item"
+        label={t('inventory.addItem')}
       />
     </View>
   );

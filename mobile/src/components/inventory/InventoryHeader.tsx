@@ -10,6 +10,7 @@ import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dashboardColors } from '../dashboard/dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 interface InventoryHeaderProps {
   subtitle?: string;
@@ -20,6 +21,7 @@ const InventoryHeader: React.FC<InventoryHeaderProps> = ({
   subtitle = 'Stock & items from Tally',
   onSyncPress,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -27,7 +29,7 @@ const InventoryHeader: React.FC<InventoryHeaderProps> = ({
       <StatusBar barStyle="light-content" backgroundColor={dashboardColors.headerTop} />
       <View style={styles.row}>
         <View style={styles.textBlock}>
-          <Text style={styles.title}>Inventory</Text>
+          <Text style={styles.title}>{t('nav.inventory')}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
         {onSyncPress ? (

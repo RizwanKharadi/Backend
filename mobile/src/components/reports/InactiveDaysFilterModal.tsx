@@ -9,6 +9,7 @@ import {
   TextInput,
 } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 
 export const INACTIVE_DAY_OPTIONS = [
   { id: '30', label: '> 30 days', days: 30 },
@@ -37,6 +38,7 @@ const InactiveDaysFilterModal: React.FC<Props> = ({
   onClose,
   onSelect,
 }) => {
+  const { t } = useTranslation();
   const [customInput, setCustomInput] = useState(customDaysProp || '45');
 
   return (
@@ -67,7 +69,7 @@ const InactiveDaysFilterModal: React.FC<Props> = ({
           ))}
           {selectedId === 'custom' || INACTIVE_DAY_OPTIONS.some((o) => o.id === 'custom') ? (
             <View style={styles.customRow}>
-              <Text style={styles.customLabel}>Days</Text>
+              <Text style={styles.customLabel}>{t('reports.days')}</Text>
               <TextInput
                 style={styles.customInput}
                 value={customInput}

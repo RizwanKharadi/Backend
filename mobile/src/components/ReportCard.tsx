@@ -9,6 +9,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors, hexToRgba } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
+import { useTranslation } from 'react-i18next';
 
 interface ReportCardProps {
   icon: string;
@@ -28,7 +29,9 @@ const ReportCard: React.FC<ReportCardProps> = ({
   badge,
   soon,
   onPress,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <TouchableOpacity
     style={[styles.card, shadows.card]}
     activeOpacity={0.88}
@@ -42,7 +45,7 @@ const ReportCard: React.FC<ReportCardProps> = ({
       </View>
       {soon ? (
         <View style={styles.soonBadge}>
-          <Text style={styles.soonText}>Soon</Text>
+          <Text style={styles.soonText}>{t('reports.soon')}</Text>
         </View>
       ) : null}
     </View>
@@ -66,7 +69,8 @@ const ReportCard: React.FC<ReportCardProps> = ({
       <Icon name="chevron-right" size={18} color={colors.textTertiary} />
     </View>
   </TouchableOpacity>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {

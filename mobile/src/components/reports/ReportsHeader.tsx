@@ -10,6 +10,7 @@ import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { dashboardColors } from '../dashboard/dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 interface ReportsHeaderProps {
   subtitle?: string;
@@ -22,6 +23,7 @@ const ReportsHeader: React.FC<ReportsHeaderProps> = ({
   onSyncPress,
   onSettingsPress,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -29,7 +31,7 @@ const ReportsHeader: React.FC<ReportsHeaderProps> = ({
       <StatusBar barStyle="light-content" backgroundColor={dashboardColors.headerTop} />
       <View style={styles.row}>
         <View style={styles.textBlock}>
-          <Text style={styles.title}>Reports</Text>
+          <Text style={styles.title}>{t('nav.reports')}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </View>
         {onSyncPress ? (

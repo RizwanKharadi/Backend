@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Services
 import { initializeServices } from '../services';
+import { useTranslation } from 'react-i18next';
 
 const BRAND = {
   deepBlue: '#002147',
@@ -14,6 +15,7 @@ const BRAND = {
 };
 
 const SplashScreen: React.FC = () => {
+  const { t } = useTranslation();
   const theme = useTheme();
 
   const fadeAnim = React.useRef(new Animated.Value(0)).current;
@@ -75,15 +77,11 @@ const SplashScreen: React.FC = () => {
           <Text
             variant="headlineLarge"
             style={[styles.appName, { color: theme.colors.onPrimary }]}
-          >
-            TallyFin
-          </Text>
+          >{t('common.appName')}</Text>
           <Text
             variant="bodyLarge"
             style={[styles.tagline, { color: theme.colors.onPrimary }]}
-          >
-            Smart ERP sync for growing businesses
-          </Text>
+          >{t('splash.tagline')}</Text>
         </View>
 
         <View style={styles.loadingCard}>
@@ -91,9 +89,7 @@ const SplashScreen: React.FC = () => {
           <Text
             variant="bodyMedium"
             style={[styles.loadingText, { color: theme.colors.onPrimary }]}
-          >
-            Initializing your workspace...
-          </Text>
+          >{t('splash.initializing')}</Text>
         </View>
       </Animated.View>
 
@@ -101,9 +97,7 @@ const SplashScreen: React.FC = () => {
         <Text
           variant="bodySmall"
           style={[styles.version, { color: theme.colors.onPrimary }]}
-        >
-          Version 1.0.0
-        </Text>
+        >{t('splash.version', { version: '1.0.0' })}</Text>
         <Text
           variant="bodySmall"
           style={[styles.copyright, { color: theme.colors.onPrimary }]}

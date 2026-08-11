@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import { dashboardColors, voucherTypeColor } from './dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 interface VoucherMixChartProps {
   byType: Record<string, number>;
@@ -29,6 +30,7 @@ function labelFor(type: string): string {
 }
 
 const VoucherMixChart: React.FC<VoucherMixChartProps> = ({ byType, loading }) => {
+  const { t } = useTranslation();
   const segments = useMemo(() => {
     const entries = Object.entries(byType || {})
       .filter(([, count]) => count > 0)
@@ -59,8 +61,8 @@ const VoucherMixChart: React.FC<VoucherMixChartProps> = ({ byType, loading }) =>
   if (!total) {
     return (
       <View style={styles.card}>
-        <Text style={styles.title}>Voucher mix</Text>
-        <Text style={styles.empty}>No vouchers synced yet. Run desktop-agent sync.</Text>
+        <Text style={styles.title}>{t('dashboard.voucherMix')}</Text>
+        <Text style={styles.empty}>{t('dashboard.noVouchersSynced')}</Text>
       </View>
     );
   }
@@ -68,8 +70,8 @@ const VoucherMixChart: React.FC<VoucherMixChartProps> = ({ byType, loading }) =>
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <Text style={styles.title}>Voucher mix</Text>
-        <Text style={styles.total}>{total} total</Text>
+        <Text style={styles.title}>{t('dashboard.voucherMix')}</Text>
+        <Text style={styles.total}>{t('dashboard.totalCount', { count: total })}</Text>
       </View>
 
       <View style={styles.barTrack}>

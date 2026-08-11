@@ -4,10 +4,12 @@ import { Text } from 'react-native-paper';
 import { LineChart } from 'react-native-chart-kit';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import {
-  formatIndianCompact,
+  formatCompactAmount,
+  formatPercent,
   calcPercentChange,
 } from '../../utils/formatters';
 import { dashboardColors } from './dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 const chartWidth = Dimensions.get('window').width - 72;
 
@@ -22,6 +24,7 @@ const MoneyHeroCard: React.FC<MoneyHeroCardProps> = ({
   lastMonth,
   loading,
 }) => {
+  const { t } = useTranslation();
   const change = calcPercentChange(thisMonth, lastMonth);
   const isPositive = change === null || change >= 0;
 
@@ -39,9 +42,9 @@ const MoneyHeroCard: React.FC<MoneyHeroCardProps> = ({
 
   return (
     <View style={styles.card}>
-      <Text style={styles.label}>This month</Text>
-      <Text style={styles.amount}>{formatIndianCompact(thisMonth)}</Text>
-      <Text style={styles.subtitle}>Total voucher activity (MTD)</Text>
+      <Text style={styles.label}>{t('dashboard.thisMonth')}</Text>
+      <Text style={styles.amount}>{formatCompactAmount(thisMonth)}</Text>
+      <Text style={styles.subtitle}>{t('dashboard.monthActivity')}</Text>
 
       {change !== null ? (
         <View style={styles.changeRow}>
@@ -56,12 +59,13 @@ const MoneyHeroCard: React.FC<MoneyHeroCardProps> = ({
               { color: isPositive ? dashboardColors.positive : dashboardColors.negative },
             ]}
           >
-            {isPositive ? '+' : ''}
-            {change.toFixed(1)}% vs last month
+            {t('dashboard.changeVsLastMonth', {
+              value: formatPercent(change, { alwaysSign: true }),
+            })}
           </Text>
         </View>
       ) : (
-        <Text style={styles.noChange}>No comparison data yet</Text>
+        <Text style={styles.noChange}>{t('dashboard.noComparison')}</Text>
       )}
 
       {thisMonth > 0 || lastMonth > 0 ? (

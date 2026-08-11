@@ -9,10 +9,12 @@ import { inventoryService } from '../services/inventoryService';
 import { masterService } from '../services/masterService';
 import { voucherFormTheme } from '../components/voucher/voucherFormTheme';
 import { describeTallyPush } from '../utils/tallyPushMessage';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'CreateItem'>;
 
 const CreateItemScreen: React.FC<Props> = ({ navigation, route }) => {
+  const { t } = useTranslation();
   const { selectedCompany } = useCompany();
   const [name, setName] = useState('');
   const [barcode, setBarcode] = useState(route.params?.barcode || '');
@@ -32,11 +34,11 @@ const CreateItemScreen: React.FC<Props> = ({ navigation, route }) => {
 
   const handleSave = async () => {
     if (!selectedCompany?.id) {
-      Alert.alert('Company', 'Select a company first');
+      Alert.alert(t('vouchers.form.companyTitle'), t('vouchers.form.selectCompanyFirst'));
       return;
     }
     if (!name.trim()) {
-      Alert.alert('Name', 'Enter stock item name');
+      Alert.alert(t('masters.nameTitle'), t('masters.item.enterName'));
       return;
     }
 
@@ -61,7 +63,7 @@ const CreateItemScreen: React.FC<Props> = ({ navigation, route }) => {
       const { title, message } = describeTallyPush(res.tallyPush, 'Stock item');
       Alert.alert(title, message, [{ text: 'OK', onPress: () => navigation.goBack() }]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save');
+      Alert.alert(t('common.error'), e.message || t('vouchers.form.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -69,15 +71,15 @@ const CreateItemScreen: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <View style={styles.container}>
-      <Header title="Create Stock Item" showBack onBackPress={() => navigation.goBack()} />
+      <Header title={t('masters.item.title')} showBack onBackPress={() => navigation.goBack()} />
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         <Text style={styles.hint}>
           Barcode is saved as Item Code in the app and as Part No. in TallyPrime. Use the same value when
           scanning later.
         </Text>
-        <TextInput label="Name *" value={name} onChangeText={setName} mode="outlined" style={styles.input} />
+        <TextInput label={t('masters.nameRequired')} value={name} onChangeText={setName} mode="outlined" style={styles.input} />
         <TextInput
-          label="Item code / barcode (optional)"
+          label={t('masters.item.code')}
           value={barcode}
           onChangeText={setBarcode}
           mode="outlined"
@@ -86,7 +88,7 @@ const CreateItemScreen: React.FC<Props> = ({ navigation, route }) => {
           autoCorrect={false}
         />
         <SearchableSelect
-          label="Unit *"
+          label={t('masters.item.unit')}
           pickerTitle="Select unit"
           value={unit}
           options={unitOptions}
@@ -99,9 +101,7 @@ const CreateItemScreen: React.FC<Props> = ({ navigation, route }) => {
           disabled={saving}
           buttonColor={voucherFormTheme.primary}
           style={styles.saveBtn}
-        >
-          Save & sync to Tally
-        </Button>
+        >{t('masters.saveAndSync')}</Button>
       </ScrollView>
     </View>
   );

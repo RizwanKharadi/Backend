@@ -9,7 +9,6 @@ import {
   DashboardData,
   NavItem,
   QuickAction,
-  VoucherOption,
 } from '../types/dashboard';
 
 export const dashboardMock: DashboardData = {
@@ -133,20 +132,12 @@ export const quickActions: QuickAction[] = [
 // Quick actions live alongside the rest of the dashboard payload.
 dashboardMock.quickActions = quickActions;
 
-export const voucherOptions: VoucherOption[] = [
-  { key: 'sales', title: 'Sales Voucher', icon: 'file-document-outline', color: colors.green },
-  { key: 'receipt', title: 'Receipt Voucher', icon: 'download-outline', color: colors.warning },
-  { key: 'payment', title: 'Payment Voucher', icon: 'credit-card-outline', color: colors.kpiPurple },
-  { key: 'purchase', title: 'Purchase Voucher', icon: 'cart-outline', color: colors.info },
-  { key: 'contra', title: 'Contra Voucher', icon: 'bank-transfer', color: colors.navySoft },
-  { key: 'journal', title: 'Journal Voucher', icon: 'book-open-outline', color: colors.textSecondary },
-  { key: 'debitNote', title: 'Debit Note', icon: 'note-minus-outline', color: colors.danger },
-  { key: 'creditNote', title: 'Credit Note', icon: 'note-plus-outline', color: colors.success },
-];
 
+// Labels are translation keys, not text: this list is module scope, where no
+// hook can reach, and BottomNavigation resolves them at render.
 export const navItems: NavItem[] = [
-  { key: 'dashboard', label: 'Dashboard', icon: 'view-dashboard-outline' },
-  { key: 'transactions', label: 'Transactions', icon: 'swap-horizontal' },
-  { key: 'inventory', label: 'Inventory', icon: 'package-variant-closed' },
-  { key: 'reports', label: 'Reports', icon: 'chart-box-outline' },
+  { key: 'dashboard', labelKey: 'nav.dashboard', icon: 'view-dashboard-outline' },
+  { key: 'transactions', labelKey: 'nav.transactions', icon: 'swap-horizontal' },
+  { key: 'inventory', labelKey: 'nav.inventory', icon: 'package-variant-closed' },
+  { key: 'reports', labelKey: 'nav.reports', icon: 'chart-box-outline' },
 ];

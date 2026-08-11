@@ -13,7 +13,7 @@ import { colors, hexToRgba } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { TxnTypeSummary } from '../types/transactions';
-import { formatIndianCompact } from '../utils/formatters';
+import { formatCompactAmount } from '../utils/formatters';
 
 interface TransactionCardProps {
   summary: TxnTypeSummary;
@@ -46,7 +46,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         }
         style={[styles.card, { borderTopColor: summary.color }]}
         accessibilityRole="button"
-        accessibilityLabel={`${summary.title}, ${formatIndianCompact(summary.amount)}, ${summary.count} entries`}
+        accessibilityLabel={`${summary.title}, ${formatCompactAmount(summary.amount)}, ${summary.count} entries`}
       >
         <View style={[styles.iconChip, { backgroundColor: hexToRgba(summary.color, 0.14) }]}>
           <Icon name={summary.icon} size={20} color={summary.color} />
@@ -60,7 +60,7 @@ const TransactionCard: React.FC<TransactionCardProps> = ({
         </Text>
 
         <Text style={[styles.amount, { color: summary.color }]} numberOfLines={1} adjustsFontSizeToFit>
-          {summary.amount > 0 ? formatIndianCompact(summary.amount) : '₹0'}
+          {summary.amount > 0 ? formatCompactAmount(summary.amount) : '₹0'}
         </Text>
 
         <View style={styles.growthRow}>

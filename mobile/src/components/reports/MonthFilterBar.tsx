@@ -6,7 +6,7 @@
  * the list to a single month; "All" returns to the report's own period.
  */
 import React, { useMemo } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
 const MONTH_LABELS = [
   'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
@@ -69,9 +69,16 @@ const MonthFilterBar: React.FC<MonthFilterBarProps> = ({
     <ScrollView
       horizontal
       showsHorizontalScrollIndicator={false}
-      contentContainerStyle={styles.row}
       style={styles.wrap}
     >
+      {/*
+        The chips live in a plain row View, not directly in contentContainerStyle.
+        Laid out by the scroll container they were being sized to share the
+        visible width, so every label ellipsised ("A...", "J..l") instead of the
+        row overflowing and scrolling. An inner row sizes to its content, so each
+        chip keeps its natural width and the overflow becomes scroll.
+      */}
+      <View style={styles.row}>
       <TouchableOpacity
         style={[
           styles.chip,
@@ -104,6 +111,7 @@ const MonthFilterBar: React.FC<MonthFilterBarProps> = ({
           </TouchableOpacity>
         );
       })}
+      </View>
     </ScrollView>
   );
 };
@@ -116,19 +124,29 @@ const styles = StyleSheet.create({
     flexGrow: 0,
   },
   row: {
-    gap: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 12,
     paddingVertical: 10,
   },
   chip: {
-    paddingHorizontal: 14,
-    paddingVertical: 6,
-    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 18,
     borderWidth: 1,
-    borderColor: '#d7dde5',
+    borderColor: '#c7d0da',
     backgroundColor: '#fff',
+    flexShrink: 0,
+    marginRight: 8,
   },
-  text: { fontSize: 12, fontWeight: '600', color: '#64748b' },
+  text: {
+    // 12px muted grey was legible in a mock and not on a phone — the month
+    // names read as smudges. Bigger, darker, and no ellipsising.
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1f2937',
+    flexShrink: 0,
+  },
   textActive: { color: '#fff' },
 });
 

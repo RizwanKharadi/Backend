@@ -12,6 +12,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import Header from '../components/common/Header';
 import { billingService, BillingCycle } from '../services/billingService';
 import { MainStackScreenProps } from '../types/navigation';
+import { formatDate as sharedFormatDate } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
 
 type Props = MainStackScreenProps<'Billing'>;
@@ -34,14 +36,7 @@ type BillingStatus = {
 };
 
 function formatDate(value?: string | null): string {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-  });
+  return (value && sharedFormatDate(value)) || '—';
 }
 
 function statusLabel(status?: string): string {
@@ -67,6 +62,7 @@ function statusColor(status?: string): string {
 }
 
 const BillingScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<BillingStatus | null>(null);
   const [billingCycle, setBillingCycle] = useState<BillingCycle>('monthly');
@@ -83,8 +79,8 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
     } catch (e: unknown) {
       const err = e as { message?: string; response?: { data?: { message?: string } } };
       Alert.alert(
-        'Error',
-        err?.response?.data?.message || err?.message || 'Failed to load subscription'
+        t('common.error'),
+        err?.response?.data?.message || err?.message || t('billing.loadFailed')
       );
     } finally {
       setLoading(false);
@@ -101,14 +97,14 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
       if (checkout?.shortUrl) {
         await Linking.openURL(checkout.shortUrl);
         Alert.alert(
-          'Complete payment',
-          'After payment in the browser, return here and tap “Activate after payment”.',
-          [{ text: 'OK' }]
+          t('billing.completePayment'),
+          t('billing.completePaymentHint'),
+          [{ text: t('common.ok') }]
         );
       }
     } catch (e: unknown) {
       const err = e as { message?: string; response?: { data?: { message?: string } } };
-      Alert.alert('Error', err?.response?.data?.message || err?.message || 'Checkout failed');
+      Alert.alert(t('common.error'), err?.response?.data?.message || err?.message || t('billing.checkoutFailed'));
     }
   };
 
@@ -116,10 +112,10 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await billingService.syncSubscription();
       await load();
-      Alert.alert('Updated', 'Subscription status synced from Razorpay.');
+      Alert.alert(t('billing.updated'), t('billing.syncedFromRazorpay'));
     } catch (e: unknown) {
       const err = e as { message?: string; response?: { data?: { message?: string } } };
-      Alert.alert('Sync failed', err?.response?.data?.message || err?.message || 'Could not sync');
+      Alert.alert(t('billing.syncFailed'), err?.response?.data?.message || err?.message || t('billing.couldNotSync'));
     }
   };
 
@@ -137,8 +133,8 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Subscription"
-        subtitle="Plan & billing"
+        title={t('billing.title')}
+        subtitle={t('billing.subtitle')}
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -176,7 +172,7 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
             <View style={styles.grid}>
               <View style={styles.infoCard}>
                 <Icon name="calendar-start" size={22} color={dashboardColors.accent} />
-                <Text style={styles.infoLabel}>Start date</Text>
+                <Text style={styles.infoLabel}>{t('billing.startDate')}</Text>
                 <Text style={styles.infoValue}>{formatDate(periodStart)}</Text>
               </View>
               <View style={styles.infoCard}>
@@ -186,14 +182,14 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
               </View>
               <View style={styles.infoCard}>
                 <Icon name="desktop-classic" size={22} color={dashboardColors.accent} />
-                <Text style={styles.infoLabel}>Device seats</Text>
+                <Text style={styles.infoLabel}>{t('billing.deviceSeats')}</Text>
                 <Text style={styles.infoValue}>
                   {status?.seatsUsed ?? 0} / {sub?.seatLimit ?? 0} used
                 </Text>
               </View>
               <View style={styles.infoCard}>
                 <Icon name="repeat" size={22} color={dashboardColors.accent} />
-                <Text style={styles.infoLabel}>Billing cycle</Text>
+                <Text style={styles.infoLabel}>{t('billing.billingCycle')}</Text>
                 <Text style={styles.infoValue}>
                   {(sub?.billingCycle || '—').toString().toUpperCase()}
                 </Text>
@@ -201,12 +197,19 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
             </View>
 
             <View style={styles.detailCard}>
-              <Text style={styles.detailTitle}>Plan details</Text>
-              <DetailRow label="Plan ID" value={sub?.planId || '—'} />
-              <DetailRow label="Mobile included" value={status?.mobileIncluded !== false ? 'Yes' : 'No'} />
+              <Text style={styles.detailTitle}>{t('billing.planDetails')}</Text>
+              <DetailRow label={t('billing.planId')} value={sub?.planId || t('common.none')} />
               <DetailRow
-                label="Razorpay subscription"
-                value={status?.razorpay?.subscriptionId ? 'Linked' : 'Not linked'}
+                label={t('billing.mobileIncluded')}
+                value={status?.mobileIncluded !== false ? t('common.yes') : t('common.no')}
+              />
+              <DetailRow
+                label={t('billing.razorpaySubscription')}
+                value={
+                  status?.razorpay?.subscriptionId
+                    ? t('billing.linked')
+                    : t('billing.notLinked')
+                }
               />
               {status?.razorpay?.subscriptionId ? (
                 <Text style={styles.mono} numberOfLines={1}>
@@ -217,15 +220,15 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
 
             <View style={styles.actions}>
               <Button mode="contained" onPress={syncFromRazorpay} style={styles.btn} icon="sync">
-                Activate after payment
+                {t('billing.activateAfterPayment')}
               </Button>
               <Button mode="outlined" onPress={load} style={styles.btn}>
-                Refresh status
+                {t('billing.refreshStatus')}
               </Button>
             </View>
 
             <View style={styles.upgradeCard}>
-              <Text style={styles.upgradeTitle}>Upgrade or change plan</Text>
+              <Text style={styles.upgradeTitle}>{t('billing.upgradeTitle')}</Text>
               <View style={styles.cycleRow}>
                 {(['monthly', 'yearly'] as BillingCycle[]).map((cycle) => (
                   <TouchableOpacity
@@ -254,9 +257,7 @@ const BillingScreen: React.FC<Props> = ({ navigation }) => {
                   +
                 </Button>
               </View>
-              <Button mode="contained" onPress={subscribe} icon="credit-card-outline" style={styles.btn}>
-                Pay with Razorpay
-              </Button>
+              <Button mode="contained" onPress={subscribe} icon="credit-card-outline" style={styles.btn}>{t('billing.payWithRazorpay')}</Button>
             </View>
           </>
         )}

@@ -2,8 +2,9 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { formatIndianCompact } from '../../utils/formatters';
+import { formatCompactAmount } from '../../utils/formatters';
 import { dashboardColors } from './dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 export interface CashPulseItem {
   id: string;
@@ -20,11 +21,12 @@ interface CashPulseRowProps {
 }
 
 const CashPulseRow: React.FC<CashPulseRowProps> = ({ items, onItemPress }) => {
+  const { t } = useTranslation();
   if (!items.length) return null;
 
   return (
     <View style={styles.wrapper}>
-      <Text style={styles.sectionTitle}>Today&apos;s pulse</Text>
+      <Text style={styles.sectionTitle}>{t('dashboard.todaysPulse')}</Text>
       <View style={styles.row}>
         {items.map((item) => (
           <TouchableOpacity
@@ -39,7 +41,7 @@ const CashPulseRow: React.FC<CashPulseRowProps> = ({ items, onItemPress }) => {
             <Text style={styles.chipLabel} numberOfLines={1}>
               {item.label}
             </Text>
-            <Text style={styles.chipAmount}>{formatIndianCompact(item.amount)}</Text>
+            <Text style={styles.chipAmount}>{formatCompactAmount(item.amount)}</Text>
             <Text style={styles.chipCount}>{item.count} txn</Text>
           </TouchableOpacity>
         ))}

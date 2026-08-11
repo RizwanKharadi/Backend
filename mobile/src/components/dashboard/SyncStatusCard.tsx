@@ -8,6 +8,8 @@ import {
   useTheme,
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { formatRelativeTime } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 interface SyncStatusCardProps {
   lastSyncTime: string | null;
@@ -25,24 +27,7 @@ const SyncStatusCard: React.FC<SyncStatusCardProps> = ({
   onSyncPress,
 }) => {
   const theme = useTheme();
-
-  const formatLastSync = (timestamp: string | null): string => {
-    if (!timestamp) return 'Never';
-    
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    if (diffDays < 7) return `${diffDays}d ago`;
-    
-    return date.toLocaleDateString();
-  };
+  const { t } = useTranslation();
 
   const getSyncStatusColor = (): string => {
     if (isSyncing) return theme.colors.primary;
@@ -59,19 +44,17 @@ const SyncStatusCard: React.FC<SyncStatusCardProps> = ({
   };
 
   const getSyncStatusText = (): string => {
-    if (isSyncing) return 'Syncing...';
-    if (!isOnline) return 'Offline';
-    if (pendingChanges > 0) return 'Pending sync';
-    return 'Up to date';
+    if (isSyncing) return t('sync.state.syncing');
+    if (!isOnline) return t('sync.state.offline');
+    if (pendingChanges > 0) return t('sync.pendingSync');
+    return t('sync.state.upToDate');
   };
 
   return (
     <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={2}>
       <View style={styles.header}>
         <View style={styles.titleContainer}>
-          <Text variant="titleMedium" style={[styles.title, { color: theme.colors.onSurface }]}>
-            Sync Status
-          </Text>
+          <Text variant="titleMedium" style={[styles.title, { color: theme.colors.onSurface }]}>{t('sync.status')}</Text>
           <View style={styles.statusRow}>
             <Icon
               name={getSyncStatusIcon()}
@@ -91,25 +74,21 @@ const SyncStatusCard: React.FC<SyncStatusCardProps> = ({
           compact
           icon={isSyncing ? 'sync' : 'refresh'}
         >
-          {isSyncing ? 'Syncing' : 'Sync'}
+          {isSyncing ? t('sync.syncingShort') : t('dashboard.quickAction.sync')}
         </Button>
       </View>
 
       <View style={styles.content}>
         <View style={styles.infoRow}>
-          <Text variant="bodyMedium" style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>
-            Last sync:
-          </Text>
+          <Text variant="bodyMedium" style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>{t('sync.lastSyncLabel')}</Text>
           <Text variant="bodyMedium" style={[styles.value, { color: theme.colors.onSurface }]}>
-            {formatLastSync(lastSyncTime)}
+            {formatRelativeTime(lastSyncTime)}
           </Text>
         </View>
 
         {pendingChanges > 0 && (
           <View style={styles.infoRow}>
-            <Text variant="bodyMedium" style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>
-              Pending changes:
-            </Text>
+            <Text variant="bodyMedium" style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>{t('sync.pendingChangesLabel')}</Text>
             <Chip
               mode="outlined"
               compact
@@ -122,9 +101,7 @@ const SyncStatusCard: React.FC<SyncStatusCardProps> = ({
         )}
 
         <View style={styles.infoRow}>
-          <Text variant="bodyMedium" style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>
-            Connection:
-          </Text>
+          <Text variant="bodyMedium" style={[styles.label, { color: theme.colors.onSurfaceVariant }]}>{t('sync.connection')}</Text>
           <View style={styles.connectionStatus}>
             <Icon
               name={isOnline ? 'wifi' : 'wifi-off'}
@@ -135,7 +112,7 @@ const SyncStatusCard: React.FC<SyncStatusCardProps> = ({
               styles.connectionText,
               { color: isOnline ? theme.colors.primary : theme.colors.error }
             ]}>
-              {isOnline ? 'Online' : 'Offline'}
+              {isOnline ? t('sync.online') : t('sync.state.offline')}
             </Text>
           </View>
         </View>

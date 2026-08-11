@@ -35,11 +35,14 @@ import {
 } from '../../utils/voucherCreateConfig';
 import { masterService } from '../../services/masterService';
 import { describeTallyPush } from '../../utils/tallyPushMessage';
+import { formatCurrency, formatDateShortYear } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'CreateItemVoucher'>;
 
 const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
   const { selectedCompany } = useCompany();
+  const { t } = useTranslation();
   const config = getItemVoucherConfig(route.params.voucherType);
   const isOrderType = ['sales_order', 'purchase_order'].includes(config.voucherType);
   const { partyId, partyName, partyGstin, placeOfSupply: partyState } = route.params;
@@ -166,16 +169,15 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
     selectedCompany?.name ||
     '';
 
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+  const formatDate = (d: Date) => formatDateShortYear(d);
 
   const handleSave = async () => {
     if (!selectedCompany?.id) {
-      Alert.alert('Company', 'Please select a company first');
+      Alert.alert(t('vouchers.form.companyTitle'), t('vouchers.form.selectCompany'));
       return;
     }
     if (items.length === 0) {
-      Alert.alert('Items', 'Add at least one item');
+      Alert.alert(t('vouchers.form.itemsTitle'), t('vouchers.form.addOneItem'));
       return;
     }
 
@@ -234,10 +236,10 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
         config.tallyPush
       );
       Alert.alert(pushInfo.title, pushInfo.message, [
-        { text: 'OK', onPress: () => navigation.popToTop() },
+        { text: t('common.ok'), onPress: () => navigation.popToTop() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save');
+      Alert.alert(t('common.error'), e.message || t('vouchers.form.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -246,7 +248,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
   const addLedger = () => {
     const amt = parseFloat(ledgerAmount);
     if (!ledgerName.trim() || !amt) {
-      Alert.alert('Ledger', 'Enter ledger name and amount');
+      Alert.alert(t('vouchers.item.ledger'), t('vouchers.form.ledgerNameAndAmount'));
       return;
     }
     setExtraLedgers((prev) => [...prev, { ledgerName: ledgerName.trim(), amount: amt }]);
@@ -273,7 +275,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <TouchableOpacity onPress={() => setShowDatePicker(true)} activeOpacity={0.9}>
           <TextInput
-            label="Date"
+            label={t('vouchers.form.date')}
             value={formatDate(date)}
             mode="outlined"
             editable={false}
@@ -311,7 +313,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
         />
 
         <SearchableSelect
-          label="Tally Voucher Type"
+          label={t('vouchers.form.tallyVoucherType')}
           value={tallyVoucherTypeName}
           options={vchTypeOptions}
           onSelect={(o) => setTallyVoucherTypeName(o.label)}
@@ -340,7 +342,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
 
         {!isOrderType ? (
           <TextInput
-            label="Reference (optional)"
+            label={t('vouchers.form.reference')}
             value={reference}
             onChangeText={setReference}
             mode="outlined"
@@ -352,9 +354,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
           <View style={styles.sectionHead}>
             <Text style={styles.sectionTitle}>Items ({items.length})</Text>
             {items.length > 0 ? (
-              <Button compact textColor={voucherFormTheme.primary} onPress={goAddItem}>
-                ADD MORE
-              </Button>
+              <Button compact textColor={voucherFormTheme.primary} onPress={goAddItem}>{t('vouchers.form.addMore')}</Button>
             ) : null}
           </View>
 
@@ -383,9 +383,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                           item: line,
                         })
                       }
-                    >
-                      EDIT
-                    </Button>
+                    >{t('common.edit').toUpperCase()}</Button>
                     <IconButton
                       icon="delete-outline"
                       iconColor={voucherFormTheme.danger}
@@ -395,10 +393,10 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
                   </View>
                 </View>
                 <Text style={styles.itemMeta}>
-                  {line.quantity} {line.unit} × ₹ {line.rate.toLocaleString('en-IN')}
+                  {line.quantity} {line.unit} × {formatCurrency(line.rate)}
                 </Text>
                 <Text style={styles.itemAmount}>
-                  ₹ {(line.amount || lineTaxableAmount(line)).toLocaleString('en-IN')}
+                  {formatCurrency(line.amount || lineTaxableAmount(line))}
                 </Text>
               </View>
             ))
@@ -406,37 +404,37 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
         </View>
 
         <Text style={styles.ledgerHint}>
-          Add tax ledgers (IGST, CGST, SGST) and other charges under Ledger.
+          {t('vouchers.item.ledgerHint')}
         </Text>
         <TouchableOpacity style={styles.linkRow} onPress={() => setLedgerModalVisible(true)}>
-          <Text style={styles.sectionTitle}>Ledger</Text>
-          <Text style={styles.addLink}>ADD</Text>
+          <Text style={styles.sectionTitle}>{t('vouchers.item.ledger')}</Text>
+          <Text style={styles.addLink}>{t('vouchers.form.addLink')}</Text>
         </TouchableOpacity>
         {extraLedgers.map((l, i) => (
           <View key={`${l.ledgerName}-${i}`} style={styles.ledgerRow}>
             <Text>{l.ledgerName}</Text>
-            <Text>₹ {l.amount.toLocaleString('en-IN')}</Text>
+            <Text>{formatCurrency(l.amount)}</Text>
           </View>
         ))}
 
         <View style={styles.summaryCard}>
-          <Text style={styles.sectionTitle}>Summary</Text>
+          <Text style={styles.sectionTitle}>{t('vouchers.item.summary')}</Text>
           <View style={styles.summaryRow}>
-            <Text style={styles.muted}>Net Total</Text>
-            <Text>₹ {summary.netTotal.toLocaleString('en-IN')}</Text>
+            <Text style={styles.muted}>{t('vouchers.item.netTotal')}</Text>
+            <Text>{formatCurrency(summary.netTotal)}</Text>
           </View>
           <View style={styles.summaryRow}>
-            <Text style={styles.muted}>Tax & ledgers</Text>
-            <Text>₹ {summary.totalTax.toLocaleString('en-IN')}</Text>
+            <Text style={styles.muted}>{t('vouchers.item.taxAndLedgers')}</Text>
+            <Text>{formatCurrency(summary.totalTax)}</Text>
           </View>
           <View style={[styles.summaryRow, styles.grossRow]}>
-            <Text style={styles.grossLabel}>Gross Total</Text>
-            <Text style={styles.grossValue}>₹ {summary.grossTotal.toLocaleString('en-IN')}</Text>
+            <Text style={styles.grossLabel}>{t('vouchers.item.grossTotal')}</Text>
+            <Text style={styles.grossValue}>{formatCurrency(summary.grossTotal)}</Text>
           </View>
         </View>
 
         <TextInput
-          label="Narration"
+          label={t('vouchers.item.narration')}
           value={narration}
           onChangeText={(t) => setNarration(t.slice(0, 300))}
           mode="outlined"
@@ -453,7 +451,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.modalBackdrop}>
           <View style={styles.modalSheet}>
             <View style={styles.modalHead}>
-              <Text style={styles.modalTitle}>Ledger</Text>
+              <Text style={styles.modalTitle}>{t('vouchers.item.ledger')}</Text>
               <IconButton icon="close" onPress={() => setLedgerModalVisible(false)} />
             </View>
             <Text style={styles.modalHint}>
@@ -461,16 +459,16 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
               Creditors) are excluded.
             </Text>
             <SearchableSelect
-              label="Ledger Name"
+              label={t('vouchers.form.ledgerName')}
               pickerTitle="Select ledger"
               value={ledgerName}
               options={extraLedgerOptions}
               onSelect={(o) => setLedgerName(o.label)}
-              placeholder="Tax or charge ledger"
+              placeholder={t('vouchers.form.taxLedgerPlaceholder')}
               leftIcon="book-open-variant"
             />
             <TextInput
-              label="Amount"
+              label={t('vouchers.form.amount')}
               value={ledgerAmount}
               onChangeText={setLedgerAmount}
               keyboardType="decimal-pad"
@@ -478,9 +476,7 @@ const CreateItemVoucherScreen: React.FC<Props> = ({ navigation, route }) => {
               left={<TextInput.Affix text="₹" />}
               style={styles.input}
             />
-            <Button mode="contained" onPress={addLedger} buttonColor={voucherFormTheme.primary}>
-              ADD LEDGER
-            </Button>
+            <Button mode="contained" onPress={addLedger} buttonColor={voucherFormTheme.primary}>{t('vouchers.form.addLedger')}</Button>
           </View>
         </View>
       </Modal>

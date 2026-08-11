@@ -34,6 +34,7 @@ import {
   setNotificationsEnabled,
   setOfflineMode,
   setDebugMode,
+  setLanguage,
 } from '../store/slices/settingsSlice';
 import { setOfflineMode as setOfflineSliceMode } from '../store/slices/offlineSlice';
 import { setOnlineStatus } from '../store/slices/syncSlice';
@@ -47,12 +48,19 @@ import { MDI } from '../utils/mdiIcons';
 // Types
 import { MainStackScreenProps } from '../types/navigation';
 
+// i18n
+import { useTranslation } from 'react-i18next';
+import { changeLanguage } from '../i18n';
+import { findLanguage } from '../i18n/languages';
+import LanguagePickerDialog from '../components/settings/LanguagePickerDialog';
+
 type Props = MainStackScreenProps<'Settings'>;
 
 const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const { startGuide } = useAppGuide();
+  const { t } = useTranslation();
   
   const { user } = useSelector((state: RootState) => state.auth);
   const settings = useSelector((state: RootState) => state.settings);
@@ -64,6 +72,21 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const [biometricBusy, setBiometricBusy] = useState(false);
   const [passwordDialogVisible, setPasswordDialogVisible] = useState(false);
   const [passwordInput, setPasswordInput] = useState('');
+  const [languageDialogVisible, setLanguageDialogVisible] = useState(false);
+
+  const currentLanguageName =
+    findLanguage(settings.language)?.nativeName ?? settings.language;
+
+  const handleLanguageSelect = useCallback(
+    async (code: string) => {
+      // changeLanguage is the authority: it falls back to English if the
+      // requested language has no translation file, and returns what it
+      // actually applied. Store that, not what was asked for.
+      const applied = await changeLanguage(code);
+      dispatch(setLanguage(applied));
+    },
+    [dispatch]
+  );
 
   const syncBiometricSettingState = useCallback(async () => {
     const capabilities = await biometricService.isSupported();
@@ -91,7 +114,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
   const finalizeBiometricEnable = async (password: string) => {
     if (!user?.email) {
-      Alert.alert('Error', 'Sign in again before enabling biometric authentication.');
+      Alert.alert(t('common.error'), t('settings.biometric.signInAgain'));
       return;
     }
 
@@ -105,13 +128,13 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       await biometricService.markBiometricEnabled();
       applyBiometricEnabled(true);
       Alert.alert(
-        'Biometric enabled',
-        `You can sign in with ${biometricTypeLabel} on the login screen.`
+        t('settings.biometric.enabledTitle'),
+        t('settings.biometric.enabledMessage', { type: biometricTypeLabel })
       );
     } catch (error: any) {
       Alert.alert(
-        'Setup failed',
-        error?.message || 'Could not enable biometric authentication.'
+        t('settings.biometric.setupFailed'),
+        error?.message || t('settings.biometric.couldNotEnable')
       );
     } finally {
       setBiometricBusy(false);
@@ -123,12 +146,12 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   const promptPasswordAndEnable = () => {
     if (Platform.OS === 'ios') {
       Alert.prompt(
-        'Confirm password',
-        'Enter your account password to enable biometric sign-in.',
+        t('settings.biometric.confirmPassword'),
+        t('settings.biometric.confirmPasswordMessage'),
         [
-          { text: 'Cancel', style: 'cancel' },
+          { text: t('common.cancel'), style: 'cancel' },
           {
-            text: 'Enable',
+            text: t('settings.biometric.enable'),
             onPress: (value) => {
               if (value?.trim()) {
                 void finalizeBiometricEnable(value.trim());
@@ -155,8 +178,8 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         applyBiometricEnabled(false);
       } catch (error: any) {
         Alert.alert(
-          'Error',
-          error?.message || 'Could not disable biometric authentication.'
+          t('common.error'),
+          error?.message || t('settings.biometric.couldNotDisable')
         );
       } finally {
         setBiometricBusy(false);
@@ -167,14 +190,14 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
     const capabilities = await biometricService.isSupported();
     if (!capabilities.isSupported) {
       Alert.alert(
-        'Not available',
-        'This device does not support fingerprint or face authentication.'
+        t('settings.biometric.notAvailable'),
+        t('settings.biometric.notSupported')
       );
       return;
     }
 
     if (!user?.email) {
-      Alert.alert('Sign in required', 'Log in with your password before enabling biometrics.');
+      Alert.alert(t('settings.biometric.signInRequired'), t('settings.biometric.signInFirst'));
       return;
     }
 
@@ -182,16 +205,16 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
     try {
       const biometricType = await biometricService.getBiometricTypeString();
       await biometricService.authenticate({
-        title: 'Enable biometric login',
-        description: `Authenticate with ${biometricType} to continue`,
+        title: t('settings.biometric.enableTitle'),
+        description: t('settings.biometric.authenticateWith', { type: biometricType }),
       });
       promptPasswordAndEnable();
     } catch (error: any) {
       const msg = (error?.message || '').toLowerCase();
       if (!msg.includes('cancel')) {
         Alert.alert(
-          'Authentication failed',
-          error?.message || 'Biometric verification was not completed.'
+          t('settings.biometric.authFailed'),
+          error?.message || t('settings.biometric.notCompleted')
         );
       }
     } finally {
@@ -201,12 +224,12 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleLogout = () => {
     Alert.alert(
-      'Logout',
-      'Are you sure you want to logout?',
+      t('settings.logout.title'),
+      t('settings.logout.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Logout',
+          text: t('settings.logout.confirm'),
           style: 'destructive',
           onPress: () => dispatch(logout()),
         },
@@ -216,16 +239,16 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleClearCache = () => {
     Alert.alert(
-      'Clear Cache',
-      'This will clear all cached data. Continue?',
+      t('settings.cache.title'),
+      t('settings.cache.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Clear',
+          text: t('settings.cache.confirm'),
           style: 'destructive',
           onPress: () => {
             // TODO: Implement cache clearing
-            Alert.alert('Success', 'Cache cleared successfully');
+            Alert.alert(t('common.success'), t('settings.cache.success'));
           },
         },
       ]
@@ -243,8 +266,8 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Settings"
-        subtitle="App Configuration"
+        title={t('settings.title')}
+        subtitle={t('settings.subtitle')}
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -252,7 +275,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Account Section */}
         <Surface style={styles.section} elevation={2}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Account</Text>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionAccount')}</Text>
           
           <List.Item
             title={user?.name || 'User'}
@@ -265,8 +288,8 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           <Divider />
           
           <List.Item
-            title="Subscription & billing"
-            description="Manage plan and device seats (mobile included)"
+            title={t('settings.billing.title')}
+            description={t('settings.billing.description')}
             left={(props) => <List.Icon {...props} icon="credit-card" />}
             onPress={() => navigation.navigate('Billing')}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
@@ -275,7 +298,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           <Divider />
 
           <List.Item
-            title="Company selection"
+            title={t('settings.companySelection')}
             description={
               selectedCompany?.name
                 ? `Active: ${selectedCompany.name}`
@@ -289,11 +312,11 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Sync Settings */}
         <Surface style={styles.section} elevation={2}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Synchronization</Text>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionSync')}</Text>
           
           <List.Item
-            title="Auto Sync"
-            description="Automatically sync when online"
+            title={t('settings.autoSync.title')}
+            description={t('settings.autoSync.description')}
             left={(props) => <List.Icon {...props} icon="sync" />}
             right={() => (
               <Switch
@@ -306,7 +329,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           />
           
           <List.Item
-            title="Sync Interval"
+            title={t('settings.syncInterval')}
             description={`Every ${settings.syncInterval} minutes`}
             left={(props) => <List.Icon {...props} icon="clock" />}
             onPress={() => {
@@ -316,8 +339,8 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           />
           
           <List.Item
-            title="Offline Mode"
-            description="Work offline with local data"
+            title={t('settings.offlineMode.title')}
+            description={t('settings.offlineMode.description')}
             left={(props) => <List.Icon {...props} icon="cloud-off" />}
             right={() => (
               <Switch
@@ -338,10 +361,10 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Security Settings */}
         <Surface style={styles.section} elevation={2}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Security</Text>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionSecurity')}</Text>
           
           <List.Item
-            title="Biometric Authentication"
+            title={t('settings.biometric.title')}
             description={
               biometricSupported
                 ? `Sign in with ${biometricTypeLabel}`
@@ -360,11 +383,13 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* App Settings */}
         <Surface style={styles.section} elevation={2}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>App Settings</Text>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionApp')}</Text>
           
           <List.Item
-            title="Theme"
-            description={`${settings.theme.charAt(0).toUpperCase() + settings.theme.slice(1)} theme`}
+            title={t('settings.theme')}
+            description={t('settings.themeValue', {
+              name: t(`settings.themeName.${settings.theme}`),
+            })}
             left={(props) => <List.Icon {...props} icon="palette" />}
             onPress={() => {
               // TODO: Show theme picker
@@ -373,8 +398,16 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           />
           
           <List.Item
-            title="Notifications"
-            description="Push notifications and alerts"
+            title={t('settings.language.title')}
+            description={currentLanguageName}
+            left={(props) => <List.Icon {...props} icon="translate" />}
+            onPress={() => setLanguageDialogVisible(true)}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          />
+
+          <List.Item
+            title={t('settings.notifications')}
+            description={t('settings.notificationsDescription')}
             left={(props) => <List.Icon {...props} icon="bell" />}
             right={() => (
               <Switch
@@ -387,8 +420,8 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           />
           
           <List.Item
-            title="Debug Mode"
-            description="Enable debug logging"
+            title={t('settings.debugMode')}
+            description={t('settings.debugModeDescription')}
             left={(props) => <List.Icon {...props} icon="bug" />}
             right={() => (
               <Switch
@@ -404,11 +437,11 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
         {/* ML Settings */}
         {isMLServiceAvailable && (
           <Surface style={styles.section} elevation={2}>
-            <Text variant="titleMedium" style={styles.sectionTitle}>AI/ML Features</Text>
+            <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionAi')}</Text>
             
             <List.Item
-              title="Payment Predictions"
-              description="AI payment delay predictions"
+              title={t('settings.paymentPredictions.title')}
+              description={t('settings.paymentPredictions.description')}
               left={(props) => <List.Icon {...props} icon={MDI.mlCrystal} />}
               onPress={() => navigation.navigate('PaymentPrediction')}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
@@ -418,19 +451,19 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Data Management */}
         <Surface style={styles.section} elevation={2}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Data Management</Text>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionData')}</Text>
           
           <List.Item
-            title="Clear Cache"
-            description="Clear all cached data"
+            title={t('settings.cache.title')}
+            description={t('settings.cache.description')}
             left={(props) => <List.Icon {...props} icon="delete" />}
             onPress={handleClearCache}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
           />
           
           <List.Item
-            title="Export Data"
-            description="Export app data"
+            title={t('settings.export.title')}
+            description={t('settings.export.description')}
             left={(props) => <List.Icon {...props} icon={MDI.exportData} />}
             onPress={() => {
               // TODO: Implement data export
@@ -441,11 +474,11 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* Help */}
         <Surface style={styles.section} elevation={2}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>Help</Text>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionHelp')}</Text>
 
           <List.Item
-            title="Show app tour"
-            description="Replay Finny's guided walkthrough of the app"
+            title={t('settings.appTour.title')}
+            description={t('settings.appTour.description')}
             left={(props) => <List.Icon {...props} icon="map-marker-path" />}
             onPress={handleShowAppTour}
             right={(props) => <List.Icon {...props} icon="chevron-right" />}
@@ -454,17 +487,17 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
 
         {/* About Section */}
         <Surface style={styles.section} elevation={2}>
-          <Text variant="titleMedium" style={styles.sectionTitle}>About</Text>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionAbout')}</Text>
           
           <List.Item
-            title="App Version"
+            title={t('settings.appVersion')}
             description="1.0.0"
             left={(props) => <List.Icon {...props} icon="information" />}
           />
           
           <List.Item
-            title="Privacy Policy"
-            description="View privacy policy"
+            title={t('settings.privacyPolicy.title')}
+            description={t('settings.privacyPolicy.description')}
             left={(props) => <List.Icon {...props} icon="shield-account" />}
             onPress={() => {
               // TODO: Open privacy policy
@@ -473,8 +506,8 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           />
           
           <List.Item
-            title="Terms of Service"
-            description="View terms of service"
+            title={t('settings.terms.title')}
+            description={t('settings.terms.description')}
             left={(props) => <List.Icon {...props} icon="file-document" />}
             onPress={() => {
               // TODO: Open terms of service
@@ -491,9 +524,7 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             icon="logout"
             style={[styles.logoutButton, { borderColor: theme.colors.error }]}
             textColor={theme.colors.error}
-          >
-            Logout
-          </Button>
+          >{t('settings.logout.title')}</Button>
         </View>
 
         <View style={styles.bottomSpacing} />
@@ -509,13 +540,13 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
             }
           }}
         >
-          <Dialog.Title>Confirm password</Dialog.Title>
+          <Dialog.Title>{t('settings.biometric.confirmPassword')}</Dialog.Title>
           <Dialog.Content>
             <Text variant="bodyMedium" style={styles.dialogHint}>
-              Enter your account password to store credentials for biometric sign-in.
+              {t('settings.biometric.storeCredentials')}
             </Text>
             <TextInput
-              label="Password"
+              label={t('settings.biometric.password')}
               value={passwordInput}
               onChangeText={setPasswordInput}
               secureTextEntry
@@ -531,25 +562,28 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
                 setPasswordInput('');
               }}
               disabled={biometricBusy}
-            >
-              Cancel
-            </Button>
+            >{t('common.cancel')}</Button>
             <Button
               onPress={() => {
                 if (!passwordInput.trim()) {
-                  Alert.alert('Password required', 'Enter your account password.');
+                  Alert.alert(t('settings.biometric.passwordRequired'), t('settings.biometric.enterPassword'));
                   return;
                 }
                 void finalizeBiometricEnable(passwordInput.trim());
               }}
               loading={biometricBusy}
               disabled={biometricBusy}
-            >
-              Enable
-            </Button>
+            >{t('settings.biometric.enable')}</Button>
           </Dialog.Actions>
         </Dialog>
       </Portal>
+
+      <LanguagePickerDialog
+        visible={languageDialogVisible}
+        value={settings.language}
+        onSelect={handleLanguageSelect}
+        onDismiss={() => setLanguageDialogVisible(false)}
+      />
     </View>
   );
 };

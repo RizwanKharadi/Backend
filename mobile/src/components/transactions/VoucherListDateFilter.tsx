@@ -10,7 +10,8 @@ import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { dashboardColors } from '../dashboard/dashboardTheme';
-import { toLocalDateString } from '../../utils/formatters';
+import { toLocalDateString, formatDate, monthLabel } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 export interface DateRangeValue {
   from: Date;
@@ -40,11 +41,7 @@ function startOfDay(d: Date): Date {
 }
 
 function formatDisplayDate(d: Date): string {
-  return d.toLocaleDateString(undefined, {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  });
+  return formatDate(d);
 }
 
 function applyPreset(preset: (typeof PRESETS)[number]['id']): DateRangeValue {
@@ -75,15 +72,9 @@ function applyPreset(preset: (typeof PRESETS)[number]['id']): DateRangeValue {
   }
 }
 
-const MONTH_LABELS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
 /**
  * The last 12 whole months, newest first — one tap to scope a long voucher list
  * to a single month, which is the common case when hunting for one voucher.
- * Fixed month names because Hermes on Android ships without full Intl.
  */
 function recentMonths(count = 12) {
   const now = new Date();
@@ -97,8 +88,8 @@ function recentMonths(count = 12) {
       // Year shown only when it is not the current one, to keep chips short.
       label:
         year === now.getFullYear()
-          ? MONTH_LABELS[month]
-          : `${MONTH_LABELS[month]} ${String(year).slice(2)}`,
+          ? monthLabel(month)
+          : `${monthLabel(month)} ${String(year).slice(2)}`,
       from: startOfDay(new Date(year, month, 1)),
       to: startOfDay(new Date(year, month + 1, 0)),
     });
@@ -120,6 +111,7 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
   accentColor = dashboardColors.accent,
   showMonthChips = false,
 }) => {
+  const { t } = useTranslation();
   const [picker, setPicker] = useState<'from' | 'to' | null>(null);
   const months = useMemo(() => recentMonths(12), []);
 
@@ -191,7 +183,7 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
       ) : null}
 
       <View style={styles.dateCard}>
-        <Text style={styles.cardTitle}>Date range</Text>
+        <Text style={styles.cardTitle}>{t('dayBook.dateRange')}</Text>
         <View style={styles.dateRow}>
           <TouchableOpacity
             style={styles.dateBtn}
@@ -199,7 +191,7 @@ const VoucherListDateFilter: React.FC<VoucherListDateFilterProps> = ({
           >
             <Icon name="calendar-start" size={20} color={accentColor} />
             <View style={styles.dateBtnText}>
-              <Text style={styles.dateLabel}>From</Text>
+              <Text style={styles.dateLabel}>{t('transactions.from')}</Text>
               <Text style={styles.dateValue}>{formatDisplayDate(value.from)}</Text>
             </View>
           </TouchableOpacity>
@@ -265,9 +257,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   monthRow: {
-    gap: 8,
     paddingRight: 8,
     marginBottom: 10,
+    alignItems: 'center',
   },
   monthChip: {
     paddingHorizontal: 14,
@@ -276,6 +268,10 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#d7dde5',
     backgroundColor: dashboardColors.cardBg,
+    // Without flexShrink: 0 the chips share the visible width and their labels
+    // ellipsise instead of scrolling off-screen.
+    flexShrink: 0,
+    marginRight: 8,
   },
   monthText: {
     fontSize: 12,

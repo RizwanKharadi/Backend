@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Types
 import { Voucher } from '../types';
+import { formatCurrency, formatDate } from '../utils/formatters';
 
 interface VoucherCardProps {
   voucher: Voucher;
@@ -43,23 +44,6 @@ const VoucherCard: React.FC<VoucherCardProps> = ({ voucher, onPress }) => {
     }
   };
 
-  const formatAmount = (amount: number): string => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-      minimumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  const formatDate = (dateString: string): string => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString('en-IN', {
-      day: '2-digit',
-      month: 'short',
-      year: 'numeric',
-    });
-  };
-
   return (
     <TouchableOpacity onPress={() => onPress(voucher.id)}>
       <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={1}>
@@ -81,7 +65,7 @@ const VoucherCard: React.FC<VoucherCardProps> = ({ voucher, onPress }) => {
                 variant="titleMedium"
                 style={[styles.amount, { color: theme.colors.onSurface }]}
               >
-                {formatAmount(voucher.amount)}
+                {formatCurrency(voucher.amount)}
               </Text>
               <Chip
                 mode="outlined"

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Modal,
   View,
@@ -30,11 +31,13 @@ const ReportPeriodFilterModal: React.FC<Props> = ({
   selectedKey,
   onClose,
   onSelect,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
     <Pressable style={styles.backdrop} onPress={onClose}>
       <Pressable style={styles.sheet} onPress={(e) => e.stopPropagation()}>
-        <Text style={styles.title}>Filter period</Text>
+        <Text style={styles.title}>{t('reports.filterPeriod')}</Text>
         {REPORT_PERIOD_OPTIONS.map((opt) => (
           <TouchableOpacity
             key={opt.key}
@@ -55,12 +58,13 @@ const ReportPeriodFilterModal: React.FC<Props> = ({
           </TouchableOpacity>
         ))}
         <TouchableOpacity style={styles.cancelBtn} onPress={onClose}>
-          <Text style={styles.cancelText}>Cancel</Text>
+          <Text style={styles.cancelText}>{t('common.cancel')}</Text>
         </TouchableOpacity>
       </Pressable>
     </Pressable>
   </Modal>
-);
+  );
+};
 
 export default ReportPeriodFilterModal;
 

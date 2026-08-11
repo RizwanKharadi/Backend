@@ -24,10 +24,12 @@ import {
 } from '../store/slices/companySlice';
 import { setSelectedCompany as setPersistedCompanyId } from '../store/slices/settingsSlice';
 import { Company } from '../types';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'CompanySelection'>;
 
 const CompanySelectionScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const { companies, selectedCompany, isLoading } = useSelector(
@@ -44,7 +46,7 @@ const CompanySelectionScreen: React.FC<Props> = ({ navigation }) => {
     try {
       await dispatch(fetchCompanies({})).unwrap();
     } catch (e: any) {
-      Alert.alert('Could not load companies', e || 'Try again later');
+      Alert.alert(t('company.loadFailed'), e || t('company.tryAgainLater'));
     }
   }, [dispatch]);
 
@@ -103,16 +105,15 @@ const CompanySelectionScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Company selection"
-        subtitle="Choose which workspace to view"
+        title={t('settings.companySelection')}
+        subtitle={t('company.chooseWorkspace')}
         showBack
         onBackPress={() => navigation.goBack()}
       />
 
       <View style={styles.inner}>
         <Text variant="bodyMedium" style={styles.help}>
-          If you use desktop sync, pick the company that matches your Tally books. Data in the app is filtered by
-          this workspace.
+          {t('company.help')}
         </Text>
 
         {isLoading && companies.length === 0 ? (
@@ -129,16 +130,13 @@ const CompanySelectionScreen: React.FC<Props> = ({ navigation }) => {
             }
             ListEmptyComponent={
               <Text style={styles.empty}>
-                No companies yet. Complete signup (optional workspace) or run desktop sync to create your Tally
-                company in the cloud.
+                {t('company.empty')}
               </Text>
             }
           />
         )}
 
-        <Button mode="outlined" onPress={onRefresh} loading={refreshing}>
-          Refresh list
-        </Button>
+        <Button mode="outlined" onPress={onRefresh} loading={refreshing}>{t('company.refreshList')}</Button>
       </View>
     </View>
   );

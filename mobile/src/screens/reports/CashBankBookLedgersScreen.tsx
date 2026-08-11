@@ -17,6 +17,7 @@ import {
 } from '../../services/reportService';
 import { formatCurrency } from '../../utils/formatters';
 import { ReportPeriodKey } from '../../components/reports/ReportPeriodFilterModal';
+import { useTranslation } from 'react-i18next';
 
 const PRIMARY = '#1565C0';
 
@@ -31,6 +32,7 @@ type RouteParams = {
 };
 
 const CashBankBookLedgersScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const route = useRoute<any>();
   const { selectedCompany } = useCompany();
@@ -130,10 +132,10 @@ const CashBankBookLedgersScreen = () => {
       </View>
 
       <View style={styles.colHeader}>
-        <Text style={styles.colParticulars}>Particulars</Text>
+        <Text style={styles.colParticulars}>{t('vouchers.detail.particulars')}</Text>
         <View style={styles.colDebitCredit}>
-          <Text style={styles.colSub}>Debit</Text>
-          <Text style={styles.colSub}>Credit</Text>
+          <Text style={styles.colSub}>{t('vouchers.journal.debit')}</Text>
+          <Text style={styles.colSub}>{t('vouchers.journal.credit')}</Text>
         </View>
       </View>
 
@@ -145,7 +147,7 @@ const CashBankBookLedgersScreen = () => {
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -165,7 +167,7 @@ const CashBankBookLedgersScreen = () => {
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              No ledgers synced for this group. Run desktop-agent sync.
+              {t('reports.noLedgersSynced')}
             </Text>
           }
         />

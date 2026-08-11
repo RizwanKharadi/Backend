@@ -13,6 +13,7 @@ import { useNavigation } from '@react-navigation/native';
 import { useCompany } from '../../store/hooks';
 import { reportService, BalanceSheetGroup } from '../../services/reportService';
 import { formatCurrency, formatDate } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import ReportPeriodFilterModal, {
   ReportPeriodKey,
   REPORT_PERIOD_OPTIONS,
@@ -24,6 +25,7 @@ const periodLabel = (key: ReportPeriodKey) =>
   REPORT_PERIOD_OPTIONS.find((o) => o.key === key)?.label ?? 'This Month';
 
 const BalanceSheetScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
@@ -106,7 +108,7 @@ const BalanceSheetScreen = () => {
   if (!selectedCompany) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Select a company to view reports.</Text>
+        <Text style={styles.emptyText}>{t('reports.selectCompany')}</Text>
       </View>
     );
   }
@@ -121,13 +123,13 @@ const BalanceSheetScreen = () => {
             <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backBtn}>
               <Icon name="arrow-left" size={24} color="#fff" />
             </TouchableOpacity>
-            <Text style={styles.title}>Balance Sheet</Text>
+            <Text style={styles.title}>{t('reports.item.balanceSheet.title')}</Text>
             <TouchableOpacity
               onPress={() => setFilterVisible(true)}
               style={styles.filterBtn}
             >
               <Icon name="filter-variant" size={22} color="#fff" />
-              <Text style={styles.filterBtnText}>Filter</Text>
+              <Text style={styles.filterBtnText}>{t('reports.filter')}</Text>
             </TouchableOpacity>
           </View>
           <Text style={styles.subtitle}>{selectedCompany.name}</Text>
@@ -148,25 +150,25 @@ const BalanceSheetScreen = () => {
           <View style={styles.centered}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity onPress={fetchBalanceSheet} style={styles.retryBtn}>
-              <Text style={styles.retryText}>Retry</Text>
+              <Text style={styles.retryText}>{t('common.retry')}</Text>
             </TouchableOpacity>
           </View>
         ) : (
           <>
             <Card style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Total Assets</Text>
+              <Text style={styles.summaryLabel}>{t('reports.balanceSheet.totalAssets')}</Text>
               <Text style={styles.summaryValue}>
                 {formatCurrency(data?.assets?.total || 0)}
               </Text>
             </Card>
             <Card style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Total Liabilities</Text>
+              <Text style={styles.summaryLabel}>{t('reports.balanceSheet.totalLiabilities')}</Text>
               <Text style={styles.summaryValue}>
                 {formatCurrency(data?.liabilities?.total || 0)}
               </Text>
             </Card>
             <Card style={styles.summaryCard}>
-              <Text style={styles.summaryLabel}>Total Equity</Text>
+              <Text style={styles.summaryLabel}>{t('reports.balanceSheet.totalEquity')}</Text>
               <Text style={styles.summaryValue}>
                 {formatCurrency(data?.equity?.total || 0)}
               </Text>
@@ -174,34 +176,34 @@ const BalanceSheetScreen = () => {
 
             {groups.length > 0 ? (
               <>
-                <Text style={styles.sectionTitle}>Groups (tap to drill down)</Text>
+                <Text style={styles.sectionTitle}>{t('reports.groupsHint')}</Text>
                 <Card style={styles.detailCard}>
                   {groups.map(renderGroupRow)}
                 </Card>
               </>
             ) : null}
 
-            <Text style={styles.sectionTitle}>Assets</Text>
+            <Text style={styles.sectionTitle}>{t('reports.balanceSheet.assets')}</Text>
             <Card style={styles.detailCard}>
               {renderRows(data?.assets?.current)}
               {!data?.assets?.current?.length ? (
-                <Text style={styles.emptyText}>No asset lines synced.</Text>
+                <Text style={styles.emptyText}>{t('reports.balanceSheet.noAssets')}</Text>
               ) : null}
             </Card>
 
-            <Text style={styles.sectionTitle}>Liabilities</Text>
+            <Text style={styles.sectionTitle}>{t('reports.balanceSheet.liabilities')}</Text>
             <Card style={styles.detailCard}>
               {renderRows(data?.liabilities?.current)}
               {!data?.liabilities?.current?.length ? (
-                <Text style={styles.emptyText}>No liability lines synced.</Text>
+                <Text style={styles.emptyText}>{t('reports.balanceSheet.noLiabilities')}</Text>
               ) : null}
             </Card>
 
-            <Text style={styles.sectionTitle}>Equity</Text>
+            <Text style={styles.sectionTitle}>{t('reports.balanceSheet.equity')}</Text>
             <Card style={styles.detailCard}>
               {renderRows(data?.equity?.current)}
               {!data?.equity?.current?.length ? (
-                <Text style={styles.emptyText}>No equity lines synced.</Text>
+                <Text style={styles.emptyText}>{t('reports.balanceSheet.noEquity')}</Text>
               ) : null}
               <Divider style={styles.divider} />
               <Text style={styles.balanceNote}>

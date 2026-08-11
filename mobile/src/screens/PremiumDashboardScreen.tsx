@@ -31,6 +31,7 @@ import SalesChart from '../components/SalesChart';
 import OutstandingList from '../components/OutstandingList';
 import FloatingVoucherButton from '../components/FloatingVoucherButton';
 import BottomNavigation from '../components/BottomNavigation';
+import { GuideTarget } from '../components/guide';
 
 import { colors } from '../theme/colors';
 import { spacing } from '../theme/spacing';
@@ -66,11 +67,14 @@ import {
 import { billingService } from '../services/billingService';
 import { offlineCacheService } from '../services/offlineCacheService';
 import {
-  formatIndianCompact,
+  formatCompactAmount,
+  formatDayMonth,
   formatRelativeTime,
+  formatWeekday,
   getGreeting,
   parseLocalDateString,
 } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const SCREEN_PADDING = spacing.md;
 const MIN_AUTO_RELOAD_MS = 45_000;
@@ -96,29 +100,12 @@ function sampleLabels(labels: string[], maxLabels: number): string[] {
   return labels.map((l, i) => (i % step === 0 ? l : ''));
 }
 
-// Hermes on Android ships without full Intl, so
-// `toLocaleDateString(undefined, { weekday: 'short' })` yields "undefined"
-// instead of a weekday. Use a fixed table — chart axis labels must not depend
-// on the JS engine's locale support.
-const WEEKDAY_LABELS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-const MONTH_LABELS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-
-/** '2026-08-06' → '6 Aug'. Fixed tables for the same Hermes/Intl reason. */
-function formatDayMonth(iso: string): string {
-  const d = parseLocalDateString(iso);
-  if (Number.isNaN(d.getTime())) return '';
-  return `${d.getDate()} ${MONTH_LABELS[d.getMonth()]}`;
-}
-
 function trendToSeries(rows: DashboardSummaryData['salesTrend']): SalesSeries {
   const labels: string[] = [];
   const values: number[] = [];
   for (const row of rows || []) {
     const d = parseLocalDateString(row.date);
-    labels.push(Number.isNaN(d.getTime()) ? '' : WEEKDAY_LABELS[d.getDay()]);
+    labels.push(formatWeekday(d));
     values.push(row.amount || 0);
   }
   return { labels, values };
@@ -126,29 +113,33 @@ function trendToSeries(rows: DashboardSummaryData['salesTrend']): SalesSeries {
 
 function signedCompact(amount: number): string {
   const sign = amount < 0 ? '-' : '+';
-  return `${sign}${formatIndianCompact(Math.abs(amount))}`;
+  return `${sign}${formatCompactAmount(Math.abs(amount))}`;
 }
 
 function buildSubscription(
   billing: { subscription?: { status?: string; trialEndsAt?: string } } | null
 ): SubscriptionState {
   const sub = billing?.subscription;
-  if (sub?.status === 'active') return { type: 'active', label: 'Subscription Active' };
-  if (sub?.status === 'past_due') return { type: 'expired', label: 'Payment due' };
+  if (sub?.status === 'active') return { type: 'active', labelKey: 'dashboard.subscriptionActive' };
+  if (sub?.status === 'past_due') return { type: 'expired', labelKey: 'dashboard.trial.paymentDue' };
   if (sub?.status === 'trial' && sub.trialEndsAt) {
     const days = Math.max(
       0,
       Math.ceil((new Date(sub.trialEndsAt).getTime() - Date.now()) / 86_400_000)
     );
-    return {
-      type: days > 0 ? 'trial' : 'expired',
-      label: days > 0 ? `Trial · ${days} Days Left` : 'Trial ended',
-    };
+    return days > 0
+      ? {
+          type: 'trial',
+          labelKey: 'dashboard.trial.daysLeftLong',
+          labelParams: { count: days },
+        }
+      : { type: 'expired', labelKey: 'dashboard.trial.ended' };
   }
-  return { type: 'trial', label: 'Trial' };
+  return { type: 'trial', labelKey: 'dashboard.trial.label' };
 }
 
 const PremiumDashboardScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
@@ -163,7 +154,7 @@ const PremiumDashboardScreen: React.FC = () => {
   const [outstanding, setOutstanding] = useState<OutstandingLedgerSummary[]>([]);
   const [subscription, setSubscription] = useState<SubscriptionState>({
     type: 'trial',
-    label: 'Trial',
+    labelKey: 'dashboard.trial.label',
   });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -268,7 +259,7 @@ const PremiumDashboardScreen: React.FC = () => {
         // Rows are { date, amount, count } — the server groups and sorts them.
         const rows = res?.data?.salesByPeriod || [];
         const labels = sampleLabels(
-          rows.map((r) => formatDayMonth(r.date)),
+          rows.map((r) => formatDayMonth(parseLocalDateString(r.date))),
           6
         );
         setSalesSeries((prev) => ({
@@ -305,12 +296,12 @@ const PremiumDashboardScreen: React.FC = () => {
   );
 
   const goSales = useCallback(
-    () => go('FilteredVouchers', { voucherType: 'sales', title: 'Sales' }),
+    () => go('FilteredVouchers', { voucherType: 'sales', title: t('reports.sales') }),
     [go]
   );
 
   const goPurchases = useCallback(
-    () => go('FilteredVouchers', { voucherType: 'purchase', title: 'Purchase' }),
+    () => go('FilteredVouchers', { voucherType: 'purchase', title: t('vouchers.kind.purchase') }),
     [go]
   );
 
@@ -356,15 +347,15 @@ const PremiumDashboardScreen: React.FC = () => {
 
   const header: HeaderData = {
     greeting: getGreeting(),
-    userName: user?.name?.split(' ')[0] || 'there',
-    companyName: selectedCompany?.name || 'Select company',
+    userName: user?.name?.split(' ')[0] || t('dashboard.there'),
+    companyName: selectedCompany?.name || t('dashboard.selectCompany'),
     sync: {
       online: isOnline,
       label: isSyncing
-        ? 'Syncing…'
+        ? t('sync.state.syncing')
         : isOnline
-        ? `Synced ${formatRelativeTime(tallyLastSync)}`
-        : 'Offline',
+        ? t('sync.syncedAgo', { value: formatRelativeTime(tallyLastSync) })
+        : t('sync.state.offline'),
     },
     subscription,
     unreadNotifications: unreadCount || 0,
@@ -394,63 +385,65 @@ const PremiumDashboardScreen: React.FC = () => {
     return [
       {
         id: 'revenue',
-        label: 'Sales',
-        value: formatIndianCompact(summary.monthlyRevenue.amount),
-        deltaLabel: `${summary.monthlyRevenue.count} invoices`,
+        label: t('reports.sales'),
+        value: formatCompactAmount(summary.monthlyRevenue.amount),
+        deltaLabel: t('dashboard.invoiceCount', { count: summary.monthlyRevenue.count }),
         icon: 'trending-up',
         accent: 'green',
         spark: (summary.salesTrend || []).map((r) => r.amount || 0),
       },
       {
         id: 'purchase',
-        label: 'Purchase',
-        value: formatIndianCompact(purchaseAmount),
+        label: t('vouchers.kind.purchase'),
+        value: formatCompactAmount(purchaseAmount),
         deltaLabel:
-          purchaseCount === undefined ? 'This month' : `${purchaseCount} bills`,
+          purchaseCount === undefined
+            ? t('dashboard.thisMonth')
+            : t('dashboard.billCount', { count: purchaseCount }),
         icon: 'cart-outline',
         accent: 'purple',
       },
       {
         id: 'receivables',
-        label: 'Receivables',
-        value: formatIndianCompact(summary.outstanding.receivables),
-        deltaLabel: `${summary.outstanding.overdueParties} overdue`,
+        label: t('dashboard.receivablesTitle'),
+        value: formatCompactAmount(summary.outstanding.receivables),
+        deltaLabel: t('dashboard.overdueCount', { count: summary.outstanding.overdueParties }),
         deltaPositive: false,
         icon: 'account-cash-outline',
         accent: 'orange',
       },
       {
         id: 'payable',
-        label: 'Payables',
-        value: payableSynced ? formatIndianCompact(payable!.payables) : '—',
+        label: t('dashboard.payables'),
+        value: payableSynced ? formatCompactAmount(payable!.payables) : '—',
         deltaLabel: payableSynced
-          ? `${payable!.overdueParties} overdue`
-          : 'Awaiting Tally sync',
+          ? t('dashboard.overdueCount', { count: payable!.overdueParties })
+          : t('dashboard.awaitingSync'),
         deltaPositive: payableSynced ? false : undefined,
         icon: 'account-arrow-up-outline',
         accent: 'red',
       },
       {
         id: 'bank',
-        label: 'Bank Balance',
-        value: formatIndianCompact(summary.bankBalance.amount),
+        label: t('dashboard.bankBalance'),
+        value: formatCompactAmount(summary.bankBalance.amount),
         // `bankAccounts` is the bank-group *balance*, not a count of accounts —
         // name what the figure is made of instead of miscounting it.
-        deltaLabel: 'Bank Account + Cash in Hand',
+        deltaLabel: t('dashboard.bankPlusCash'),
         icon: 'bank',
         accent: 'purple',
       },
       {
         id: 'profit',
-        label: 'Profit This Month',
-        value: `${profit < 0 ? '-' : ''}${formatIndianCompact(Math.abs(profit))}`,
-        deltaLabel: profit >= 0 ? 'Net profit' : 'Net loss',
+        label: t('dashboard.profitThisMonth'),
+        value: `${profit < 0 ? '-' : ''}${formatCompactAmount(Math.abs(profit))}`,
+        deltaLabel: profit >= 0 ? t('dashboard.netProfit') : t('dashboard.netLoss'),
         deltaPositive: profit >= 0,
         icon: 'chart-box',
         accent: profit >= 0 ? 'green' : 'red',
       },
     ];
-  }, [summary]);
+  }, [summary, t]);
 
   const topOutstanding: OutstandingItem[] = useMemo(
     () =>
@@ -460,7 +453,7 @@ const PremiumDashboardScreen: React.FC = () => {
         .map((l, i) => ({
           id: `${l.partyName}-${i}`,
           name: l.partyName,
-          amount: formatIndianCompact(l.totalOutstanding),
+          amount: formatCompactAmount(l.totalOutstanding),
           status:
             l.oldestOverdueDays && l.oldestOverdueDays > 0 ? 'overdue' : 'dueSoon',
         })),
@@ -481,10 +474,8 @@ const PremiumDashboardScreen: React.FC = () => {
           onSettingsPress={() => go('Settings')}
         />
         <View style={styles.center}>
-          <Text style={styles.emptyTitle}>Welcome to TallyFin</Text>
-          <Text style={styles.emptyBody}>
-            Choose a company linked from Tally to see your business dashboard.
-          </Text>
+          <Text style={styles.emptyTitle}>{t('dashboard.welcomeTitle')}</Text>
+          <Text style={styles.emptyBody}>{t('dashboard.welcomeBody')}</Text>
         </View>
       </View>
     );
@@ -519,7 +510,7 @@ const PremiumDashboardScreen: React.FC = () => {
             <HeroCard
               variant="netWorth"
               data={{
-                value: formatIndianCompact(
+                value: formatCompactAmount(
                   (summary?.bankBalance.amount || 0) +
                     (summary?.outstanding.receivables || 0)
                 ),
@@ -532,7 +523,7 @@ const PremiumDashboardScreen: React.FC = () => {
             <HeroCard
               variant="receivables"
               data={{
-                value: formatIndianCompact(summary?.outstanding.receivables || 0),
+                value: formatCompactAmount(summary?.outstanding.receivables || 0),
                 partiesLabel: `${summary?.outstanding.parties || 0} Parties`,
                 progress:
                   summary && summary.outstanding.parties > 0
@@ -552,20 +543,22 @@ const PremiumDashboardScreen: React.FC = () => {
           ) : (
             <>
               <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Business Overview</Text>
+                <Text style={styles.sectionTitle}>{t('dashboard.sectionOverview')}</Text>
               </View>
 
-              <View style={styles.kpiGrid}>
-                {kpis.map((kpi) => (
-                  <View key={kpi.id} style={styles.kpiCell}>
-                    <KpiCard data={kpi} onPress={() => kpiPress(kpi.id)} />
-                  </View>
-                ))}
-              </View>
+              <GuideTarget targetId="dashboard">
+                <View style={styles.kpiGrid}>
+                  {kpis.map((kpi) => (
+                    <View key={kpi.id} style={styles.kpiCell}>
+                      <KpiCard data={kpi} onPress={() => kpiPress(kpi.id)} />
+                    </View>
+                  ))}
+                </View>
+              </GuideTarget>
 
               <View style={styles.block}>
                 <SalesChart
-                  value={formatIndianCompact(salesTotal)}
+                  value={formatCompactAmount(salesTotal)}
                   activePeriod={salesPeriod}
                   series={activeSeries}
                   loading={salesLoading}
@@ -601,7 +594,12 @@ const PremiumDashboardScreen: React.FC = () => {
         bottomOffset={insets.bottom + 40}
       />
 
-      <BottomNavigation items={navItems} active="dashboard" onTabPress={handleTabPress} />
+      {/* The tour's bottom-nav step targets THIS bar, not the React Navigation
+          tab bar: the dashboard sets tabBarStyle display:'none' and renders its
+          own, so a target on the navigator's bar would spotlight nothing. */}
+      <GuideTarget targetId="bottom-nav">
+        <BottomNavigation items={navItems} active="dashboard" onTabPress={handleTabPress} />
+      </GuideTarget>
     </View>
   );
 };

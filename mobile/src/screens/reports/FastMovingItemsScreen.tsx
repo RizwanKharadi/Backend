@@ -16,18 +16,15 @@ import { reportService, FastMovingItemsData, FastMovingItemRow } from '../../ser
 import ReportPeriodFilterModal, {
   ReportPeriodKey,
 } from '../../components/reports/ReportPeriodFilterModal';
+import { formatQuantity } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const PRIMARY = '#1565C0';
 
-const formatQty = (qty: number) => {
-  const n = Number(qty);
-  if (!Number.isFinite(n)) return '0';
-  return Number.isInteger(n)
-    ? n.toLocaleString()
-    : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-};
+const formatQty = (qty: number) => formatQuantity(qty);
 
 const FastMovingItemsScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { selectedCompany } = useCompany();
 
@@ -89,7 +86,7 @@ const FastMovingItemsScreen = () => {
   if (!selectedCompany) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Select a company to view Fast Moving Items.</Text>
+        <Text style={styles.emptyText}>{t('reports.selectCompany')}</Text>
       </View>
     );
   }
@@ -101,7 +98,7 @@ const FastMovingItemsScreen = () => {
           <Icon name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Fast Moving Items</Text>
+          <Text style={styles.headerTitle}>{t('reports.item.fastMoving.title')}</Text>
           <Text style={styles.headerSub}>{periodLabel ? `(${periodLabel})` : ''}</Text>
         </View>
         <TouchableOpacity
@@ -115,11 +112,10 @@ const FastMovingItemsScreen = () => {
 
       <View style={styles.statsBar}>
         <Text style={styles.statText}>
-          <Text style={styles.statBold}>{formatQty(totalQtySold)}</Text> Qty Sold
+          <Text style={styles.statBold}>{formatQty(totalQtySold)}</Text> {t('reports.qtySold')}
         </Text>
         <Text style={styles.statText}>
-          <Text style={styles.statBold}>{items.length}</Text> Items
-        </Text>
+          <Text style={styles.statBold}>{items.length}</Text>{t('tally.entity.items')}</Text>
       </View>
 
       {loading ? (
@@ -130,7 +126,7 @@ const FastMovingItemsScreen = () => {
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load} style={styles.retryWrap}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -150,11 +146,11 @@ const FastMovingItemsScreen = () => {
           }
           ListHeaderComponent={
             <View style={styles.colHeader}>
-              <Text style={styles.colLeft}>Item</Text>
-              <Text style={styles.colRight}>Qty Sold</Text>
+              <Text style={styles.colLeft}>{t('inventory.detail.item')}</Text>
+              <Text style={styles.colRight}>{t('reports.qtySold')}</Text>
             </View>
           }
-          ListEmptyComponent={<Text style={styles.empty}>No data for this period.</Text>}
+          ListEmptyComponent={<Text style={styles.empty}>{t('reports.noDataForPeriod')}</Text>}
         />
       )}
 

@@ -11,7 +11,8 @@ import { colors, gradients } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { TxnTotals } from '../types/transactions';
-import { formatIndianCompact } from '../utils/formatters';
+import { formatCompactAmount } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 interface TransactionStatsCardProps {
   totals: TxnTotals;
@@ -38,6 +39,7 @@ const Block: React.FC<{
 );
 
 const TransactionStatsCard: React.FC<TransactionStatsCardProps> = ({ totals }) => {
+  const { t } = useTranslation();
   const netSign = totals.netPositive ? '+' : '-';
   return (
     <LinearGradient
@@ -48,16 +50,16 @@ const TransactionStatsCard: React.FC<TransactionStatsCardProps> = ({ totals }) =
     >
       <View style={styles.inner}>
         <Block
-          label="Money In"
-          amount={formatIndianCompact(totals.moneyIn.amount)}
+          label={t('transactions.moneyIn')}
+          amount={formatCompactAmount(totals.moneyIn.amount)}
           sub={`${totals.moneyIn.count} txns`}
           color={colors.success}
           icon="arrow-down-circle"
         />
         <View style={styles.divider} />
         <Block
-          label="Net Flow"
-          amount={`${netSign}${formatIndianCompact(Math.abs(totals.netAmount))}`}
+          label={t('transactions.netFlow')}
+          amount={`${netSign}${formatCompactAmount(Math.abs(totals.netAmount))}`}
           sub={totals.netPositive ? 'Surplus' : 'Deficit'}
           color={colors.info}
           icon="swap-vertical"
@@ -65,8 +67,8 @@ const TransactionStatsCard: React.FC<TransactionStatsCardProps> = ({ totals }) =
         />
         <View style={styles.divider} />
         <Block
-          label="Money Out"
-          amount={formatIndianCompact(totals.moneyOut.amount)}
+          label={t('transactions.moneyOut')}
+          amount={formatCompactAmount(totals.moneyOut.amount)}
           sub={`${totals.moneyOut.count} txns`}
           color={colors.danger}
           icon="arrow-up-circle"

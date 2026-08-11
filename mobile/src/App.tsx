@@ -2,16 +2,19 @@ import React, { useEffect } from 'react';
 import { StatusBar, LogBox } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { Provider as PaperProvider } from 'react-native-paper';
-import { Provider as ReduxProvider } from 'react-redux';
+import { Provider as ReduxProvider, useSelector } from 'react-redux';
 import { PersistGate } from 'redux-persist/integration/react';
 import Toast from 'react-native-toast-message';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 // Store and Navigation
-import { store, persistor } from './store';
+import { store, persistor, RootState } from './store';
 import { validateSession } from './store/slices/authSlice';
 import AppNavigator from './navigation/AppNavigator';
+
+// i18n
+import { initI18n } from './i18n';
 
 // Services
 import { initializeServices } from './services';
@@ -31,6 +34,20 @@ LogBox.ignoreLogs([
   'Non-serializable values were found in the navigation state',
   'VirtualizedLists should never be nested',
 ]);
+
+/**
+ * Remounts the navigator when the language changes.
+ *
+ * Translated strings re-render on their own through react-i18next, but figures
+ * do not: `formatCurrency` and friends are plain function calls inside
+ * components that react-i18next knows nothing about, so a memoised screen would
+ * keep showing amounts grouped in the old language. Keying the tree on the
+ * language is the one change that guarantees every rendered figure is rebuilt.
+ */
+const LocalizedNavigator: React.FC = () => {
+  const language = useSelector((state: RootState) => state.settings.language);
+  return <AppNavigator key={language} />;
+};
 
 const App: React.FC = () => {
   useEffect(() => {
@@ -62,7 +79,11 @@ const App: React.FC = () => {
             <PersistGate
               loading={<LoadingScreen />}
               persistor={persistor}
-              onBeforeLift={() => {
+              onBeforeLift={async () => {
+                // Language is persisted, so it is only known once rehydration
+                // has run. Initialise i18n here to avoid a first paint in the
+                // wrong language.
+                await initI18n(store.getState().settings?.language);
                 store.dispatch(validateSession());
                 void refreshConnectivityAndBackend();
               }}
@@ -74,7 +95,7 @@ const App: React.FC = () => {
                     backgroundColor={theme.colors.surface}
                     translucent={false}
                   />
-                  <AppNavigator />
+                  <LocalizedNavigator />
                   <Toast />
                 </NavigationContainer>
               </PaperProvider>

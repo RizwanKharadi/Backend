@@ -9,6 +9,7 @@ import {
   useTheme,
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { useTranslation } from 'react-i18next';
 
 export interface ErrorDisplayProps {
   error?: Error | string | null;
@@ -36,11 +37,15 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
   severity = 'error',
 }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   if (!error && !message) return null;
 
-  const errorMessage = message || (typeof error === 'string' ? error : error?.message) || 'An error occurred';
-  const errorTitle = title || getDefaultTitle(severity);
+  const errorMessage =
+    message ||
+    (typeof error === 'string' ? error : error?.message) ||
+    t('errors.generic');
+  const errorTitle = title || t(defaultTitleKey(severity));
   const iconName = getIconName(severity);
   const iconColor = getIconColor(severity, theme);
 
@@ -59,7 +64,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
 
       {showDetails && error && typeof error !== 'string' && (
         <View style={styles.details}>
-          <Text style={styles.detailsTitle}>Technical Details:</Text>
+          <Text style={styles.detailsTitle}>{t('errors.technicalDetails')}</Text>
           <Text style={styles.detailsText}>
             {error.stack || error.toString()}
           </Text>
@@ -73,7 +78,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             onPress={onRetry}
             style={styles.retryButton}
           >
-            Try Again
+            {t('common.retry')}
           </Button>
         )}
         {onDismiss && (
@@ -82,7 +87,7 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
             onPress={onDismiss}
             style={styles.dismissButton}
           >
-            Dismiss
+            {t('common.dismiss')}
           </Button>
         )}
       </View>
@@ -118,73 +123,89 @@ const ErrorDisplay: React.FC<ErrorDisplayProps> = ({
 export const NetworkError: React.FC<{
   onRetry?: () => void;
   style?: any;
-}> = ({ onRetry, style }) => (
-  <ErrorDisplay
-    title="Connection Error"
-    message="Unable to connect to the server. Please check your internet connection and try again."
-    onRetry={onRetry}
-    style={style}
-    severity="warning"
-  />
-);
+}> = ({ onRetry, style }) => {
+  const { t } = useTranslation();
+  return (
+    <ErrorDisplay
+      title={t('errors.network.title')}
+      message={t('errors.network.message')}
+      onRetry={onRetry}
+      style={style}
+      severity="warning"
+    />
+  );
+};
 
 // Not found error component
 export const NotFoundError: React.FC<{
   resource?: string;
   onGoBack?: () => void;
   style?: any;
-}> = ({ resource = 'item', onGoBack, style }) => (
-  <ErrorDisplay
-    title="Not Found"
-    message={`The ${resource} you're looking for could not be found.`}
-    showRetry={false}
-    onDismiss={onGoBack}
-    style={style}
-    severity="info"
-  />
-);
+}> = ({ resource, onGoBack, style }) => {
+  const { t } = useTranslation();
+  return (
+    <ErrorDisplay
+      title={t('errors.notFound.title')}
+      message={t('errors.notFound.message', {
+        resource: resource || t('errors.notFound.defaultResource'),
+      })}
+      showRetry={false}
+      onDismiss={onGoBack}
+      style={style}
+      severity="info"
+    />
+  );
+};
 
 // Permission error component
 export const PermissionError: React.FC<{
   action?: string;
   onGoBack?: () => void;
   style?: any;
-}> = ({ action = 'perform this action', onGoBack, style }) => (
-  <ErrorDisplay
-    title="Permission Denied"
-    message={`You don't have permission to ${action}. Please contact your administrator.`}
-    showRetry={false}
-    onDismiss={onGoBack}
-    style={style}
-    severity="warning"
-  />
-);
+}> = ({ action, onGoBack, style }) => {
+  const { t } = useTranslation();
+  return (
+    <ErrorDisplay
+      title={t('errors.permission.title')}
+      message={t('errors.permission.message', {
+        action: action || t('errors.permission.defaultAction'),
+      })}
+      showRetry={false}
+      onDismiss={onGoBack}
+      style={style}
+      severity="warning"
+    />
+  );
+};
 
 // Validation error component
 export const ValidationError: React.FC<{
   errors: string[];
   onDismiss?: () => void;
   style?: any;
-}> = ({ errors, onDismiss, style }) => (
-  <ErrorDisplay
-    title="Validation Error"
-    message={errors.join('\n')}
-    showRetry={false}
-    onDismiss={onDismiss}
-    style={style}
-    severity="warning"
-    variant="banner"
-  />
-);
+}> = ({ errors, onDismiss, style }) => {
+  const { t } = useTranslation();
+  return (
+    <ErrorDisplay
+      title={t('errors.validation.title')}
+      message={errors.join('\n')}
+      showRetry={false}
+      onDismiss={onDismiss}
+      style={style}
+      severity="warning"
+      variant="banner"
+    />
+  );
+};
 
-const getDefaultTitle = (severity: string): string => {
+const defaultTitleKey = (severity: string): string => {
   switch (severity) {
     case 'warning':
-      return 'Warning';
+      return 'common.warning';
     case 'info':
-      return 'Information';
+      return 'common.information';
     default:
-      return 'Error';
+      return 'common.error';
   }
 };
 

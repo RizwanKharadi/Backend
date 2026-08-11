@@ -21,9 +21,17 @@ import { store } from '../store';
 import { useCompany } from '../store/hooks';
 import { MainStackParamList } from '../types/navigation';
 import { dashboardColors, voucherTypeColor } from '../components/dashboard/dashboardTheme';
-import { toLocalDateString, parseLocalDateString } from '../utils/formatters';
+import {
+  toLocalDateString,
+  parseLocalDateString,
+  formatDate,
+  formatWeekdayDayMonth,
+  formatCurrencyAbs,
+} from '../utils/formatters';
 import { matchesVoucherType, isNonAccountingVoucherType } from '../utils/voucherHelpers';
 import { Voucher } from '../types';
+import { useTranslation } from 'react-i18next';
+import { FinnyState } from '../components/mascot';
 
 type RouteProps = RouteProp<MainStackParamList, 'DayBook'>;
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
@@ -71,12 +79,12 @@ function startOfDay(d: Date) {
 }
 
 function formatDisplayDate(d: Date) {
-  return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return formatDate(d);
 }
 
 function formatEntryDate(iso: string) {
   const d = /^\d{4}-\d{2}-\d{2}$/.test(iso) ? parseLocalDateString(iso) : new Date(iso);
-  return d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
+  return formatWeekdayDayMonth(d);
 }
 
 function voucherTypeLabel(type: string) {
@@ -84,6 +92,7 @@ function voucherTypeLabel(type: string) {
 }
 
 const DayBookScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const { selectedCompany } = useCompany();
@@ -228,7 +237,7 @@ const DayBookScreen: React.FC = () => {
   return (
     <View style={styles.container}>
       <DetailScreenHeader
-        title="Day Book"
+        title={t('reports.item.dayBook.title')}
         subtitle={selectedCompany?.name || 'All transactions'}
         onBackPress={() => navigation.goBack()}
       />
@@ -251,7 +260,7 @@ const DayBookScreen: React.FC = () => {
         <View style={styles.hero}>
           <View style={styles.heroTop}>
             <Icon name="book-open-page-variant" size={28} color="#fff" />
-            <Text style={styles.heroLabel}>Net movement(Money In - Money Out)</Text>
+            <Text style={styles.heroLabel}>{t('dayBook.netMovement')}</Text>
           </View>
           <Text
             style={[
@@ -259,8 +268,8 @@ const DayBookScreen: React.FC = () => {
               { color: cash.net >= 0 ? '#6ee7b7' : '#fca5a5' },
             ]}
           >
-            {cash.net >= 0 ? '+' : ''}₹
-            {Math.abs(cash.net).toLocaleString('en-IN')}
+            {cash.net >= 0 ? '+' : ''}
+            {formatCurrencyAbs(cash.net)}
           </Text>
           <Text style={styles.heroSub}>
             {totals.transactionCount} transaction
@@ -269,16 +278,16 @@ const DayBookScreen: React.FC = () => {
           </Text>
           <View style={styles.heroRow}>
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Money in (Receipts)</Text>
+              <Text style={styles.heroStatLabel}>{t('dayBook.moneyIn')}</Text>
               <Text style={[styles.heroStatValue, { color: '#6ee7b7' }]}>
-                ₹{cash.moneyIn.amount.toLocaleString('en-IN')}
+                {formatCurrencyAbs(cash.moneyIn.amount)}
               </Text>
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroStat}>
-              <Text style={styles.heroStatLabel}>Money out (Payments)</Text>
+              <Text style={styles.heroStatLabel}>{t('dayBook.moneyOut')}</Text>
               <Text style={[styles.heroStatValue, { color: '#fca5a5' }]}>
-                ₹{cash.moneyOut.amount.toLocaleString('en-IN')}
+                {formatCurrencyAbs(cash.moneyOut.amount)}
               </Text>
             </View>
           </View>
@@ -306,7 +315,7 @@ const DayBookScreen: React.FC = () => {
 
         {/* Date range card */}
         <View style={styles.dateCard}>
-          <Text style={styles.sectionTitle}>Date range</Text>
+          <Text style={styles.sectionTitle}>{t('dayBook.dateRange')}</Text>
           <View style={styles.dateRow}>
             <TouchableOpacity
               style={styles.dateBtn}
@@ -314,7 +323,7 @@ const DayBookScreen: React.FC = () => {
             >
               <Icon name="calendar-start" size={20} color={dashboardColors.accent} />
               <View>
-                <Text style={styles.dateBtnLabel}>From</Text>
+                <Text style={styles.dateBtnLabel}>{t('transactions.from')}</Text>
                 <Text style={styles.dateBtnValue}>{formatDisplayDate(fromDate)}</Text>
               </View>
             </TouchableOpacity>
@@ -348,15 +357,13 @@ const DayBookScreen: React.FC = () => {
 
         {!loading && !error && entries.length === 0 ? (
           <View style={styles.emptyBox}>
-            <Icon
-              name="book-remove-outline"
-              size={56}
-              color={dashboardColors.muted}
+            {/* Finny replaces the old placeholder glyph — one visual language
+                for empty states across the app. */}
+            <FinnyState
+              variant="empty"
+              title={t('dayBook.noEntries')}
+              message={t('dayBook.noEntriesHint')}
             />
-            <Text style={styles.emptyTitle}>No entries</Text>
-            <Text style={styles.emptySub}>
-              No vouchers in this period. Sync from Tally or create transactions.
-            </Text>
           </View>
         ) : null}
 
@@ -445,8 +452,8 @@ const DayBookScreen: React.FC = () => {
                           },
                         ]}
                       >
-                        {neutral ? '' : isCredit ? '+' : '−'}₹
-                        {entry.amount.toLocaleString('en-IN')}
+                        {neutral ? '' : isCredit ? '+' : '−'}
+                        {formatCurrencyAbs(entry.amount)}
                       </Text>
                     </View>
                     <Text style={styles.partyName} numberOfLines={1}>
@@ -459,7 +466,7 @@ const DayBookScreen: React.FC = () => {
                     ) : null}
                     {voucherId ? (
                       <View style={styles.tapHint}>
-                        <Text style={styles.tapHintText}>View details</Text>
+                        <Text style={styles.tapHintText}>{t('common.viewDetails')}</Text>
                         <Icon name="chevron-right" size={16} color={dashboardColors.muted} />
                       </View>
                     ) : null}

@@ -2,7 +2,8 @@ import React from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { Text } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
-import { formatIndianCompact } from '../../utils/formatters';
+import { formatCompactAmount } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import { dashboardColors } from './dashboardTheme';
 
 interface MetricCardProps {
@@ -37,7 +38,7 @@ const MetricCard: React.FC<MetricCardProps> = ({
       ) : (
         <>
           <Text style={styles.title}>{title}</Text>
-          <Text style={styles.amount}>{formatIndianCompact(amount)}</Text>
+          <Text style={styles.amount}>{formatCompactAmount(amount)}</Text>
           <Text style={styles.subtitle}>{subtitle}</Text>
         </>
       )}
@@ -72,28 +73,31 @@ export const ReceivablesPayablesRow: React.FC<ReceivablesPayablesRowProps> = ({
   loading,
   onReceivablesPress,
   onSalesPress,
-}) => (
-  <View style={styles.row}>
-    <MetricCard
-      title="Receivables"
-      amount={receivables}
-      subtitle={`${receivableParties} ${receivableParties === 1 ? 'party' : 'parties'}`}
-      icon="account-cash-outline"
-      iconColor={dashboardColors.positive}
-      onPress={onReceivablesPress}
-      loading={loading}
-    />
-    <MetricCard
-      title="Sales (MTD)"
-      amount={salesMtd}
-      subtitle={`${salesCount} ${salesCount === 1 ? 'voucher' : 'vouchers'}`}
-      icon="trending-up"
-      iconColor={dashboardColors.accent}
-      onPress={onSalesPress}
-      loading={loading}
-    />
-  </View>
-);
+}) => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.row}>
+      <MetricCard
+        title={t('dashboard.receivablesTitle')}
+        amount={receivables}
+        subtitle={t('dashboard.partyCount', { count: receivableParties })}
+        icon="account-cash-outline"
+        iconColor={dashboardColors.positive}
+        onPress={onReceivablesPress}
+        loading={loading}
+      />
+      <MetricCard
+        title={t('dashboard.salesMtd')}
+        amount={salesMtd}
+        subtitle={t('dashboard.voucherCount', { count: salesCount })}
+        icon="trending-up"
+        iconColor={dashboardColors.accent}
+        onPress={onSalesPress}
+        loading={loading}
+      />
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   row: {

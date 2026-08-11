@@ -35,8 +35,10 @@ import {
   clearFilters,
 } from '../store/slices/notificationSlice';
 import { formatDate, formatTime } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const NotificationScreen: React.FC = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { 
     notifications, 
@@ -80,24 +82,24 @@ const NotificationScreen: React.FC = () => {
     try {
       await dispatch(markNotificationAsRead(notificationId));
     } catch (error) {
-      Alert.alert('Error', 'Failed to mark notification as read');
+      Alert.alert(t('common.error'), t('notifications.markReadFailed'));
     }
   };
 
   const handleMarkAllAsRead = async () => {
     Alert.alert(
-      'Mark All as Read',
-      'Are you sure you want to mark all notifications as read?',
+      t('notifications.markAll.title'),
+      t('notifications.markAll.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Yes',
+          text: t('common.yes'),
           onPress: async () => {
             try {
               await dispatch(markAllNotificationsAsRead());
-              Alert.alert('Success', 'All notifications marked as read');
+              Alert.alert(t('common.success'), t('notifications.markAll.success'));
             } catch (error) {
-              Alert.alert('Error', 'Failed to mark all notifications as read');
+              Alert.alert(t('common.error'), t('notifications.markAll.failed'));
             }
           },
         },
@@ -107,18 +109,18 @@ const NotificationScreen: React.FC = () => {
 
   const handleDeleteNotification = async (notificationId: string) => {
     Alert.alert(
-      'Delete Notification',
-      'Are you sure you want to delete this notification?',
+      t('notifications.deleteOne.title'),
+      t('notifications.deleteOne.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete',
+          text: t('common.delete'),
           style: 'destructive',
           onPress: async () => {
             try {
               await dispatch(deleteNotification(notificationId));
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete notification');
+              Alert.alert(t('common.error'), t('notifications.deleteOne.failed'));
             }
           },
         },
@@ -128,19 +130,19 @@ const NotificationScreen: React.FC = () => {
 
   const handleDeleteAllNotifications = async () => {
     Alert.alert(
-      'Delete All Notifications',
-      'Are you sure you want to delete all notifications? This action cannot be undone.',
+      t('notifications.deleteAll.title'),
+      t('notifications.deleteAll.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Delete All',
+          text: t('notifications.deleteAll.confirm'),
           style: 'destructive',
           onPress: async () => {
             try {
               await dispatch(deleteAllNotifications());
-              Alert.alert('Success', 'All notifications deleted');
+              Alert.alert(t('common.success'), t('notifications.deleteAll.success'));
             } catch (error) {
-              Alert.alert('Error', 'Failed to delete all notifications');
+              Alert.alert(t('common.error'), t('notifications.deleteAll.failed'));
             }
           },
         },
@@ -274,7 +276,7 @@ const NotificationScreen: React.FC = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
-        <Text>Loading notifications...</Text>
+        <Text>{t('notifications.loading')}</Text>
       </View>
     );
   }
@@ -283,7 +285,7 @@ const NotificationScreen: React.FC = () => {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <Title>Notifications</Title>
+          <Title>{t('notifications.title')}</Title>
           {unreadCount > 0 && (
             <Badge style={styles.unreadCountBadge}>{unreadCount}</Badge>
           )}
@@ -291,7 +293,7 @@ const NotificationScreen: React.FC = () => {
         
         <View style={styles.headerControls}>
           <Searchbar
-            placeholder="Search notifications..."
+            placeholder={t('notifications.searchPlaceholder')}
             onChangeText={setSearchQuery}
             value={searchQuery}
             style={styles.searchbar}
@@ -310,14 +312,14 @@ const NotificationScreen: React.FC = () => {
               </Button>
             }
           >
-            <Menu.Item onPress={() => handleFilterChange('all')} title="All" />
-            <Menu.Item onPress={() => handleFilterChange('unread')} title="Unread" />
-            <Menu.Item onPress={() => handleFilterChange('read')} title="Read" />
+            <Menu.Item onPress={() => handleFilterChange('all')} title={t('common.all')} />
+            <Menu.Item onPress={() => handleFilterChange('unread')} title={t('notifications.filter.unread')} />
+            <Menu.Item onPress={() => handleFilterChange('read')} title={t('notifications.filter.read')} />
             <Divider />
-            <Menu.Item onPress={() => handleFilterChange('info')} title="Info" />
-            <Menu.Item onPress={() => handleFilterChange('success')} title="Success" />
-            <Menu.Item onPress={() => handleFilterChange('warning')} title="Warning" />
-            <Menu.Item onPress={() => handleFilterChange('error')} title="Error" />
+            <Menu.Item onPress={() => handleFilterChange('info')} title={t('notifications.filter.info')} />
+            <Menu.Item onPress={() => handleFilterChange('success')} title={t('common.success')} />
+            <Menu.Item onPress={() => handleFilterChange('warning')} title={t('common.warning')} />
+            <Menu.Item onPress={() => handleFilterChange('error')} title={t('common.error')} />
           </Menu>
         </View>
 
@@ -328,7 +330,7 @@ const NotificationScreen: React.FC = () => {
             style={styles.actionButton}
             disabled={unreadCount === 0}
           >
-            Mark All Read
+            {t('notifications.markAllRead')}
           </Button>
           <Button
             mode="outlined"
@@ -338,7 +340,7 @@ const NotificationScreen: React.FC = () => {
             textColor="white"
             disabled={notifications.length === 0}
           >
-            Delete All
+            {t('notifications.deleteAll.confirm')}
           </Button>
         </View>
       </View>
@@ -353,7 +355,7 @@ const NotificationScreen: React.FC = () => {
         }
         ListEmptyComponent={
           <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No notifications found</Text>
+            <Text style={styles.emptyText}>{t('notifications.empty')}</Text>
           </View>
         }
       />

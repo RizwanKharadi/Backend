@@ -40,7 +40,8 @@ import {
 import { MainStackScreenProps } from '../types/navigation';
 import type { Voucher, VoucherEntry, TallyVoucherEntryMode } from '../types';
 import { buildVoucherInvoiceHtml } from '../utils/voucherInvoiceHtml';
-import { formatCurrencyAbs } from '../utils/formatters';
+import { formatCurrencyAbs, formatDateTime } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import {
   rupeesToWords,
   formatDDMMYYYY,
@@ -63,6 +64,7 @@ const TABLE_HEADER_BG = '#ECEFF1';
 
 const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   const { voucherId } = route.params;
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const { selectedVoucher, isLoading } = useSelector((state: RootState) => state.voucher);
@@ -111,7 +113,17 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     buildVoucherInvoiceHtml(voucher, {
       companyName: selectedCompany?.name,
       companyAddress: selectedCompany?.address,
-      companyGst: selectedCompany?.gstNumber,
+      // The API has used both spellings across versions; the renderer picks the
+      // first non-empty, so pass whichever this build happens to have.
+      companyGst:
+        selectedCompany?.gstNumber ||
+        (selectedCompany as { gstin?: string } | null)?.gstin,
+      companyPan:
+        selectedCompany?.panNumber ||
+        (selectedCompany as { pan?: string } | null)?.pan,
+      companyState:
+        (selectedCompany as { state?: string } | null)?.state ||
+        (selectedCompany?.address as { state?: string } | undefined)?.state,
       companyPhone: selectedCompany?.phone,
       companyEmail: selectedCompany?.email,
     });
@@ -149,7 +161,7 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       const err = error as { message?: string };
       if (err?.message?.toLowerCase().includes('user did not share')) return;
       console.error('Share error:', error);
-      Alert.alert('Error', 'Failed to share voucher. Please try again.');
+      Alert.alert(t('common.error'), t('vouchers.detail.shareFailed'));
     }
   };
 
@@ -166,11 +178,11 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     } catch (error) {
       console.error('PDF export error:', error);
       Alert.alert(
-        'Save as PDF',
-        'Could not open the print dialog. Use Share to send the HTML document, or try Print and pick "Save as PDF" on your device.',
+        t('vouchers.detail.saveAsPdf'),
+        t('vouchers.detail.printDialogFailed'),
         [
-          { text: 'Share HTML', onPress: () => writeHtmlAndShare('voucher_pdf').catch(() => {}) },
-          { text: 'OK' },
+          { text: t('vouchers.detail.shareHtml'), onPress: () => writeHtmlAndShare('voucher_pdf').catch(() => {}) },
+          { text: t('common.ok') },
         ]
       );
     }
@@ -186,7 +198,7 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       });
     } catch (error) {
       console.error('Print error:', error);
-      Alert.alert('Error', 'Failed to print voucher. Please check your printer settings.');
+      Alert.alert(t('common.error'), t('vouchers.detail.printFailed'));
     }
   };
 
@@ -202,24 +214,27 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
     const url = `whatsapp://send?text=${text}`;
     const ok = await Linking.canOpenURL(url);
     if (ok) await Linking.openURL(url);
-    else Alert.alert('WhatsApp', 'WhatsApp is not available on this device.');
+    else Alert.alert(t('vouchers.detail.whatsapp'), t('vouchers.detail.whatsappUnavailable'));
   };
 
   const handlePushToTally = () => {
     if (!selectedVoucher) return;
     const check = canPushVoucherToTally(selectedVoucher);
     if (!check.ok) {
-      Alert.alert('Cannot push', check.reason || 'This voucher cannot be sent to Tally');
+      Alert.alert(t('vouchers.detail.cannotPush'), check.reason || t('vouchers.detail.cannotPushReason'));
       return;
     }
 
     Alert.alert(
-      'Push to Tally',
-      `Send ${voucherDisplayType(selectedVoucher)} ${selectedVoucher.voucherNumber} to TallyPrime? The desktop agent must be connected.`,
+      t('vouchers.detail.pushTitle'),
+      t('vouchers.detail.pushMessage', {
+        type: voucherDisplayType(selectedVoucher),
+        number: selectedVoucher.voucherNumber,
+      }),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Push',
+          text: t('vouchers.detail.push'),
           onPress: async () => {
             setPushingToTally(true);
             try {
@@ -229,13 +244,11 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                   options: buildPushToTallyOptions(selectedVoucher, selectedCompany ?? undefined),
                 })
               ).unwrap();
-              Alert.alert('Synced', 'Voucher was sent to Tally successfully.');
+              Alert.alert(t('vouchers.detail.synced'), t('vouchers.detail.syncedMessage'));
             } catch (err: unknown) {
               Alert.alert(
-                'Push failed',
-                typeof err === 'string'
-                  ? err
-                  : 'Could not import to Tally. Check desktop agent connection and ledger names.'
+                t('vouchers.detail.pushFailed'),
+                typeof err === 'string' ? err : t('vouchers.detail.pushFailedHint')
               );
             } finally {
               setPushingToTally(false);
@@ -247,10 +260,10 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   };
 
   const onDelete = () => {
-    Alert.alert('Delete voucher', 'This cannot be undone.', [
-      { text: 'Cancel', style: 'cancel' },
+    Alert.alert(t('vouchers.detail.deleteTitle'), t('vouchers.detail.deleteMessage'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: 'Delete',
+        text: t('common.delete'),
         style: 'destructive',
         onPress: () => {
           dispatch(deleteVoucher(voucherId))
@@ -258,8 +271,8 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
             .then(() => navigation.goBack())
             .catch((err: unknown) =>
               Alert.alert(
-                'Error',
-                typeof err === 'string' ? err : 'Failed to delete voucher'
+                t('common.error'),
+                typeof err === 'string' ? err : t('vouchers.delete.failed')
               )
             );
         },
@@ -274,7 +287,7 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
   }, [selectedVoucher]);
 
   if (isLoading || !selectedVoucher) {
-    return <LoadingScreen message="Loading voucher details..." />;
+    return <LoadingScreen message={t('vouchers.detail.loading')} />;
   }
 
   const v = selectedVoucher;
@@ -316,7 +329,7 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               </Text>
             </View>
             <View style={styles.heroActions}>
-              <Pressable onPress={() => Alert.alert('Edit', 'Voucher editing is not available yet.')} style={styles.iconHit}>
+              <Pressable onPress={() => Alert.alert(t('common.edit'), t('vouchers.detail.editUnavailable'))} style={styles.iconHit}>
                 <Icon name="pencil" size={22} color="#fff" />
               </Pressable>
               <Pressable onPress={onDelete} style={styles.iconHit}>
@@ -330,11 +343,11 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
           <View style={styles.heroDates}>
             <View style={styles.heroDateCol}>
-              <Text style={styles.heroDateLabel}>Invoice Date</Text>
+              <Text style={styles.heroDateLabel}>{t('vouchers.detail.invoiceDate')}</Text>
               <Text style={styles.heroDateValue}>{formatDDMMYYYY(v.date)}</Text>
             </View>
             <View style={styles.heroDateCol}>
-              <Text style={styles.heroDateLabel}>Due Date</Text>
+              <Text style={styles.heroDateLabel}>{t('vouchers.detail.dueDate')}</Text>
               <Text style={styles.heroDateValue}>{dueStr}</Text>
             </View>
           </View>
@@ -348,15 +361,15 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
       <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
         {showItemsSection ? (
           <Surface style={styles.card} elevation={1}>
-            <Text style={styles.sectionLabel}>ITEMS</Text>
+            <Text style={styles.sectionLabel}>{t('vouchers.detail.items')}</Text>
             <View style={[styles.tableHead, { backgroundColor: TABLE_HEADER_BG }]}>
-              <Text style={[styles.th, styles.colItem]}>ITEMS</Text>
-              <Text style={[styles.th, styles.colQty]}>QTY</Text>
-              <Text style={[styles.th, styles.colRate]}>RATE</Text>
-              <Text style={[styles.th, styles.colAmt]}>AMOUNT</Text>
+              <Text style={[styles.th, styles.colItem]}>{t('vouchers.detail.items')}</Text>
+              <Text style={[styles.th, styles.colQty]}>{t('vouchers.detail.qty')}</Text>
+              <Text style={[styles.th, styles.colRate]}>{t('vouchers.detail.rate')}</Text>
+              <Text style={[styles.th, styles.colAmt]}>{t('vouchers.detail.amount')}</Text>
             </View>
             {items.length === 0 ? (
-              <Text style={styles.emptyRow}>No line items</Text>
+              <Text style={styles.emptyRow}>{t('vouchers.detail.noLineItems')}</Text>
             ) : (
               items.map((item) => (
                 <View key={item.id} style={styles.itemBlock}>
@@ -398,12 +411,12 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           {isAsVoucher ? (
             <>
               <View style={[styles.tableHead, styles.ledgerHead, { backgroundColor: TABLE_HEADER_BG }]}>
-                <Text style={[styles.th, styles.asVoucherColParticulars]}>Particulars</Text>
-                <Text style={[styles.th, styles.ledgerColDr]}>Debit</Text>
-                <Text style={[styles.th, styles.ledgerColCr]}>Credit</Text>
+                <Text style={[styles.th, styles.asVoucherColParticulars]}>{t('vouchers.detail.particulars')}</Text>
+                <Text style={[styles.th, styles.ledgerColDr]}>{t('vouchers.journal.debit')}</Text>
+                <Text style={[styles.th, styles.ledgerColCr]}>{t('vouchers.journal.credit')}</Text>
               </View>
               {ledgerRows.length === 0 ? (
-                <Text style={styles.emptyRow}>No ledger entries</Text>
+                <Text style={styles.emptyRow}>{t('vouchers.detail.noLedgerEntries')}</Text>
               ) : (
                 ledgerRows.map((entry) => {
                   const prefix = tallyByToPrefix(entry);
@@ -443,7 +456,7 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                   <View style={styles.asVoucherDoubleRule} />
                   <View style={styles.ledgerTotalsRow}>
                     <Text style={[styles.td, styles.asVoucherColParticulars, styles.ledgerTotalLabel]}>
-                      Total
+                      {t('reports.total')}
                     </Text>
                     <Text style={[styles.td, styles.ledgerColDr, styles.tdAmount]}>
                       {formatTableAmount(ledgerDebitTotal)}
@@ -462,10 +475,10 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 <Text style={[styles.th, styles.ledgerColName]}>
                   {isAccountingInvoice ? 'PARTICULARS' : 'LEDGER'}
                 </Text>
-                <Text style={[styles.th, styles.ledgerColAmt]}>AMOUNT</Text>
+                <Text style={[styles.th, styles.ledgerColAmt]}>{t('vouchers.detail.amount')}</Text>
               </View>
               {ledgerRows.length === 0 ? (
-                <Text style={styles.emptyRow}>No ledger entries</Text>
+                <Text style={styles.emptyRow}>{t('vouchers.detail.noLedgerEntries')}</Text>
               ) : (
                 ledgerRows.map((entry) => {
                   const amt = entryDisplayAmount(entry);
@@ -487,28 +500,28 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <Surface style={styles.card} elevation={1}>
           <View style={styles.totalRow}>
-            <Text style={styles.totalLabel}>Total Amount</Text>
+            <Text style={styles.totalLabel}>{t('vouchers.detail.totalAmount')}</Text>
             <Text style={[styles.totalValue, { color: theme.colors.primary }]}>
               {formatCurrencyAbs(displayAmount)}
             </Text>
           </View>
-          <Text style={styles.wordsLabel}>Total Amount In Words</Text>
+          <Text style={styles.wordsLabel}>{t('vouchers.detail.totalInWords')}</Text>
           <Text style={styles.wordsValue}>{rupeesToWords(displayAmount)}</Text>
         </Surface>
 
         <Surface style={styles.card} elevation={1}>
-          <Text style={styles.sectionLabel}>TERMS</Text>
+          <Text style={styles.sectionLabel}>{t('vouchers.detail.terms')}</Text>
           <Text style={styles.termsText}>{termsBody.trim() || '—'}</Text>
-          <Text style={[styles.sectionLabel, styles.notesHeading]}>Notes</Text>
+          <Text style={[styles.sectionLabel, styles.notesHeading]}>{t('vouchers.detail.notes')}</Text>
           <Text style={styles.notesText}>{v.narration?.trim() || '—'}</Text>
         </Surface>
 
         <Surface style={styles.card} elevation={1}>
-          <Text style={styles.sectionLabel}>TALLY SYNC</Text>
+          <Text style={styles.sectionLabel}>{t('vouchers.detail.tallySync')}</Text>
           {v.tallyId ? (
             <>
               <List.Item
-                title="Synced to Tally"
+                title={t('vouchers.detail.syncedToTally')}
                 description={v.tallyId}
                 titleNumberOfLines={1}
                 descriptionNumberOfLines={3}
@@ -516,8 +529,8 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
               />
               {v.lastSyncedAt ? (
                 <List.Item
-                  title="Last synced"
-                  description={new Date(v.lastSyncedAt).toLocaleString()}
+                  title={t('vouchers.detail.lastSynced')}
+                  description={formatDateTime(v.lastSyncedAt)}
                   left={(p) => <List.Icon {...p} icon="clock-check" />}
                 />
               ) : null}
@@ -543,7 +556,7 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
                 style={styles.pushTallyBtn}
                 buttonColor={HEADER_BLUE}
               >
-                Push to Tally
+                {t('vouchers.detail.pushTitle')}
               </Button>
             </>
           ) : (
@@ -555,17 +568,17 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
           )}
         </Surface>
 
-        <List.Accordion title="More details" style={styles.accordion}>
-          <List.Item title="Status" description={v.status} left={(p) => <List.Icon {...p} icon="information" />} />
-          <List.Item title="Reference" description={formatReference(v.reference)} left={(p) => <List.Icon {...p} icon="link" />} />
+        <List.Accordion title={t('vouchers.detail.moreDetails')} style={styles.accordion}>
+          <List.Item title={t('vouchers.detail.status')} description={v.status} left={(p) => <List.Icon {...p} icon="information" />} />
+          <List.Item title={t('vouchers.detail.reference')} description={formatReference(v.reference)} left={(p) => <List.Icon {...p} icon="link" />} />
           <List.Item
-            title="Created"
-            description={new Date(v.createdAt).toLocaleString()}
+            title={t('vouchers.detail.created')}
+            description={formatDateTime(v.createdAt)}
             left={(p) => <List.Icon {...p} icon="calendar-plus" />}
           />
           <List.Item
-            title="Last updated"
-            description={new Date(v.updatedAt).toLocaleString()}
+            title={t('vouchers.detail.lastUpdated')}
+            description={formatDateTime(v.updatedAt)}
             left={(p) => <List.Icon {...p} icon="calendar-edit" />}
           />
         </List.Accordion>
@@ -573,19 +586,19 @@ const VoucherDetailScreen: React.FC<Props> = ({ navigation, route }) => {
         <View style={styles.actionBar}>
           <Pressable style={styles.actionCell} onPress={handlePrint}>
             <Icon name="printer" size={22} color={theme.colors.primary} />
-            <Text style={[styles.actionText, { color: theme.colors.primary }]}>Print</Text>
+            <Text style={[styles.actionText, { color: theme.colors.primary }]}>{t('vouchers.detail.print')}</Text>
           </Pressable>
           <Pressable style={styles.actionCell} onPress={handleShare}>
             <Icon name="share-variant" size={22} color={theme.colors.primary} />
-            <Text style={[styles.actionText, { color: theme.colors.primary }]}>Share</Text>
+            <Text style={[styles.actionText, { color: theme.colors.primary }]}>{t('vouchers.detail.share')}</Text>
           </Pressable>
           <Pressable style={styles.actionCell} onPress={handlePdfExport}>
             <Icon name="file-pdf-box" size={22} color={theme.colors.primary} />
-            <Text style={[styles.actionText, { color: theme.colors.primary }]}>PDF</Text>
+            <Text style={[styles.actionText, { color: theme.colors.primary }]}>{t('vouchers.detail.pdf')}</Text>
           </Pressable>
           <Pressable style={styles.actionCell} onPress={handleWhatsApp}>
             <Icon name="whatsapp" size={22} color="#25D366" />
-            <Text style={[styles.actionText, { color: '#25D366' }]}>WhatsApp</Text>
+            <Text style={[styles.actionText, { color: '#25D366' }]}>{t('vouchers.detail.whatsapp')}</Text>
           </Pressable>
         </View>
 

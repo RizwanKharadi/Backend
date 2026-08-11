@@ -1,6 +1,6 @@
 // Navigation Parameter Lists
 import type { NavigatorScreenParams } from '@react-navigation/native';
-import type { SalesVoucherItemLine } from './index';
+import type { SalesVoucherItemLine, OtpPurpose } from './index';
 
 export type RootStackParamList = {
   Splash: undefined;
@@ -13,7 +13,14 @@ export type AuthStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
-  ResetPassword: { token: string };
+  /** One screen serves both OTP flows; `purpose` decides where success goes. */
+  OtpVerification: {
+    email: string;
+    purpose: OtpPurpose;
+    name?: string;
+  };
+  /** `resetTicket` comes from verifying a password_reset OTP. */
+  ResetPassword: { resetTicket: string; email?: string };
   BiometricSetup: undefined;
 };
 

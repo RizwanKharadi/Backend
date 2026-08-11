@@ -25,8 +25,9 @@ import { voucherService } from '../services/voucherService';
 import { useCompany } from '../store/hooks';
 import { MainStackParamList } from '../types/navigation';
 import { Voucher } from '../types';
+import { useTranslation } from 'react-i18next';
 import {
-  formatIndianCompact,
+  formatCompactAmount,
   parseLocalDateString,
   toLocalDateString,
 } from '../utils/formatters';
@@ -87,6 +88,7 @@ async function fetchAllPages(
 }
 
 const FilteredVouchersScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<NavigationProp>();
   const route = useRoute<RouteProps>();
   const insets = useSafeAreaInsets();
@@ -212,12 +214,12 @@ const FilteredVouchersScreen: React.FC = () => {
         </View>
         <View style={styles.heroStats}>
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Period total</Text>
-            <Text style={styles.statValue}>{formatIndianCompact(totalAmount)}</Text>
+            <Text style={styles.statLabel}>{t('reports.periodTotal')}</Text>
+            <Text style={styles.statValue}>{formatCompactAmount(totalAmount)}</Text>
           </View>
           <View style={styles.statDivider} />
           <View style={styles.statBox}>
-            <Text style={styles.statLabel}>Vouchers</Text>
+            <Text style={styles.statLabel}>{t('vouchers.title')}</Text>
             <Text style={styles.statValue}>{filteredList.length}</Text>
           </View>
         </View>
@@ -274,7 +276,7 @@ const FilteredVouchersScreen: React.FC = () => {
             style={[styles.retryBtn, { backgroundColor: accent }]}
             onPress={loadVouchers}
           >
-            <Text style={styles.retryText}>Try again</Text>
+            <Text style={styles.retryText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (

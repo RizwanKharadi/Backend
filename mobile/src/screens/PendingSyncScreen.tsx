@@ -13,6 +13,8 @@ import {
   FlatList,
   RefreshControl,
   ActivityIndicator,
+  TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
@@ -28,6 +30,8 @@ import {
 import { colors } from '../theme/colors';
 import { spacing, radius } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
+import { useTranslation } from 'react-i18next';
+import { FinnyMascot } from '../components/mascot';
 
 type Props = MainStackScreenProps<'PendingSync'>;
 
@@ -55,12 +59,14 @@ function formatWhen(value?: string): string {
 }
 
 const PendingSyncScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const { selectedCompany } = useCompany();
   const [summary, setSummary] = useState<PendingSyncSummary | null>(null);
   const [rows, setRows] = useState<PendingSyncItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [retrying, setRetrying] = useState(false);
 
   const load = useCallback(async () => {
     const companyId = selectedCompany?.id;
@@ -94,6 +100,28 @@ const PendingSyncScreen: React.FC<Props> = ({ navigation }) => {
     await load();
     setRefreshing(false);
   }, [load]);
+
+  const onRetry = useCallback(async () => {
+    const companyId = selectedCompany?.id;
+    if (!companyId) return;
+    setRetrying(true);
+    try {
+      const res = await tallyService.retryPendingSync(companyId);
+      const { succeeded = 0, failed = 0 } = res.data || {};
+      Alert.alert(
+        t('pendingSync.retryFinished'),
+        succeeded
+          ? t('pendingSync.reachedTally', { count: succeeded }) +
+              (failed ? ' ' + t('pendingSync.stillFailing', { count: failed }) : '')
+          : t('pendingSync.nothingSent')
+      );
+      await load();
+    } catch (e: any) {
+      Alert.alert(t('pendingSync.retryFailed'), e?.message || t('pendingSync.couldNotRetry'));
+    } finally {
+      setRetrying(false);
+    }
+  }, [selectedCompany?.id, load]);
 
   // The counts come from the records themselves; the list comes from the retry
   // queue. Records that failed before the queue existed show in the counts but
@@ -130,7 +158,7 @@ const PendingSyncScreen: React.FC<Props> = ({ navigation }) => {
 
   return (
     <View style={styles.container}>
-      <Header title="Waiting for Tally" showBack onBackPress={() => navigation.goBack()} />
+      <Header title={t('pendingSync.title')} showBack onBackPress={() => navigation.goBack()} />
 
       {loading ? (
         <View style={styles.center}>
@@ -160,6 +188,23 @@ const PendingSyncScreen: React.FC<Props> = ({ navigation }) => {
                   </Text>
                 </View>
               ) : null}
+              {rows.length > 0 ? (
+                <TouchableOpacity
+                  style={[styles.retryBtn, retrying && styles.retryBtnBusy]}
+                  onPress={onRetry}
+                  disabled={retrying}
+                  activeOpacity={0.8}
+                >
+                  {retrying ? (
+                    <ActivityIndicator size="small" color={colors.white} />
+                  ) : (
+                    <Icon name="sync" size={18} color={colors.white} />
+                  )}
+                  <Text style={styles.retryBtnText}>
+                    {retrying ? 'Sending to Tally...' : 'Retry now'}
+                  </Text>
+                </TouchableOpacity>
+              ) : null}
               {unlisted > 0 ? (
                 <Text style={styles.note}>
                   {unlisted} of these failed before automatic retry existed, so {unlisted > 1 ? 'they' : 'it'}{' '}
@@ -171,10 +216,11 @@ const PendingSyncScreen: React.FC<Props> = ({ navigation }) => {
           ListEmptyComponent={
             <View style={styles.center}>
               <Icon name="check-circle-outline" size={44} color={colors.success} />
-              <Text style={styles.emptyTitle}>Everything is in Tally</Text>
-              <Text style={styles.emptyText}>
-                Nothing is waiting to sync. Your app figures match Tally.
-              </Text>
+              {/* Everything reconciled with Tally — the one screen where a
+                  celebrating Finny is genuinely earned. */}
+              <FinnyMascot pose="success" size="md" animation="celebrate" decorative />
+              <Text style={styles.emptyTitle}>{t('pendingSync.allSynced')}</Text>
+              <Text style={styles.emptyText}>{t('pendingSync.allSyncedHint')}</Text>
             </View>
           }
         />
@@ -204,6 +250,22 @@ const styles = StyleSheet.create({
     color: colors.danger,
     lineHeight: 18,
     marginBottom: spacing.sm,
+  },
+  retryBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: spacing.xs,
+    backgroundColor: colors.green,
+    borderRadius: radius.sm,
+    paddingVertical: spacing.sm,
+    marginBottom: spacing.sm,
+  },
+  retryBtnBusy: { opacity: 0.7 },
+  retryBtnText: {
+    color: colors.white,
+    fontSize: fontSize.label,
+    fontWeight: fontWeight.semibold as '600',
   },
   errorBox: {
     fontSize: fontSize.label,

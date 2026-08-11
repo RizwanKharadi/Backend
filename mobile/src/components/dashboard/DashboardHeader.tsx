@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getGreeting, formatRelativeTime } from '../../utils/formatters';
 import { dashboardColors } from './dashboardTheme';
 import GuideTarget from '../guide/GuideTarget';
+import { useTranslation } from 'react-i18next';
 
 interface DashboardHeaderProps {
   userName?: string;
@@ -45,6 +46,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
   onTrialPress,
 }) => {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const syncColor = !isOnline
     ? dashboardColors.negative
@@ -53,10 +55,10 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
       : dashboardColors.positive;
 
   const syncLabel = isSyncing
-    ? 'Syncing…'
+    ? t('sync.state.syncing')
     : !isOnline
-      ? 'Offline'
-      : `Synced ${formatRelativeTime(lastSyncTime)}`;
+      ? t('sync.state.offline')
+      : t('sync.syncedAgo', { value: formatRelativeTime(lastSyncTime) });
 
   return (
     <View style={[styles.wrapper, { paddingTop: insets.top + 8 }]}>
@@ -73,7 +75,7 @@ const DashboardHeader: React.FC<DashboardHeaderProps> = ({
               disabled={!onCompanyPress}
             >
               <Text style={styles.companyName} numberOfLines={1}>
-                {companyName || 'Select company'}
+                {companyName || t('dashboard.selectCompany')}
               </Text>
               {onCompanyPress ? (
                 <Icon name="chevron-down" size={18} color={dashboardColors.headerTextMuted} />

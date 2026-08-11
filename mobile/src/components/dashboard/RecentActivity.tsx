@@ -9,6 +9,8 @@ import {
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { apiClient } from '../../services';
+import { formatRelativeTime } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 interface ActivityItem {
   id: string;
@@ -22,6 +24,7 @@ interface ActivityItem {
 
 const RecentActivity: React.FC = () => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const [activities, setActivities] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -107,20 +110,6 @@ const RecentActivity: React.FC = () => {
     }
   };
 
-  const formatTimestamp = (timestamp: string): string => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    const diffHours = Math.floor(diffMins / 60);
-
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    
-    return date.toLocaleDateString();
-  };
-
   const renderActivityItem = ({ item }: { item: ActivityItem }) => (
     <List.Item
       title={item.title}
@@ -140,7 +129,7 @@ const RecentActivity: React.FC = () => {
             variant="bodySmall"
             style={[styles.timestamp, { color: theme.colors.onSurfaceVariant }]}
           >
-            {formatTimestamp(item.timestamp)}
+            {formatRelativeTime(item.timestamp)}
           </Text>
           {item.status && item.status !== 'success' && (
             <Chip
@@ -164,15 +153,11 @@ const RecentActivity: React.FC = () => {
         <Text
           variant="titleMedium"
           style={[styles.title, { color: theme.colors.onSurface }]}
-        >
-          Recent Activity
-        </Text>
+        >{t('dashboard.recentActivityTitle')}</Text>
         <Text
           variant="bodyMedium"
           style={[styles.loadingText, { color: theme.colors.onSurfaceVariant }]}
-        >
-          Loading...
-        </Text>
+        >{t('common.loading')}</Text>
       </Surface>
     );
   }
@@ -182,9 +167,7 @@ const RecentActivity: React.FC = () => {
       <Text
         variant="titleMedium"
         style={[styles.title, { color: theme.colors.onSurface }]}
-      >
-        Recent Activity
-      </Text>
+      >{t('dashboard.recentActivityTitle')}</Text>
 
       {activities.length > 0 ? (
         <FlatList
@@ -198,9 +181,7 @@ const RecentActivity: React.FC = () => {
         <Text
           variant="bodyMedium"
           style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}
-        >
-          No recent activity
-        </Text>
+        >{t('dashboard.noActivity')}</Text>
       )}
     </Surface>
   );

@@ -39,6 +39,7 @@ import {
 
 // Types
 import { MainStackScreenProps, MainStackParamList } from '../types/navigation';
+import { formatCurrency } from '../utils/formatters';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
 
@@ -145,12 +146,6 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
     dispatch(fetchBusinessMetrics(period));
   };
 
-  const formatCurrency = (amount: number): string => {
-    return new Intl.NumberFormat('en-IN', {
-      style: 'currency',
-      currency: 'INR',
-    }).format(amount);
-  };
 
   const formatPercentage = (value?: number | null): string => {
     if (typeof value !== 'number' || Number.isNaN(value)) {

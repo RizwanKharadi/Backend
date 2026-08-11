@@ -12,6 +12,7 @@ import { colors } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { DashboardTab, NavItem } from '../types/dashboard';
+import { useTranslation } from 'react-i18next';
 
 interface BottomNavigationProps {
   items: NavItem[];
@@ -26,6 +27,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
   active,
   onTabPress,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   // Split items into left/right of the center FAB notch.
   const mid = Math.ceil(items.length / 2);
@@ -42,7 +44,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
         onPress={() => onTabPress(item.key)}
         accessibilityRole="button"
         accessibilityState={{ selected: isActive }}
-        accessibilityLabel={item.label}
+        accessibilityLabel={t(item.labelKey)}
       >
         <Icon
           name={item.icon}
@@ -50,7 +52,7 @@ const BottomNavigation: React.FC<BottomNavigationProps> = ({
           color={isActive ? colors.green : colors.textTertiary}
         />
         <Text style={[styles.label, isActive && styles.labelActive]} numberOfLines={1}>
-          {item.label}
+          {t(item.labelKey)}
         </Text>
         {isActive ? <View style={styles.dot} /> : <View style={styles.dotSpacer} />}
       </TouchableOpacity>

@@ -50,8 +50,9 @@ import { navigateToTab } from '../navigation/reportNavigation';
 import { voucherService } from '../services/voucherService';
 import { tallyService, PendingSyncSummary } from '../services/tallyService';
 import { Voucher } from '../types';
+import { useTranslation } from 'react-i18next';
 import {
-  formatIndianCompact,
+  formatCompactAmount,
   calcPercentChange,
   toLocalDateString,
 } from '../utils/formatters';
@@ -89,6 +90,7 @@ function growthFor(amount: number, prev: number): { label: string; positive?: bo
 }
 
 const PremiumTransactionsScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
   const { selectedCompany } = useCompany();
@@ -339,7 +341,7 @@ const PremiumTransactionsScreen: React.FC = () => {
         }
       >
         <TransactionHeader
-          title="Transactions"
+          title={t('nav.transactions')}
           companyName={selectedCompany?.name || 'Select company'}
           dateLabel={rangeLabel(period, range)}
           unreadCount={unreadCount || 0}
@@ -358,7 +360,7 @@ const PremiumTransactionsScreen: React.FC = () => {
           {!selectedCompany?.id ? (
             <View style={styles.hint}>
               <Text style={styles.hintText}>
-                Select a company to see your transactions.
+                {t('transactions.selectCompany')}
               </Text>
             </View>
           ) : loading && !loaded ? (
@@ -381,7 +383,7 @@ const PremiumTransactionsScreen: React.FC = () => {
               </View>
 
               <SectionHeader
-                title="Sales Flow"
+                title={t('transactions.salesFlow')}
                 icon={TRANSACTION_GROUP_META.inflow.icon}
                 accentColor={colors.success}
                 onViewAll={() => goStack('DayBook', {})}
@@ -390,7 +392,7 @@ const PremiumTransactionsScreen: React.FC = () => {
 
               <View style={styles.sectionGap} />
               <SectionHeader
-                title="Purchase Flow"
+                title={t('transactions.purchaseFlow')}
                 icon={TRANSACTION_GROUP_META.outflow.icon}
                 accentColor={colors.danger}
                 onViewAll={() => goStack('DayBook', {})}
@@ -399,7 +401,7 @@ const PremiumTransactionsScreen: React.FC = () => {
 
               <View style={styles.sectionGap} />
               <SectionHeader
-                title="Books & Entries"
+                title={t('transactions.booksEntries')}
                 icon={TRANSACTION_GROUP_META.ledger.icon}
                 accentColor={colors.kpiPurple}
                 onViewAll={() => goStack('DayBook', {})}
@@ -433,7 +435,7 @@ const PremiumTransactionsScreen: React.FC = () => {
       <Modal visible={customOpen} transparent animationType="fade" onRequestClose={() => setCustomOpen(false)}>
         <View style={styles.modalScrim}>
           <View style={styles.modalCard}>
-            <Text style={styles.modalTitle}>Custom date range</Text>
+            <Text style={styles.modalTitle}>{t('transactions.customRange')}</Text>
 
             <TouchableOpacity
               style={styles.dateField}
@@ -442,7 +444,7 @@ const PremiumTransactionsScreen: React.FC = () => {
             >
               <Icon name="calendar-start" size={18} color={colors.navy} />
               <View style={styles.dateFieldText}>
-                <Text style={styles.dateFieldLabel}>From</Text>
+                <Text style={styles.dateFieldLabel}>{t('transactions.from')}</Text>
                 <Text style={styles.dateFieldValue}>{toLocalDateString(tmpFrom)}</Text>
               </View>
             </TouchableOpacity>
@@ -465,14 +467,14 @@ const PremiumTransactionsScreen: React.FC = () => {
                 onPress={() => setCustomOpen(false)}
                 activeOpacity={0.8}
               >
-                <Text style={styles.modalCancelText}>Cancel</Text>
+                <Text style={styles.modalCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalBtn, styles.modalApply]}
                 onPress={applyCustom}
                 activeOpacity={0.85}
               >
-                <Text style={styles.modalApplyText}>Apply</Text>
+                <Text style={styles.modalApplyText}>{t('transactions.apply')}</Text>
               </TouchableOpacity>
             </View>
           </View>

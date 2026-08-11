@@ -32,16 +32,18 @@ import { DashboardTab } from '../types/dashboard';
 
 import { useCompany, useNotification } from '../store/hooks';
 import { toLocalDateString } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const SCREEN_PADDING = spacing.md;
 
 type Category = 'all' | 'financial' | 'inventory' | 'customer';
 
-const CATEGORIES: { key: Category; label: string; icon: string }[] = [
-  { key: 'all', label: 'All Reports', icon: 'view-grid-outline' },
-  { key: 'financial', label: 'Financial', icon: 'chart-line' },
-  { key: 'inventory', label: 'Inventory', icon: 'package-variant-closed' },
-  { key: 'customer', label: 'Customer', icon: 'account-group-outline' },
+// Keys, not text: module scope is out of reach of any hook.
+const CATEGORIES: { key: Category; labelKey: string; icon: string }[] = [
+  { key: 'all', labelKey: 'reports.category.all', icon: 'view-grid-outline' },
+  { key: 'financial', labelKey: 'reports.category.financial', icon: 'chart-line' },
+  { key: 'inventory', labelKey: 'reports.category.inventory', icon: 'package-variant-closed' },
+  { key: 'customer', labelKey: 'reports.category.customer', icon: 'account-group-outline' },
 ];
 
 const TAB_ROUTE: Record<Exclude<DashboardTab, 'reports'>, string> = {
@@ -62,6 +64,7 @@ interface ReportDef {
 }
 
 const PremiumReportsScreen: React.FC = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const insets = useSafeAreaInsets();
 
@@ -98,28 +101,28 @@ const PremiumReportsScreen: React.FC = () => {
 
   // ---- Report catalogue ----
   const financial: ReportDef[] = [
-    { icon: 'chart-line', color: colors.info, title: 'Profit & Loss', description: 'Income statement and profitability', badge: 'Most used', route: 'ProfitLoss' },
-    { icon: 'bank', color: colors.info, title: 'Balance Sheet', description: 'Assets, liabilities and equity', route: 'BalanceSheet' },
-    { icon: 'cash-multiple', color: colors.info, title: 'Cash / Bank Book', description: 'Cash-in-hand, bank accounts and OD balances', route: 'CashBankBook' },
-    { icon: 'account-cash-outline', color: colors.info, title: 'Receivables', description: 'Bills receivable by ledger', route: 'OutstandingReceivable' },
-    { icon: 'account-arrow-up-outline', color: colors.info, title: 'Payables', description: 'Bills payable by ledger', route: 'OutstandingPayable' },
-    { icon: 'book-open-variant', color: colors.info, title: 'Day Book', description: 'All vouchers by date range', route: 'DayBook', params: {} },
+    { icon: 'chart-line', color: colors.info, title: t('reports.item.profitLoss.title'), description: t('reports.item.profitLoss.description'), badge: t('reports.mostUsed'), route: 'ProfitLoss' },
+    { icon: 'bank', color: colors.info, title: t('reports.item.balanceSheet.title'), description: t('reports.item.balanceSheet.description'), route: 'BalanceSheet' },
+    { icon: 'cash-multiple', color: colors.info, title: t('reports.item.cashBankBook.title'), description: t('reports.item.cashBankBook.description'), route: 'CashBankBook' },
+    { icon: 'account-cash-outline', color: colors.info, title: t('dashboard.receivablesTitle'), description: t('reports.item.receivables.description'), route: 'OutstandingReceivable' },
+    { icon: 'account-arrow-up-outline', color: colors.info, title: t('dashboard.payables'), description: t('reports.item.payables.description'), route: 'OutstandingPayable' },
+    { icon: 'book-open-variant', color: colors.info, title: t('reports.item.dayBook.title'), description: t('reports.item.dayBook.description'), route: 'DayBook', params: {} },
   ];
 
   const inventory: ReportDef[] = [
-    { icon: 'cube-outline', color: colors.green, title: 'Inventory Valuation', description: 'Stock value and quantity on hand', route: 'InventoryList' },
-    { icon: 'swap-horizontal', color: colors.green, title: 'Stock Movement', description: 'Inventory transfers and adjustments', soon: true },
-    { icon: 'timer-sand-empty', color: colors.green, title: 'Inactive Items', description: 'Stock items not sold for 30+ days', route: 'InactiveItem' },
-    { icon: 'alert-outline', color: colors.green, title: 'Low Stock Report', description: 'Items below reorder level', route: 'InventoryList' },
-    { icon: 'close-circle-outline', color: colors.green, title: 'Out of Stock', description: 'Items with zero stock', route: 'InventoryList' },
-    { icon: 'trending-up', color: colors.green, title: 'Fast Moving Items', description: 'Best-selling stock items', route: 'FastMovingItems' },
+    { icon: 'cube-outline', color: colors.green, title: t('reports.item.inventoryValuation.title'), description: t('reports.item.inventoryValuation.description'), route: 'InventoryList' },
+    { icon: 'swap-horizontal', color: colors.green, title: t('reports.item.stockMovement.title'), description: t('reports.item.stockMovement.description'), soon: true },
+    { icon: 'timer-sand-empty', color: colors.green, title: t('reports.item.inactiveItems.title'), description: t('reports.item.inactiveItems.description'), route: 'InactiveItem' },
+    { icon: 'alert-outline', color: colors.green, title: t('reports.item.lowStock.title'), description: t('reports.item.lowStock.description'), route: 'InventoryList' },
+    { icon: 'close-circle-outline', color: colors.green, title: t('inventory.filters.outOfStock'), description: t('reports.item.outOfStock.description'), route: 'InventoryList' },
+    { icon: 'trending-up', color: colors.green, title: t('reports.item.fastMoving.title'), description: t('reports.item.fastMoving.description'), route: 'FastMovingItems' },
   ];
 
   const customer: ReportDef[] = [
-    { icon: 'trophy-outline', color: colors.kpiPurple, title: 'Top 10 Report', description: 'Top customers, suppliers and items', route: 'TopTenReport' },
-    { icon: 'account-cash-outline', color: colors.kpiPurple, title: 'Outstanding Receivable', description: 'Bills receivable by ledger', route: 'OutstandingReceivable' },
-    { icon: 'account-clock-outline', color: colors.kpiPurple, title: 'Inactive Customers', description: 'Customers with no bill for 30+ days', route: 'InactiveCustomer' },
-    { icon: 'chart-bar', color: colors.kpiPurple, title: 'Sales Analysis', description: 'Sales by period and party', route: 'FilteredVouchers', params: { voucherType: 'sales', title: 'Sales' } },
+    { icon: 'trophy-outline', color: colors.kpiPurple, title: t('reports.item.topTen.title'), description: t('reports.item.topTen.description'), route: 'TopTenReport' },
+    { icon: 'account-cash-outline', color: colors.kpiPurple, title: t('reports.item.outstandingReceivable.title'), description: t('reports.item.receivables.description'), route: 'OutstandingReceivable' },
+    { icon: 'account-clock-outline', color: colors.kpiPurple, title: t('reports.item.inactiveCustomers.title'), description: t('reports.item.inactiveCustomers.description'), route: 'InactiveCustomer' },
+    { icon: 'chart-bar', color: colors.kpiPurple, title: t('reports.item.salesAnalysis.title'), description: t('reports.item.salesAnalysis.description'), route: 'FilteredVouchers', params: { voucherType: 'sales', title: t('reports.sales') } },
   ];
 
   const renderGrid = (defs: ReportDef[]) => {
@@ -157,7 +160,7 @@ const PremiumReportsScreen: React.FC = () => {
         contentContainerStyle={{ paddingBottom: insets.bottom + 120 }}
       >
         <TransactionHeader
-          title="Reports"
+          title={t('nav.reports')}
           companyName={selectedCompany?.name || 'Select company'}
           dateLabel={`As of ${toLocalDateString(new Date())}`}
           unreadCount={unreadCount || 0}
@@ -187,7 +190,7 @@ const PremiumReportsScreen: React.FC = () => {
                     color={active ? colors.white : colors.textSecondary}
                   />
                   <Text style={[styles.chipText, active && styles.chipTextActive]}>
-                    {c.label}
+                    {t(c.labelKey)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -197,7 +200,7 @@ const PremiumReportsScreen: React.FC = () => {
           {showFinancial ? (
             <>
               <View style={styles.sectionGap} />
-              <SectionHeader title="Financial Reports" icon="chart-line" accentColor={colors.info} />
+              <SectionHeader title={t('reports.section.financial')} icon="chart-line" accentColor={colors.info} />
               {renderGrid(financial)}
             </>
           ) : null}
@@ -205,7 +208,7 @@ const PremiumReportsScreen: React.FC = () => {
           {showInventory ? (
             <>
               <View style={styles.sectionGap} />
-              <SectionHeader title="Inventory Reports" icon="package-variant-closed" accentColor={colors.green} />
+              <SectionHeader title={t('reports.section.inventory')} icon="package-variant-closed" accentColor={colors.green} />
               {renderGrid(inventory)}
             </>
           ) : null}
@@ -213,7 +216,7 @@ const PremiumReportsScreen: React.FC = () => {
           {showCustomer ? (
             <>
               <View style={styles.sectionGap} />
-              <SectionHeader title="Customer Reports" icon="account-group-outline" accentColor={colors.kpiPurple} />
+              <SectionHeader title={t('reports.section.customer')} icon="account-group-outline" accentColor={colors.kpiPurple} />
               {renderGrid(customer)}
             </>
           ) : null}

@@ -16,6 +16,7 @@ import {
   CashBankBookSection,
 } from '../../services/reportService';
 import { formatCurrency } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import ReportPeriodFilterModal, {
   ReportPeriodKey,
   REPORT_PERIOD_OPTIONS,
@@ -27,6 +28,7 @@ const formatBalance = (value: number) =>
   value > 0 ? formatCurrency(value) : '—';
 
 const CashBankBookScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { selectedCompany } = useCompany();
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,7 @@ const CashBankBookScreen = () => {
           <Icon name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Cash/Bank Book</Text>
+          <Text style={styles.headerTitle}>{t('reports.item.cashBankBook.title')}</Text>
           <Text style={styles.headerSub}>{periodLabel}</Text>
         </View>
         <TouchableOpacity onPress={() => setFilterVisible(true)} style={styles.headerBtn}>
@@ -116,12 +118,12 @@ const CashBankBookScreen = () => {
       </View>
 
       <View style={styles.colHeader}>
-        <Text style={styles.colParticulars}>Particulars</Text>
+        <Text style={styles.colParticulars}>{t('vouchers.detail.particulars')}</Text>
         <View style={styles.colClosing}>
-          <Text style={styles.colClosingLabel}>Closing Balance</Text>
+          <Text style={styles.colClosingLabel}>{t('reports.closingBalance')}</Text>
           <View style={styles.colDebitCredit}>
-            <Text style={styles.colSub}>Debit</Text>
-            <Text style={styles.colSub}>Credit</Text>
+            <Text style={styles.colSub}>{t('vouchers.journal.debit')}</Text>
+            <Text style={styles.colSub}>{t('vouchers.journal.credit')}</Text>
           </View>
         </View>
       </View>
@@ -134,7 +136,7 @@ const CashBankBookScreen = () => {
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -154,7 +156,7 @@ const CashBankBookScreen = () => {
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              No cash or bank groups found. Run desktop-agent sync with Tally open.
+              {t('reports.noCashBankGroups')}
             </Text>
           }
         />

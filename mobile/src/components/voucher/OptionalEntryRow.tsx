@@ -2,18 +2,21 @@ import React from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { Text, Checkbox } from 'react-native-paper';
 import { voucherFormTheme } from './voucherFormTheme';
+import { useTranslation } from 'react-i18next';
 
 interface OptionalEntryRowProps {
   checked: boolean;
   onToggle: () => void;
 }
 
-const OptionalEntryRow: React.FC<OptionalEntryRowProps> = ({ checked, onToggle }) => (
+const OptionalEntryRow: React.FC<OptionalEntryRowProps> = ({ checked, onToggle }) => {
+  const { t } = useTranslation();
+  return (
   <View style={styles.row}>
     <View style={styles.textWrap}>
-      <Text style={styles.label}>Make this entry an &apos;Optional Entry&apos;?</Text>
+      <Text style={styles.label}>{t('vouchers.form.optionalEntry')}</Text>
       <Pressable onPress={() => {}} hitSlop={8}>
-        <Text style={styles.learn}>Learn More</Text>
+        <Text style={styles.learn}>{t('vouchers.form.learnMore')}</Text>
       </Pressable>
     </View>
     <Checkbox
@@ -22,7 +25,8 @@ const OptionalEntryRow: React.FC<OptionalEntryRowProps> = ({ checked, onToggle }
       color={voucherFormTheme.primary}
     />
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   row: {

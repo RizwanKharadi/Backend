@@ -6,6 +6,7 @@ import {
   useTheme,
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { tSafe } from '../../i18n';
 
 interface LoadingScreenProps {
   message?: string;
@@ -13,10 +14,13 @@ interface LoadingScreenProps {
 }
 
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
-  message = 'Loading...',
+  message,
   showLogo = true,
 }) => {
   const theme = useTheme();
+  // tSafe rather than useTranslation: this screen is the PersistGate fallback,
+  // so it renders before i18n has initialised.
+  const label = message ?? tSafe('common.loading', 'Loading...');
 
   return (
     <View style={[styles.container, { backgroundColor: theme.colors.background }]}>
@@ -31,7 +35,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
             variant="headlineMedium"
             style={[styles.appName, { color: theme.colors.primary }]}
           >
-            TallyFin
+            {tSafe('common.appName', 'TallyFin')}
           </Text>
         </View>
       )}
@@ -46,7 +50,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
           variant="bodyLarge"
           style={[styles.message, { color: theme.colors.onSurfaceVariant }]}
         >
-          {message}
+          {label}
         </Text>
       </View>
     </View>

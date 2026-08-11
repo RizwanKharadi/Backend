@@ -21,13 +21,16 @@ import { useCompany } from '../../store/hooks';
 import { voucherService } from '../../services/voucherService';
 import { DEFAULT_BANK_CASH_LEDGERS, PAYMENT_MODES } from '../../utils/voucherCreateConfig';
 import { describeTallyPush } from '../../utils/tallyPushMessage';
+import { formatDateShortYear, currencySymbol } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'CreateReceiptPayment'>;
 
 const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
   const { voucherType, partyId, partyName } = route.params;
   const isReceipt = voucherType === 'receipt';
-  const title = isReceipt ? 'Receipt' : 'Payment';
+  const { t } = useTranslation();
+  const title = isReceipt ? t('vouchers.type.receipt') : t('vouchers.type.payment');
   const { selectedCompany } = useCompany();
 
   const [isOptional, setIsOptional] = useState(false);
@@ -84,21 +87,20 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
       .catch(() => setAutoNumbering(false));
   }, [selectedCompany?.id, voucherType]);
 
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' });
+  const formatDate = (d: Date) => formatDateShortYear(d);
 
   const handleSave = async () => {
     if (!selectedCompany?.id) {
-      Alert.alert('Company', 'Select a company first');
+      Alert.alert(t('vouchers.form.companyTitle'), t('vouchers.form.selectCompanyFirst'));
       return;
     }
     const amt = parseFloat(amount);
     if (!bankCashName.trim()) {
-      Alert.alert('Bank/Cash', 'Select bank or cash ledger');
+      Alert.alert(t('vouchers.form.bankCash'), t('vouchers.form.bankCashRequired'));
       return;
     }
     if (!amt || amt <= 0) {
-      Alert.alert('Amount', 'Enter a valid amount');
+      Alert.alert(t('vouchers.form.amountTitle'), t('vouchers.form.amountInvalid'));
       return;
     }
 
@@ -138,12 +140,12 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setSaving(true);
       const response = await voucherService.createVoucher(payload);
-      const pushInfo = describeTallyPush(response.tallyPush, `${title} voucher`);
+      const pushInfo = describeTallyPush(response.tallyPush, t('vouchers.form.voucherOfType', { type: title }));
       Alert.alert(pushInfo.title, pushInfo.message, [
-        { text: 'OK', onPress: () => navigation.popToTop() },
+        { text: t('common.ok'), onPress: () => navigation.popToTop() },
       ]);
     } catch (e: any) {
-      Alert.alert('Error', e.message || 'Failed to save');
+      Alert.alert(t('common.error'), e.message || t('vouchers.form.saveFailed'));
     } finally {
       setSaving(false);
     }
@@ -162,7 +164,7 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
 
         <TouchableOpacity onPress={() => setShowDatePicker(true)}>
           <TextInput
-            label="Date"
+            label={t('vouchers.form.date')}
             value={formatDate(date)}
             mode="outlined"
             editable={false}
@@ -183,7 +185,7 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
         ) : null}
 
         <TextInput
-          label="Party"
+          label={t('vouchers.form.party')}
           value={partyName}
           mode="outlined"
           editable={false}
@@ -192,16 +194,16 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
         />
 
         <SearchableSelect
-          label="Bank/Cash Name"
+          label={t('vouchers.form.bankCash')}
           value={bankCashName}
           options={bankOptions}
           onSelect={(o) => setBankCashName(o.label)}
           leftIcon="wallet"
-          placeholder="Bank/Cash Name"
+          placeholder={t('vouchers.form.bankCash')}
         />
 
         <TextInput
-          label="Voucher No. (optional)"
+          label={t('vouchers.form.voucherNumber')}
           value={voucherNumber}
           onChangeText={setVoucherNumber}
           mode="outlined"
@@ -210,11 +212,11 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
           style={[styles.input, autoNumbering && styles.inputDisabled]}
         />
         {autoNumbering ? (
-          <Text style={styles.hint}>Disabled due to autonumbering in Tally</Text>
+          <Text style={styles.hint}>{t('vouchers.form.autoNumbering')}</Text>
         ) : null}
 
         <TextInput
-          label="Amount (₹)"
+          label={t('vouchers.form.amountWithSymbol', { symbol: currencySymbol() })}
           value={amount}
           onChangeText={setAmount}
           keyboardType="decimal-pad"
@@ -224,20 +226,20 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
         />
 
         <SearchableSelect
-          label="Payment Mode"
+          label={t('vouchers.form.paymentMode')}
           value={paymentMode}
           options={paymentModeOptions}
           onSelect={(o) => setPaymentMode(o.label)}
           leftIcon="hand-coin"
-          placeholder="Payment Mode"
+          placeholder={t('vouchers.form.paymentMode')}
         />
 
         <TextInput
-          label="Bill / Invoice ref (Agst Ref)"
+          label={t('vouchers.form.billReference')}
           value={billReference}
           onChangeText={setBillReference}
           mode="outlined"
-          placeholder="e.g. AISPL/157/26-27"
+          placeholder={t('vouchers.form.billReferenceHint')}
           style={styles.input}
         />
         <Text style={styles.hint}>
@@ -245,7 +247,7 @@ const CreateReceiptPaymentScreen: React.FC<Props> = ({ navigation, route }) => {
         </Text>
 
         <TextInput
-          label="Narration"
+          label={t('vouchers.item.narration')}
           value={narration}
           onChangeText={(t) => setNarration(t.slice(0, 300))}
           mode="outlined"

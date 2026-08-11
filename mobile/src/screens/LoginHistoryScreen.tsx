@@ -6,24 +6,18 @@ import Header from '../components/common/Header';
 import { userService } from '../services/userService';
 import { MainStackScreenProps } from '../types/navigation';
 import { User } from '../types';
+import { formatDateTime as sharedFormatDateTime } from '../utils/formatters';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'LoginHistory'>;
 
 function formatDateTime(value?: string | null): string {
-  if (!value) return '—';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return '—';
-  return d.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return (value && sharedFormatDateTime(value)) || '—';
 }
 
 const LoginHistoryScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState<User | null>(null);
 
@@ -67,8 +61,8 @@ const LoginHistoryScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Login history"
-        subtitle="Account activity"
+        title={t('profile.loginHistory')}
+        subtitle={t('profile.accountActivity')}
         showBack
         onBackPress={() => navigation.goBack()}
       />

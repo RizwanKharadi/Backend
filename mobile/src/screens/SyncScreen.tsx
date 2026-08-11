@@ -37,6 +37,9 @@ import {
 
 // Types
 import { MainStackScreenProps } from '../types/navigation';
+import { formatRelativeTime, formatDateTime } from '../utils/formatters';
+import { FinnyMascot } from '../components/mascot';
+import { useTranslation } from 'react-i18next';
 
 interface SyncStatus {
   lastSync: string | null;
@@ -53,6 +56,7 @@ type Props = MainStackScreenProps<'Sync'>;
 const SyncScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
+  const { t } = useTranslation();
 
   const { user } = useAuth();
   const {
@@ -82,7 +86,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
 
   useEffect(() => {
     if (syncError) {
-      Alert.alert('Sync Error', syncError);
+      Alert.alert(t('sync.errorTitle'), syncError);
       dispatch(clearSyncError());
     }
   }, [syncError, dispatch]);
@@ -108,9 +112,9 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
   const handleStartSync = useCallback(async () => {
     try {
       await dispatch(startSync()).unwrap();
-      Alert.alert('Success', 'Sync completed successfully');
+      Alert.alert(t('common.success'), t('sync.successMessage'));
     } catch (error) {
-      Alert.alert('Error', 'Failed to sync data');
+      Alert.alert(t('common.error'), t('sync.failedMessage'));
     }
   }, [dispatch]);
 
@@ -124,19 +128,19 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleForceSync = useCallback(async () => {
     Alert.alert(
-      'Force Sync',
-      'This will override any pending changes and sync all data from the server. Continue?',
+      t('sync.force.title'),
+      t('sync.force.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Continue',
+          text: t('sync.force.confirm'),
           style: 'destructive',
           onPress: async () => {
             try {
               await dispatch(forceSync()).unwrap();
-              Alert.alert('Success', 'Force sync completed');
+              Alert.alert(t('common.success'), t('sync.force.success'));
             } catch (error) {
-              Alert.alert('Error', 'Failed to force sync');
+              Alert.alert(t('common.error'), t('sync.force.failed'));
             }
           },
         },
@@ -149,23 +153,9 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
       await dispatch(updateSyncSettings({ autoSync: enabled })).unwrap();
       setSyncStatus(prev => ({ ...prev, isAutoSyncEnabled: enabled }));
     } catch (error) {
-      Alert.alert('Error', 'Failed to update sync settings');
+      Alert.alert(t('common.error'), t('sync.settingsFailed'));
     }
   }, [dispatch]);
-
-  const formatLastSync = (timestamp: string | null): string => {
-    if (!timestamp) return 'Never';
-    
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / (1000 * 60));
-    
-    if (diffMins < 1) return 'Just now';
-    if (diffMins < 60) return `${diffMins} minutes ago`;
-    
-    return date.toLocaleString();
-  };
 
   const getSyncStatusColor = (): string => {
     if (syncError) return theme.colors.error;
@@ -176,18 +166,18 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
   };
 
   const getSyncStatusText = (): string => {
-    if (syncError) return 'Error';
-    if (isSyncing) return 'Syncing...';
-    if (!isOnline) return 'Offline';
-    if (pendingChanges > 0) return 'Pending changes';
-    return 'Up to date';
+    if (syncError) return t('sync.state.error');
+    if (isSyncing) return t('sync.state.syncing');
+    if (!isOnline) return t('sync.state.offline');
+    if (pendingChanges > 0) return t('sync.state.pending');
+    return t('sync.state.upToDate');
   };
 
   return (
     <View style={styles.container}>
       <Header
-        title="Sync"
-        subtitle="Data synchronization"
+        title={t('sync.title')}
+        subtitle={t('sync.subtitle')}
         showBack
         showSync
         onBackPress={() => navigation.goBack()}
@@ -206,7 +196,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.statusHeader}>
             <View style={styles.statusInfo}>
               <Text variant="titleLarge" style={[styles.statusTitle, { color: theme.colors.onSurface }]}>
-                Sync Status
+                {t('sync.status')}
               </Text>
               <View style={styles.statusRow}>
                 <Chip
@@ -218,7 +208,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
                   {getSyncStatusText()}
                 </Chip>
                 <Text variant="bodyMedium" style={[styles.lastSync, { color: theme.colors.onSurfaceVariant }]}>
-                  Last sync: {formatLastSync(syncStatus.lastSync)}
+                  {t('sync.lastSyncInline', { value: formatRelativeTime(syncStatus.lastSync) })}
                 </Text>
               </View>
             </View>
@@ -231,8 +221,11 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
 
           {isSyncing && (
             <View style={styles.progressContainer}>
+              {/* Working Finny — this is the one place in the app where the
+                  user is waiting on us, so the mascot earns its space. */}
+              <FinnyMascot pose="working" size="md" animation="float" decorative />
               <Text variant="bodyMedium" style={[styles.progressText, { color: theme.colors.onSurface }]}>
-                Syncing... {Math.round(syncProgress * 100)}%
+                {t('sync.syncing', { percent: Math.round(syncProgress * 100) })}
               </Text>
               <ProgressBar
                 progress={syncProgress}
@@ -245,16 +238,16 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.infoGrid}>
             <View style={styles.infoItem}>
               <Text variant="bodySmall" style={[styles.infoLabel, { color: theme.colors.onSurfaceVariant }]}>
-                Last Sync
+                {t('sync.lastSync')}
               </Text>
               <Text variant="bodyMedium" style={[styles.infoValue, { color: theme.colors.onSurface }]}>
-                {formatLastSync(lastSyncTime)}
+                {formatRelativeTime(lastSyncTime)}
               </Text>
             </View>
 
             <View style={styles.infoItem}>
               <Text variant="bodySmall" style={[styles.infoLabel, { color: theme.colors.onSurfaceVariant }]}>
-                Pending Changes
+                {t('sync.pendingChanges')}
               </Text>
               <Chip mode="outlined" compact>
                 {pendingChanges}
@@ -263,7 +256,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
 
             <View style={styles.infoItem}>
               <Text variant="bodySmall" style={[styles.infoLabel, { color: theme.colors.onSurfaceVariant }]}>
-                Connection
+                {t('sync.connection')}
               </Text>
               <View style={styles.connectionStatus}>
                 <Icon
@@ -275,7 +268,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
                   styles.connectionText,
                   { color: isOnline ? theme.colors.primary : theme.colors.error }
                 ]}>
-                  {isOnline ? 'Online' : 'Offline'}
+                  {isOnline ? t('sync.online') : t('sync.state.offline')}
                 </Text>
               </View>
             </View>
@@ -285,7 +278,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
         {/* Sync Actions */}
         <Surface style={[styles.actionsCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.onSurface }]}>
-            Sync Actions
+            {t('sync.actions')}
           </Text>
 
           <View style={styles.actionButtons}>
@@ -297,7 +290,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
                 style={styles.actionButton}
                 disabled={!isOnline}
               >
-                Start Sync
+                {t('sync.start')}
               </Button>
             ) : (
               <Button
@@ -306,7 +299,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
                 icon="pause"
                 style={styles.actionButton}
               >
-                Pause Sync
+                {t('sync.pause')}
               </Button>
             )}
 
@@ -317,7 +310,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
               style={styles.actionButton}
               disabled={!isOnline}
             >
-              Force Sync
+              {t('sync.forceButton')}
             </Button>
           </View>
         </Surface>
@@ -325,12 +318,12 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
         {/* Sync Settings */}
         <Surface style={[styles.settingsCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.onSurface }]}>
-            Sync Settings
+            {t('sync.settings')}
           </Text>
 
           <List.Item
-            title="Auto Sync"
-            description="Automatically sync data when online"
+            title={t('settings.autoSync.title')}
+            description={t('sync.autoSyncDescription')}
             left={() => <Icon name="sync" size={24} color={theme.colors.primary} />}
             right={() => (
               <Switch
@@ -343,36 +336,40 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
           <Divider />
 
           <List.Item
-            title="Sync Interval"
+            title={t('settings.syncInterval')}
             description={`Every ${syncStatus.syncInterval / 60} minutes`}
             left={() => <Icon name="timer" size={24} color={theme.colors.primary} />}
             right={() => <Icon name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />}
-            onPress={() => Alert.alert('Coming Soon', 'Sync interval settings')}
+            onPress={() => Alert.alert(t('common.comingSoon'), t('sync.intervalSettings'))}
           />
 
           <Divider />
 
           <List.Item
-            title="Sync on WiFi Only"
-            description="Use WiFi only for large syncs"
+            title={t('sync.wifiOnly.title')}
+            description={t('sync.wifiOnly.description')}
             left={() => <Icon name="wifi" size={24} color={theme.colors.primary} />}
             right={() => <Icon name="chevron-right" size={24} color={theme.colors.onSurfaceVariant} />}
-            onPress={() => Alert.alert('Coming Soon', 'WiFi sync settings')}
+            onPress={() => Alert.alert(t('common.comingSoon'), t('sync.wifiSettings'))}
           />
         </Surface>
 
         {/* Sync History */}
         <Surface style={[styles.historyCard, { backgroundColor: theme.colors.surface }]} elevation={2}>
           <Text variant="titleMedium" style={[styles.cardTitle, { color: theme.colors.onSurface }]}>
-            Recent Sync History
+            {t('sync.recentHistory')}
           </Text>
 
           {syncHistory && syncHistory.length > 0 ? (
             syncHistory.slice(0, 5).map((session) => (
               <List.Item
                 key={session.id}
-                title={`Sync ${session.status}`}
-                description={`${session.processedItems}/${session.totalItems} items • ${new Date(session.startTime).toLocaleString()}`}
+                title={t('sync.history', { status: session.status })}
+                description={t('sync.historyDescription', {
+                  processed: session.processedItems,
+                  total: session.totalItems,
+                  when: formatDateTime(session.startTime),
+                })}
                 left={() => (
                   <Icon
                     name={session.status === 'completed' ? 'check-circle' : 'alert-circle'}
@@ -384,7 +381,7 @@ const SyncScreen: React.FC<Props> = ({ navigation }) => {
             ))
           ) : (
             <Text variant="bodyMedium" style={[styles.emptyText, { color: theme.colors.onSurfaceVariant }]}>
-              No sync history available
+              {t('sync.noHistory')}
             </Text>
           )}
         </Surface>
@@ -436,9 +433,11 @@ const styles = StyleSheet.create({
   },
   progressContainer: {
     marginTop: 16,
+    alignItems: 'center',
   },
   progressText: {
     marginBottom: 8,
+    marginTop: 8,
   },
   progressBar: {
     height: 6,

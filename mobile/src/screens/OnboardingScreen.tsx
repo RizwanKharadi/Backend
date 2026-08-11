@@ -20,11 +20,12 @@ import { AppDispatch } from '../store';
 import { setFirstLaunchCompleted } from '../store/slices/settingsSlice';
 
 // Components
-import FinnyMascot from '../components/guide/FinnyMascot';
+import { FinnyMascot } from '../components/mascot';
 
 // Types
 import { MascotPose } from '../constants/appGuideSteps';
 import { RootStackScreenProps } from '../types/navigation';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
@@ -51,7 +52,7 @@ const slides: OnboardingSlide[] = [
     eyebrow: 'Offline Ready',
     title: 'Keep working even without internet',
     description: 'Changes are stored locally and synced automatically when your network is back.',
-    mascotPose: 'pointing',
+    mascotPose: 'intro',
     tint: '#39B54A',
   },
   {
@@ -59,7 +60,7 @@ const slides: OnboardingSlide[] = [
     eyebrow: 'Live Sync',
     title: 'Desktop agent + mobile always aligned',
     description: 'When TallyPrime and desktop-agent run on your PC, mobile data stays fresh and up to date.',
-    mascotPose: 'pointing',
+    mascotPose: 'working',
     tint: '#0b3f7a',
   },
   {
@@ -67,7 +68,7 @@ const slides: OnboardingSlide[] = [
     eyebrow: 'You\'re all set',
     title: 'Business data protected by design',
     description: 'JWT auth, biometric login, and encrypted storage keep your account and data safe.',
-    mascotPose: 'celebrate',
+    mascotPose: 'success',
     tint: '#002147',
   },
 ];
@@ -75,6 +76,7 @@ const slides: OnboardingSlide[] = [
 type Props = RootStackScreenProps<'Onboarding'>;
 
 const OnboardingScreen: React.FC<Props> = () => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const flatListRef = useRef<FlatList>(null);
@@ -113,7 +115,12 @@ const OnboardingScreen: React.FC<Props> = () => {
       <View style={styles.slideContent}>
         <View style={styles.heroCard}>
           <View style={[styles.mascotContainer, { backgroundColor: `${item.tint}12` }]}>
-            <FinnyMascot pose={item.mascotPose} size={currentIndex === 0 ? 180 : 150} />
+            <FinnyMascot
+              pose={item.mascotPose}
+              size={currentIndex === 0 ? 180 : 150}
+              animation={currentIndex === 0 ? 'wave' : 'float'}
+              decorative
+            />
           </View>
           <Text
             variant="labelLarge"
@@ -185,9 +192,7 @@ const OnboardingScreen: React.FC<Props> = () => {
                 mode="text"
                 onPress={handleSkip}
                 style={styles.skipButton}
-              >
-                Skip
-              </Button>
+              >{t('onboarding.skip')}</Button>
               
               <Button
                 mode="contained"
@@ -196,9 +201,7 @@ const OnboardingScreen: React.FC<Props> = () => {
                 icon="arrow-right"
                 contentStyle={styles.nextButtonContent}
                 buttonColor="#002147"
-              >
-                Next
-              </Button>
+              >{t('onboarding.next')}</Button>
             </>
           ) : (
             <Button
@@ -207,9 +210,7 @@ const OnboardingScreen: React.FC<Props> = () => {
               style={styles.getStartedButton}
               contentStyle={styles.getStartedButtonContent}
               buttonColor="#002147"
-            >
-              Get Started
-            </Button>
+            >{t('onboarding.getStarted')}</Button>
           )}
         </View>
       </Surface>

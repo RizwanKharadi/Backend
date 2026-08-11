@@ -6,6 +6,8 @@ import {
   Surface,
 } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
+import { tSafe } from '../../i18n';
+import { FinnyMascot } from '../mascot';
 
 interface Props {
   children: ReactNode;
@@ -56,25 +58,35 @@ class ErrorBoundary extends Component<Props, State> {
       return (
         <View style={styles.container}>
           <Surface style={styles.errorContainer} elevation={2}>
-            <Icon
-              name="alert-circle"
-              size={64}
-              color="#dc2626"
+            {/* Concerned-but-reassuring Finny: a crash should read as
+                recoverable, not alarming. No animation here — the app has
+                just fallen over, a bouncing mascot would be tone-deaf. */}
+            <FinnyMascot
+              pose="error"
+              size="md"
+              animation="none"
+              decorative
               style={styles.icon}
             />
             
+            {/* tSafe, not useTranslation: this boundary wraps the whole app,
+                so it can render before i18n has initialised — and a raw key is
+                a poor thing to show someone whose app has just crashed. */}
             <Text variant="headlineSmall" style={styles.title}>
-              Something went wrong
+              {tSafe('errors.boundary.title', 'Something went wrong')}
             </Text>
 
             <Text variant="bodyLarge" style={styles.message}>
-              An unexpected error occurred. Please try restarting the app.
+              {tSafe(
+                'errors.boundary.message',
+                'An unexpected error occurred. Please try restarting the app.'
+              )}
             </Text>
 
             {__DEV__ && this.state.error && (
               <View style={styles.debugContainer}>
                 <Text variant="labelMedium" style={styles.debugTitle}>
-                  Debug Info:
+                  {tSafe('errors.boundary.debugInfo', 'Debug Info:')}
                 </Text>
                 <Text variant="bodySmall" style={styles.debugText}>
                   {this.state.error.toString()}
@@ -93,7 +105,7 @@ class ErrorBoundary extends Component<Props, State> {
                 onPress={this.handleRestart}
                 style={styles.button}
               >
-                Try Again
+                {tSafe('common.retry', 'Try Again')}
               </Button>
             </View>
           </Surface>

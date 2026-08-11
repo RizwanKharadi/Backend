@@ -1,0 +1,834 @@
+{
+  "common": {
+    "cancel": "रद्द करा",
+    "done": "झाले",
+    "close": "बंद करा",
+    "ok": "ठीक आहे",
+    "save": "जतन करा",
+    "delete": "हटवा",
+    "edit": "संपादित करा",
+    "add": "जोडा",
+    "retry": "पुन्हा प्रयत्न करा",
+    "dismiss": "दुर्लक्ष करा",
+    "loading": "लोड होत आहे...",
+    "search": "शोधा",
+    "all": "सर्व",
+    "none": "—",
+    "success": "यशस्वी",
+    "error": "त्रुटी",
+    "warning": "चेतावणी",
+    "information": "माहिती",
+    "yes": "होय",
+    "no": "नाही",
+    "viewAll": "सर्व पहा",
+    "viewDetails": "तपशील पहा",
+    "noDescription": "वर्णन उपलब्ध नाही",
+    "comingSoon": "लवकरच येत आहे",
+    "appName": "TallyFin"
+  },
+  "time": {
+    "never": "कधीही नाही",
+    "justNow": "आत्ताच",
+    "minutesAgo": "{{count}} मिनिटांपूर्वी",
+    "hoursAgo": "{{count}} तासांपूर्वी",
+    "daysAgo": "{{count}} दिवसांपूर्वी"
+  },
+  "greeting": {
+    "morning": "शुभ प्रभात",
+    "afternoon": "शुभ दुपार",
+    "evening": "शुभ संध्याकाळ"
+  },
+  "errors": {
+    "generic": "An error occurred",
+    "technicalDetails": "Technical Details:",
+    "boundary": {
+      "title": "Something went wrong",
+      "message": "An unexpected error occurred. Please try restarting the app.",
+      "debugInfo": "Debug Info:"
+    },
+    "network": {
+      "title": "Connection Error",
+      "message": "Unable to connect to the server. Please check your internet connection and try again."
+    },
+    "notFound": {
+      "title": "Not Found",
+      "message": "The {{resource}} you're looking for could not be found.",
+      "defaultResource": "item"
+    },
+    "permission": {
+      "title": "Permission Denied",
+      "message": "You don't have permission to {{action}}. Please contact your administrator.",
+      "defaultAction": "perform this action"
+    },
+    "validation": {
+      "title": "Validation Error"
+    }
+  },
+  "offline": {
+    "title": "Offline mode",
+    "unknown": "unknown",
+    "cached": "Showing last synced data (last update {{lastSync}}).",
+    "manual": "Offline mode is turned on in Settings. Turn it off to load live data from the server.",
+    "backendUnreachable": "Phone is online but the app cannot reach your backend. Check API_BASE_URL in mobile/.env — use your PC IP (e.g. http://192.168.1.x:5000/api) or run: adb reverse tcp:5000 tcp:5000",
+    "noNetwork": "No network connection. Showing cached data until you are back online."
+  },
+  "nav": {
+    "dashboard": "डॅशबोर्ड",
+    "transactions": "व्यवहार",
+    "inventory": "इन्व्हेंटरी",
+    "reports": "अहवाल",
+    "chat": "चॅट"
+  },
+  "dashboard": {
+    "selectCompany": "कंपनी निवडा",
+    "there": "there",
+    "netWorth": "निव्वळ संपत्ती",
+    "receivablesOverview": "येणे बाकी रकमेचा आढावा",
+    "totalOutstanding": "एकूण थकबाकी",
+    "payables": "देय रक्कम",
+    "subscriptionActive": "सबस्क्रिप्शन सक्रिय",
+    "awaitingSync": "Tally सिंकची प्रतीक्षा",
+    "bankPlusCash": "बँक खाते + हातातील रोख",
+    "billCount": "{{count}} बिल",
+    "billCount_plural": "{{count}} बिले",
+    "invoiceCount": "{{count}} इनव्हॉइस",
+    "invoiceCount_plural": "{{count}} इनव्हॉइस",
+    "noSalesData": "या कालावधीसाठी विक्रीचा डेटा उपलब्ध नाही",
+    "period": {
+      "7d": "7 दिवस",
+      "30d": "30 दिवस",
+      "90d": "90 दिवस"
+    },
+    "status": {
+      "overdue": "थकीत",
+      "dueSoon": "लवकरच देय",
+      "paid": "भरलेले"
+    },
+    "welcomeTitle": "TallyFin मध्ये आपले स्वागत आहे",
+    "welcomeBody": "तुमचा आर्थिक डॅशबोर्ड पाहण्यासाठी Tally शी जोडलेली कंपनी निवडा.",
+    "offlineNotice": "तुम्ही ऑफलाइन आहात — शेवटचा सिंक केलेला डेटा दाखवला जात आहे",
+    "sectionToday": "आजची झलक",
+    "sectionOverview": "व्यवसायाचा आढावा",
+    "todaySales": "आजची विक्री",
+    "invoicesToday": "{{count}} invoice today",
+    "invoicesToday_plural": "{{count}} invoices today",
+    "monthlyRevenue": "मासिक महसूल",
+    "monthToDate": "या महिन्यापर्यंत",
+    "monthRange": "{{from}} to today",
+    "outstanding": "थकबाकी",
+    "receivablesDue": "येणे बाकी रक्कम",
+    "overdueCount": "{{count}} थकीत",
+    "dueBadge": "{{count}} देय",
+    "bankBalance": "बँक शिल्लक",
+    "bankSubtitle": "रोख आणि बँक खाती",
+    "profitThisMonth": "या महिन्याचा नफा",
+    "netProfit": "निव्वळ नफा",
+    "netLoss": "निव्वळ तोटा",
+    "topCustomer": "सर्वोच्च ग्राहक",
+    "noCustomerData": "अद्याप ग्राहकांचा डेटा नाही",
+    "lowStockAlerts": "कमी स्टॉक सूचना",
+    "lowStockNeedAttention": "{{count}} वस्तूकडे लक्ष देणे आवश्यक आहे",
+    "lowStockNeedAttention_plural": "{{count}} वस्तूंकडे लक्ष देणे आवश्यक आहे",
+    "stockLevelsOk": "सर्व स्टॉक पातळी ठीक आहेत",
+    "alertBadge": "सूचना",
+    "salesTrend": "विक्रीचा कल",
+    "salesTrendSubtitle": "मागील 7 दिवस",
+    "weekTotal": "आठवड्याची एकूण रक्कम",
+    "recentActivities": "अलीकडील क्रियाकलाप",
+    "recentVouchers": "अलीकडील व्हाउचर",
+    "seeAll": "सर्व पहा",
+    "noVouchersYet": "अद्याप कोणतेही व्हाउचर नाही. क्रियाकलाप पाहण्यासाठी Tally मधून सिंक करा.",
+    "noRecentActivity": "अद्याप अलीकडील क्रियाकलाप नाही. व्हाउचर पाहण्यासाठी Tally मधून सिंक करा.",
+    "thisMonth": "हा महिना",
+    "monthActivity": "एकूण व्हाउचर क्रियाकलाप (MTD)",
+    "noComparison": "अद्याप तुलना डेटा नाही",
+    "changeVsLastMonth": "मागील महिन्याच्या तुलनेत {{value}}",
+    "voucherMix": "व्हाउचर मिश्रण",
+    "noVouchersSynced": "अद्याप कोणतेही व्हाउचर सिंक झालेले नाही. desktop-agent सिंक चालवा.",
+    "totalCount": "एकूण {{count}}",
+    "todaysPulse": "आजची स्थिती",
+    "needsAttention": "लक्ष देणे आवश्यक",
+    "createVoucher": "व्हाउचर तयार करा",
+    "quickActions": "जलद क्रिया",
+    "receivablesTitle": "येणे बाकी",
+    "salesMtd": "विक्री (MTD)",
+    "partyCount": "{{count}} पार्टी",
+    "partyCount_plural": "{{count}} पार्ट्या",
+    "voucherCount": "{{count}} व्हाउचर",
+    "voucherCount_plural": "{{count}} व्हाउचर",
+    "quickAction": {
+      "daybook": "डे बुक",
+      "reports": "अहवाल",
+      "outstanding": "थकबाकी",
+      "sync": "सिंक",
+      "vouchers": "व्हाउचर",
+      "newVoucher": "नवीन व्हाउचर",
+      "addItem": "वस्तू जोडा",
+      "syncNow": "आता सिंक करा"
+    },
+    "quickActionsTitle": "जलद क्रिया",
+    "attention": {
+      "overdue": "{{count}} party has overdue receivables",
+      "overdue_plural": "{{count}} parties have overdue receivables",
+      "subscriptionInactive": "Subscription inactive — renew to keep syncing",
+      "trialEnding": "{{label}} — subscribe to continue after trial",
+      "selectCompany": "Select a company to view your business dashboard"
+    },
+    "trial": {
+      "daysLeft": "Trial · {{count}}d left",
+      "daysLeft_plural": "Trial · {{count}}d left",
+      "daysLeftLong": "Trial · {{count}} Day Left",
+      "daysLeftLong_plural": "Trial · {{count}} Days Left",
+      "label": "Trial",
+      "ended": "Trial ended",
+      "active": "Active plan",
+      "paymentDue": "Payment due"
+    }
+  },
+  "reports": {
+    "sales": "विक्री",
+    "mostUsed": "सर्वाधिक वापरलेले",
+    "category": {
+      "all": "सर्व अहवाल",
+      "financial": "आर्थिक",
+      "inventory": "इन्व्हेंटरी",
+      "customer": "ग्राहक"
+    },
+    "section": {
+      "financial": "आर्थिक अहवाल",
+      "inventory": "इन्व्हेंटरी अहवाल",
+      "customer": "ग्राहक अहवाल"
+    },
+    "item": {
+      "profitLoss": {
+        "title": "नफा आणि तोटा",
+        "description": "उत्पन्न विवरण आणि नफा"
+      },
+      "balanceSheet": {
+        "title": "ताळेबंद",
+        "description": "मालमत्ता, दायित्वे आणि भांडवल"
+      },
+      "cashBankBook": {
+        "title": "रोख / बँक बुक",
+        "description": "हातातील रोख, बँक खाती आणि OD शिल्लक"
+      },
+      "receivables": {
+        "description": "Bills receivable by ledger"
+      },
+      "payables": {
+        "description": "Bills payable by ledger"
+      },
+      "dayBook": {
+        "title": "डे बुक",
+        "description": "तारखेच्या श्रेणीनुसार सर्व व्हाउचर"
+      },
+      "inventoryValuation": {
+        "title": "इन्व्हेंटरी मूल्यांकन",
+        "description": "स्टॉकचे मूल्य आणि उपलब्ध प्रमाण"
+      },
+      "stockMovement": {
+        "title": "स्टॉक हालचाल",
+        "description": "इन्व्हेंटरी हस्तांतरण आणि समायोजन"
+      },
+      "inactiveItems": {
+        "title": "निष्क्रिय वस्तू",
+        "description": "30+ दिवसांपासून न विकलेल्या स्टॉक वस्तू"
+      },
+      "lowStock": {
+        "title": "कमी स्टॉक अहवाल",
+        "description": "पुनःऑर्डर पातळीपेक्षा कमी असलेल्या वस्तू"
+      },
+      "outOfStock": {
+        "description": "शून्य स्टॉक असलेल्या वस्तू"
+      },
+      "fastMoving": {
+        "title": "जलद विकल्या जाणाऱ्या वस्तू",
+        "description": "सर्वाधिक विकल्या जाणाऱ्या स्टॉक वस्तू"
+      },
+      "topTen": {
+        "title": "टॉप 10 अहवाल",
+        "description": "सर्वोच्च ग्राहक, पुरवठादार आणि वस्तू"
+      },
+      "outstandingReceivable": {
+        "title": "थकीत येणे बाकी"
+      },
+      "inactiveCustomers": {
+        "title": "निष्क्रिय ग्राहक",
+        "description": "30+ दिवसांपासून बिल नसलेले ग्राहक"
+      },
+      "salesAnalysis": {
+        "title": "विक्री विश्लेषण",
+        "description": "कालावधी आणि पार्टीनुसार विक्री"
+      }
+    }
+  },
+  "transactions": {
+    "salesFlow": "विक्री प्रवाह",
+    "purchaseFlow": "खरेदी प्रवाह",
+    "booksEntries": "बुके आणि नोंदी",
+    "customRange": "कस्टम तारीख श्रेणी",
+    "from": "पासून",
+    "apply": "लागू करा"
+  },
+  "billing": {
+    "title": "Subscription",
+    "subtitle": "Plan & billing",
+    "startDate": "Start date",
+    "deviceSeats": "Device seats",
+    "billingCycle": "Billing cycle",
+    "planDetails": "Plan details",
+    "planId": "Plan ID",
+    "mobileIncluded": "Mobile included",
+    "razorpaySubscription": "Razorpay subscription",
+    "linked": "Linked",
+    "notLinked": "Not linked",
+    "activateAfterPayment": "Activate after payment",
+    "refreshStatus": "Refresh status",
+    "upgradeTitle": "Upgrade or change plan",
+    "checkoutFailed": "Checkout failed",
+    "updated": "Updated",
+    "syncedFromRazorpay": "Subscription status synced from Razorpay.",
+    "syncFailed": "Sync failed",
+    "couldNotSync": "Could not sync"
+  },
+  "profile": {
+    "title": "Profile",
+    "subtitle": "User Information",
+    "accountInformation": "Account Information",
+    "phone": "Phone",
+    "accountStatus": "Account Status",
+    "memberSince": "Member Since",
+    "companies": "Companies",
+    "emailVerification": "Email Verification",
+    "changePassword": "Change Password",
+    "changePasswordDescription": "Update your password",
+    "activity": "Activity",
+    "lastUpdated": "Last Updated",
+    "lastSignIn": "Last Sign-in",
+    "loginHistory": "Login History",
+    "loginHistoryDescription": "View sign-in and account timeline",
+    "verifiedTitle": "Verified",
+    "alreadyVerified": "Your email address is already verified.",
+    "verificationEmail": "Verification email",
+    "verificationSent": "If email delivery is configured, a verification link has been sent."
+  },
+  "ml": {
+    "prediction": {
+      "title": "Payment Prediction",
+      "subtitle": "AI-Powered Payment Delay Prediction",
+      "parameters": "Prediction Parameters",
+      "customerId": "Customer ID *",
+      "amount": "Payment Amount (Optional)",
+      "dueDate": "Due Date (Optional)",
+      "period": "Prediction Period (Days)",
+      "predict": "Predict",
+      "results": "Prediction Results",
+      "delayProbability": "Delay Probability",
+      "predictedDelay": "Predicted Delay",
+      "confidence": "Confidence",
+      "keyFactors": "Key Influencing Factors",
+      "recommendations": "Recommendations",
+      "failedTitle": "Prediction Failed",
+      "failed": "Failed to predict payment delay"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "loading": "Loading notifications...",
+    "searchPlaceholder": "Search notifications...",
+    "empty": "No notifications found",
+    "markAllRead": "Mark All Read",
+    "markReadFailed": "Failed to mark notification as read",
+    "filter": {
+      "unread": "Unread",
+      "read": "Read",
+      "info": "Info"
+    },
+    "markAll": {
+      "title": "Mark All as Read",
+      "message": "Are you sure you want to mark all notifications as read?",
+      "success": "All notifications marked as read",
+      "failed": "Failed to mark all notifications as read"
+    },
+    "deleteOne": {
+      "title": "Delete Notification",
+      "message": "Are you sure you want to delete this notification?",
+      "failed": "Failed to delete notification"
+    },
+    "deleteAll": {
+      "title": "Delete All Notifications",
+      "message": "Are you sure you want to delete all notifications? This action cannot be undone.",
+      "confirm": "Delete All",
+      "success": "All notifications deleted",
+      "failed": "Failed to delete all notifications"
+    }
+  },
+  "payments": {
+    "loading": "Loading payments...",
+    "searchPlaceholder": "Search payments...",
+    "overview": "Payment Overview",
+    "totalAmount": "Total Amount",
+    "totalTransactions": "Total Transactions",
+    "successful": "Successful",
+    "failed": "Failed",
+    "pending": "Pending",
+    "methods": "Payment Methods",
+    "orderId": "Order ID",
+    "linkId": "Link ID",
+    "amount": "Amount",
+    "date": "Date",
+    "actions": "Actions",
+    "create": "Create",
+    "generate": "Generate",
+    "enterAmount": "Enter amount:",
+    "defaultDescription": "Payment for services",
+    "status": {
+      "label": "Status",
+      "created": "Created",
+      "paid": "Paid",
+      "failed": "Failed"
+    },
+    "tab": {
+      "stats": "Stats",
+      "orders": "Orders",
+      "links": "Links"
+    },
+    "createOrder": {
+      "title": "Create Payment Order",
+      "success": "Payment order created successfully",
+      "failed": "Failed to create payment order"
+    },
+    "createLink": {
+      "title": "Create Payment Link",
+      "success": "Payment link created successfully",
+      "failed": "Failed to create payment link"
+    },
+    "upiQr": {
+      "title": "Generate UPI QR Code",
+      "success": "UPI QR code generated successfully",
+      "failed": "Failed to generate UPI QR code"
+    },
+    "cancelLink": {
+      "title": "Cancel Payment Link",
+      "message": "Are you sure you want to cancel this payment link?",
+      "success": "Payment link cancelled successfully",
+      "failed": "Failed to cancel payment link"
+    }
+  },
+  "tally": {
+    "loading": "Loading Tally integration...",
+    "connectionStatus": "Connection Status",
+    "noConnections": "No connections configured",
+    "active": "Active",
+    "inactive": "Inactive",
+    "syncStatus": "Sync Status",
+    "statusLabel": "Status:",
+    "lastSyncLabel": "Last Sync:",
+    "progress": "Progress: {{current}}/{{total}}",
+    "syncStatistics": "Sync Statistics",
+    "noSyncStatus": "No sync status available",
+    "testConnection": "Test Connection",
+    "host": "Host",
+    "port": "Port",
+    "connectSuccess": "Connection to Tally successful!",
+    "connectFailed": "Failed to connect to Tally",
+    "testFailed": "Failed to test connection",
+    "settingsUpdated": "Settings updated successfully",
+    "settingsFailed": "Failed to update settings",
+    "syncIntervalMinutes": "Sync Interval (minutes)",
+    "syncEntities": "Sync Entities",
+    "noLogs": "No sync logs available",
+    "noConflicts": "No sync conflicts",
+    "conflictTitle": "{{entity}} Conflict",
+    "useLocal": "Use Local",
+    "useTally": "Use Tally",
+    "merge": "Merge",
+    "entity": {
+      "vouchers": "Vouchers",
+      "items": "Items",
+      "parties": "Parties"
+    },
+    "tab": {
+      "status": "Status",
+      "settings": "Settings",
+      "logs": "Logs",
+      "conflicts": "Conflicts"
+    },
+    "fullSync": {
+      "title": "Full Sync",
+      "message": "This will sync all data between the app and Tally. This may take some time. Continue?",
+      "confirm": "Sync",
+      "started": "Full sync initiated successfully",
+      "failed": "Failed to initiate full sync"
+    }
+  },
+  "sync": {
+    "title": "सिंक",
+    "subtitle": "डेटा सिंक्रोनायझेशन",
+    "status": "सिंक स्थिती",
+    "lastSync": "शेवटचा सिंक",
+    "lastSyncInline": "शेवटचा सिंक: {{value}}",
+    "syncedAgo": "{{value}} सिंक झाले",
+    "pendingChanges": "प्रलंबित बदल",
+    "syncing": "सिंक होत आहे... {{percent}}%",
+    "state": {
+      "error": "त्रुटी",
+      "syncing": "सिंक होत आहे...",
+      "offline": "ऑफलाइन",
+      "pending": "प्रलंबित बदल",
+      "upToDate": "अद्ययावत"
+    },
+    "errorTitle": "सिंक त्रुटी",
+    "successMessage": "सिंक यशस्वीरीत्या पूर्ण झाले",
+    "failedMessage": "डेटा सिंक करण्यात अयशस्वी",
+    "force": {
+      "title": "Force Sync",
+      "message": "This will override any pending changes and sync all data from the server. Continue?",
+      "confirm": "Continue",
+      "success": "Force sync completed",
+      "failed": "Failed to force sync"
+    },
+    "settingsFailed": "Failed to update sync settings",
+    "connection": "कनेक्शन",
+    "online": "ऑनलाइन",
+    "actions": "सिंक क्रिया",
+    "start": "सिंक सुरू करा",
+    "pause": "सिंक थांबवा",
+    "forceButton": "फोर्स सिंक",
+    "settings": "सिंक सेटिंग्ज",
+    "autoSyncDescription": "Automatically sync data when online",
+    "intervalSettings": "Sync interval settings",
+    "wifiSettings": "WiFi sync settings",
+    "wifiOnly": {
+      "title": "Sync on WiFi Only",
+      "description": "Use WiFi only for large syncs"
+    },
+    "recentHistory": "अलीकडील सिंक इतिहास",
+    "noHistory": "सिंक इतिहास उपलब्ध नाही",
+    "history": "Sync {{status}}",
+    "historyDescription": "{{processed}}/{{total}} items • {{when}}"
+  },
+  "vouchers": {
+    "title": "व्हाउचर",
+    "fallbackName": "व्हाउचर",
+    "count": "{{count}} व्हाउचर",
+    "count_plural": "{{count}} व्हाउचर",
+    "searchPlaceholder": "व्हाउचर शोधा...",
+    "filters": "फिल्टर",
+    "emptyTitle": "व्हाउचर सापडले नाही",
+    "emptySearchHint": "तुमचे शोध निकष बदलून पहा",
+    "emptyCreateHint": "सुरुवात करण्यासाठी तुमचे पहिले व्हाउचर तयार करा",
+    "create": "व्हाउचर तयार करा",
+    "newVoucher": "नवीन व्हाउचर",
+    "kind": {
+      "sales": "विक्री",
+      "purchase": "खरेदी",
+      "receipt": "पावती",
+      "payment": "पेमेंट",
+      "journal": "जर्नल",
+      "contra": "कॉन्ट्रा",
+      "debitNote": "डेबिट नोट",
+      "creditNote": "क्रेडिट नोट"
+    },
+    "createScreen": {
+      "needCompany": "Please select a company before creating a voucher",
+      "needEntry": "Please add at least one entry",
+      "needFields": "Please fill all required fields in entries",
+      "mustBalance": "Total Debit and Credit must be equal",
+      "mustBalanceChip": "Voucher must be balanced",
+      "success": "Voucher created successfully",
+      "failed": "Failed to create voucher",
+      "voucherType": "Voucher Type",
+      "voucherDetails": "Voucher Details",
+      "voucherNumber": "Voucher Number",
+      "dateRequired": "Date *",
+      "referenceLabel": "Reference",
+      "referencePlaceholder": "Enter reference number",
+      "narrationPlaceholder": "Enter narration",
+      "accountRequired": "Account *",
+      "entryNarrationPlaceholder": "Optional narration for this entry",
+      "invoiceEntries": "Invoice Entries",
+      "paymentEntries": "Payment Entries",
+      "journalEntries": "Journal Entries",
+      "addEntry": "Add Entry",
+      "invoiceHint": "Sales/purchase vouchers can include invoice lines and item details.",
+      "entryNumber": "Entry {{number}}",
+      "totalDebitLabel": "Total Debit:",
+      "totalCreditLabel": "Total Credit:",
+      "differenceLabel": "Difference:",
+      "clear": "Clear"
+    },
+    "kindDescription": {
+      "sales": "Create a sales invoice with customer details and line items.",
+      "purchase": "Create a purchase invoice with supplier details and line items.",
+      "receipt": "Record money received from customers or miscellaneous receipts.",
+      "payment": "Record payments made to suppliers or other payables.",
+      "journal": "Record general ledger journal entries.",
+      "contra": "Transfer cash or bank amounts between accounts.",
+      "debitNote": "Create a debit note for returns or adjustments.",
+      "creditNote": "Create a credit note for returns or adjustments."
+    },
+    "delete": {
+      "title": "Delete Voucher",
+      "message": "Are you sure you want to delete this voucher? This action cannot be undone.",
+      "success": "Voucher deleted successfully",
+      "failed": "Failed to delete voucher"
+    },
+    "detail": {
+      "moreDetails": "More details",
+      "status": "Status",
+      "reference": "Reference",
+      "created": "Created",
+      "lastUpdated": "Last updated",
+      "lastSynced": "Last synced",
+      "syncedToTally": "Synced to Tally",
+      "shareFailed": "Failed to share voucher. Please try again.",
+      "printFailed": "Failed to print voucher. Please check your printer settings.",
+      "shareHtml": "Share HTML",
+      "whatsapp": "WhatsApp",
+      "whatsappUnavailable": "WhatsApp is not available on this device.",
+      "cannotPush": "Cannot push",
+      "cannotPushReason": "This voucher cannot be sent to Tally",
+      "push": "Push",
+      "synced": "Synced",
+      "syncedMessage": "Voucher was sent to Tally successfully.",
+      "deleteTitle": "Delete voucher",
+      "deleteMessage": "This cannot be undone.",
+      "editUnavailable": "Voucher editing is not available yet.",
+      "invoiceDate": "Invoice Date",
+      "dueDate": "Due Date",
+      "items": "ITEMS",
+      "qty": "QTY",
+      "rate": "RATE",
+      "amount": "AMOUNT",
+      "noLineItems": "No line items",
+      "particulars": "Particulars",
+      "totalAmount": "Total Amount",
+      "totalInWords": "Total Amount In Words",
+      "terms": "TERMS",
+      "notes": "Notes",
+      "tallySync": "TALLY SYNC",
+      "print": "Print",
+      "share": "Share",
+      "pdf": "PDF"
+    },
+    "status": {
+      "draft": "ड्राफ्ट",
+      "pending": "प्रलंबित",
+      "approved": "मंजूर",
+      "rejected": "नाकारणे",
+      "posted": "पोस्ट केलेले",
+      "cancelled": "रद्द केलेले",
+      "paid": "भरलेले"
+    },
+    "journal": {
+      "notBalanced": "बॅलन्स नाही",
+      "mustBalance": "डेबिट {{debit}} क्रेडिट {{credit}} इतके असणे आवश्यक आहे",
+      "needTwoLines": "किमान दोन लेजर लाईन्स जोडा",
+      "ledgersTitle": "लेजर",
+      "totalDebit": "एकूण डेबिट",
+      "totalCredit": "एकूण क्रेडिट",
+      "difference": "फरक",
+      "debit": "डेबिट",
+      "credit": "क्रेडिट",
+      "title": "जर्नल नोंद"
+    },
+    "item": {
+      "summary": "Summary",
+      "netTotal": "Net Total",
+      "taxAndLedgers": "Tax & ledgers",
+      "grossTotal": "Gross Total",
+      "ledger": "Ledger",
+      "ledgerHint": "Add tax ledgers (IGST, CGST, SGST) and other charges under Ledger.",
+      "lineAmount": "Line amount",
+      "narration": "Narration"
+    },
+    "form": {
+      "companyTitle": "Company",
+      "selectCompany": "Please select a company first",
+      "amountTitle": "Amount",
+      "amountInvalid": "Enter a valid amount",
+      "saveFailed": "Failed to save",
+      "date": "Date",
+      "party": "Party",
+      "bankCash": "Bank/Cash Name",
+      "voucherNumber": "Voucher No. (optional)",
+      "autoNumbering": "Disabled due to autonumbering in Tally",
+      "bankCashRequired": "Select bank or cash ledger",
+      "selectCompanyFirst": "Select a company first",
+      "addLink": "ADD",
+      "ledgerName": "Ledger Name",
+      "ledgerNameAndAmount": "Enter ledger name and amount",
+      "amount": "Amount",
+      "amountWithSymbol": "Amount ({{symbol}})",
+      "narrationPlaceholder": "Enter narration...",
+      "itemsTitle": "Items",
+      "addOneItem": "Add at least one item",
+      "tallyVoucherType": "Tally Voucher Type",
+      "reference": "Reference (optional)",
+      "taxLedgerPlaceholder": "Tax or charge ledger",
+      "paymentMode": "Payment Mode",
+      "billReference": "Bill / Invoice ref (Agst Ref)",
+      "billReferenceHint": "e.g. AISPL/157/26-27",
+      "voucherOfType": "{{type}} voucher",
+      "itemRequired": "Item required",
+      "itemRequiredMessage": "Select or enter an item name",
+      "invalidQuantity": "Invalid quantity",
+      "invalidQuantityMessage": "Enter a valid quantity",
+      "invalidRate": "Invalid rate",
+      "invalidRateMessage": "Enter a valid rate"
+    },
+    "type": {
+      "receipt": "Receipt",
+      "payment": "Payment"
+    },
+    "addItem": {
+      "title": "Add Item",
+      "subtitle": "Tax via Ledger on invoice",
+      "itemName": "Item Name",
+      "chooseItem": "Tap to choose item",
+      "godown": "Godown",
+      "chooseGodown": "Tap to choose godown",
+      "description": "Description (optional)",
+      "quantity": "Quantity",
+      "unit": "Unit",
+      "rate": "Rate",
+      "discount": "Discount %"
+    }
+  },
+  "inventory": {
+    "itemCount": "{{count}} item",
+    "itemCount_plural": "{{count}} items",
+    "filters": {
+      "all": "सर्व",
+      "inStock": "स्टॉकमध्ये",
+      "lowStock": "कमी स्टॉक",
+      "outOfStock": "स्टॉक संपला"
+    },
+    "stock": {
+      "out": "संपले",
+      "low": "कमी",
+      "ok": "ठीक"
+    },
+    "detail": {
+      "item": "Item",
+      "notFound": "Item not found",
+      "goBack": "Go back",
+      "loadFailed": "Failed to load item details",
+      "deleted": "Deleted",
+      "deleteSuccess": "Item removed successfully",
+      "deleteFailed": "Failed to delete item",
+      "quantityOnHand": "Current quantity on hand",
+      "stockBalances": "Stock balances",
+      "description": "Description",
+      "details": "Details"
+    },
+    "totalItems": "एकूण वस्तू",
+    "allItems": "सर्व वस्तू",
+    "selectCompanyHint": "तुमची इन्व्हेंटरी पाहण्यासाठी कंपनी निवडा.",
+    "warehouseOverview": "गोदामाचा आढावा",
+    "needingAttention": "लक्ष देण्याची गरज असलेल्या वस्तू",
+    "categorySummary": "श्रेणीचा सारांश",
+    "stockValue": "Stock value",
+    "searchPlaceholder": "नाव किंवा कोडने शोधा…",
+    "noItems": "वस्तू सापडल्या नाहीत"
+  },
+  "settings": {
+    "title": "सेटिंग्ज",
+    "subtitle": "अॅप कॉन्फिगरेशन",
+    "sectionAccount": "खाते",
+    "sectionSync": "सिंक्रोनायझेशन",
+    "sectionSecurity": "सुरक्षा",
+    "sectionApp": "अॅप सेटिंग्ज",
+    "sectionAi": "AI/ML वैशिष्ट्ये",
+    "sectionData": "डेटा व्यवस्थापन",
+    "sectionHelp": "मदत",
+    "sectionAbout": "अॅपबद्दल",
+    "companySelection": "कंपनी निवड",
+    "syncInterval": "सिंक अंतराल",
+    "appVersion": "अॅप आवृत्ती",
+    "theme": "थीम",
+    "themeValue": "{{name}} थीम",
+    "themeName": {
+      "light": "फिकट",
+      "dark": "गडद",
+      "system": "सिस्टम"
+    },
+    "billing": {
+      "title": "Subscription & billing",
+      "description": "Manage plan and device seats (mobile included)"
+    },
+    "autoSync": {
+      "title": "Auto Sync",
+      "description": "Automatically sync when online"
+    },
+    "offlineMode": {
+      "title": "Offline Mode",
+      "description": "Work offline with local data"
+    },
+    "paymentPredictions": {
+      "title": "Payment Predictions",
+      "description": "AI payment delay predictions"
+    },
+    "cache": {
+      "title": "Clear Cache",
+      "description": "Clear all cached data",
+      "message": "This will clear all cached data. Continue?",
+      "confirm": "Clear",
+      "success": "Cache cleared successfully"
+    },
+    "export": {
+      "title": "Export Data",
+      "description": "Export app data"
+    },
+    "appTour": {
+      "title": "Show app tour",
+      "description": "Replay Finny's guided walkthrough of the app"
+    },
+    "privacyPolicy": {
+      "title": "Privacy Policy",
+      "description": "View privacy policy"
+    },
+    "terms": {
+      "title": "Terms of Service",
+      "description": "View terms of service"
+    },
+    "logout": {
+      "title": "लॉग आउट",
+      "message": "तुम्हाला नक्की लॉग आउट करायचे आहे का?",
+      "confirm": "लॉग आउट"
+    },
+    "biometric": {
+      "title": "Biometric Authentication",
+      "enable": "Enable",
+      "enableTitle": "Enable biometric login",
+      "enabledTitle": "Biometric enabled",
+      "enabledMessage": "You can sign in with {{type}} on the login screen.",
+      "authenticateWith": "Authenticate with {{type}} to continue",
+      "setupFailed": "Setup failed",
+      "couldNotEnable": "Could not enable biometric authentication.",
+      "couldNotDisable": "Could not disable biometric authentication.",
+      "notAvailable": "Not available",
+      "notSupported": "This device does not support fingerprint or face authentication.",
+      "signInRequired": "Sign in required",
+      "signInFirst": "Log in with your password before enabling biometrics.",
+      "signInAgain": "Sign in again before enabling biometric authentication.",
+      "authFailed": "Authentication failed",
+      "notCompleted": "Biometric verification was not completed.",
+      "confirmPassword": "Confirm password",
+      "confirmPasswordMessage": "Enter your account password to enable biometric sign-in.",
+      "password": "Password",
+      "passwordRequired": "Password required",
+      "enterPassword": "Enter your account password."
+    },
+    "notifications": "सूचना",
+    "notificationsDescription": "पुश सूचना आणि अलर्ट",
+    "debugMode": "डिबग मोड",
+    "debugModeDescription": "डिबग लॉगिंग सक्षम करा",
+    "language": {
+      "title": "भाषा",
+      "pickerTitle": "भाषा निवडा",
+      "note": "लेजर, वस्तू आणि व्हाउचरची नावे तुमच्या Tally कंपनीमधून येतात आणि ज्या भाषेत नोंदवली आहेत त्याच भाषेत राहतात."
+    }
+  }
+}

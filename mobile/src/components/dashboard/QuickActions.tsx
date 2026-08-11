@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, StyleSheet, ScrollView } from 'react-native';
+import { useTranslation } from 'react-i18next';
 import {
   Surface,
   Text,
@@ -18,31 +19,17 @@ interface QuickAction {
   color?: string;
 }
 
-const quickActions: QuickAction[] = [
-  {
-    id: 'create_voucher',
-    label: 'New Voucher',
-    icon: 'plus',
-  },
-  {
-    id: 'create_item',
-    label: 'Add Item',
-    icon: 'package-variant-plus',
-  },
-  {
-    id: 'sync',
-    label: 'Sync Now',
-    icon: 'sync',
-  },
-  {
-    id: 'reports',
-    label: 'Reports',
-    icon: 'chart-line',
-  },
+// Keys, not text: this list is module scope, out of reach of any hook.
+const quickActions: { id: string; labelKey: string; icon: string }[] = [
+  { id: 'create_voucher', labelKey: 'dashboard.quickAction.newVoucher', icon: 'plus' },
+  { id: 'create_item', labelKey: 'dashboard.quickAction.addItem', icon: 'package-variant-plus' },
+  { id: 'sync', labelKey: 'dashboard.quickAction.syncNow', icon: 'sync' },
+  { id: 'reports', labelKey: 'dashboard.quickAction.reports', icon: 'chart-line' },
 ];
 
 const QuickActions: React.FC<QuickActionsProps> = ({ onActionPress }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
 
   return (
     <Surface style={[styles.card, { backgroundColor: theme.colors.surface }]} elevation={2}>
@@ -50,7 +37,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onActionPress }) => {
         variant="titleMedium"
         style={[styles.title, { color: theme.colors.onSurface }]}
       >
-        Quick Actions
+        {t('dashboard.quickActionsTitle')}
       </Text>
       
       <ScrollView
@@ -71,7 +58,7 @@ const QuickActions: React.FC<QuickActionsProps> = ({ onActionPress }) => {
             contentStyle={styles.actionButtonContent}
             labelStyle={styles.actionButtonLabel}
           >
-            {action.label}
+            {t(action.labelKey)}
           </Button>
         ))}
       </ScrollView>

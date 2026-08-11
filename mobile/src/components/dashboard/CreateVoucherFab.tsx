@@ -2,23 +2,27 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { FAB } from 'react-native-paper';
 import { voucherFormTheme } from '../voucher/voucherFormTheme';
+import { useTranslation } from 'react-i18next';
 
 interface CreateVoucherFabProps {
   onPress: () => void;
 }
 
-const CreateVoucherFab: React.FC<CreateVoucherFabProps> = ({ onPress }) => (
-  <View style={styles.fabWrap}>
-    <FAB
-      icon="plus"
-      label="Create voucher"
-      style={styles.fab}
-      color="#fff"
-      onPress={onPress}
-      customSize={56}
-    />
-  </View>
-);
+const CreateVoucherFab: React.FC<CreateVoucherFabProps> = ({ onPress }) => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.fabWrap}>
+      <FAB
+        icon="plus"
+        label={t('dashboard.createVoucher')}
+        style={styles.fab}
+        color="#fff"
+        onPress={onPress}
+        customSize={56}
+      />
+    </View>
+  );
+};
 
 const styles = StyleSheet.create({
   fabWrap: {

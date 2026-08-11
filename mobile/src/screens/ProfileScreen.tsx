@@ -23,34 +23,24 @@ import { setUser } from '../store/slices/authSlice';
 import { userService } from '../services/userService';
 import { MainStackScreenProps } from '../types/navigation';
 import { User } from '../types';
+import {
+  formatDateLong,
+  formatDateTime as sharedFormatDateTime,
+} from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'Profile'>;
 
 function formatDate(value?: string | null): string {
-  if (!value) return 'Not available';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'Not available';
-  return d.toLocaleDateString(undefined, {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  });
+  return (value && formatDateLong(value)) || 'Not available';
 }
 
 function formatDateTime(value?: string | null): string {
-  if (!value) return 'Not available';
-  const d = new Date(value);
-  if (Number.isNaN(d.getTime())) return 'Not available';
-  return d.toLocaleString(undefined, {
-    day: 'numeric',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  return (value && sharedFormatDateTime(value)) || 'Not available';
 }
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const { user: storeUser } = useSelector((state: RootState) => state.auth);
@@ -83,7 +73,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
 
   const handleEmailVerification = async () => {
     if (user?.isEmailVerified) {
-      Alert.alert('Verified', 'Your email address is already verified.');
+      Alert.alert(t('profile.verifiedTitle'), t('profile.alreadyVerified'));
       return;
     }
 
@@ -92,20 +82,20 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
       const result = await userService.resendEmailVerification();
       let message =
         result.message ||
-        'If email delivery is configured, a verification link has been sent.';
+        t('profile.verificationSent');
 
       if (result.verificationToken) {
         message += `\n\nDevelopment token (for testing):\n${result.verificationToken}`;
       }
 
-      Alert.alert('Verification email', message);
+      Alert.alert(t('profile.verificationEmail'), message);
     } catch (error: unknown) {
       const err = error as { response?: { data?: { message?: string } }; message?: string };
       Alert.alert(
-        'Failed',
+        t('profile.verificationFailed'),
         err?.response?.data?.message ||
           err?.message ||
-          'Could not send verification email.'
+          t('profile.couldNotSendVerification')
       );
     } finally {
       setVerificationBusy(false);
@@ -137,8 +127,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <View style={styles.container}>
       <Header
-        title="Profile"
-        subtitle="User Information"
+        title={t('profile.title')}
+        subtitle={t('profile.subtitle')}
         showBack
         onBackPress={() => navigation.goBack()}
       />
@@ -181,24 +171,24 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </Surface>
 
           <Surface style={styles.section} elevation={2}>
-            <Title style={styles.sectionTitle}>Account Information</Title>
+            <Title style={styles.sectionTitle}>{t('profile.accountInformation')}</Title>
             <List.Item
-              title="Phone"
+              title={t('profile.phone')}
               description={user?.phone || 'Not provided'}
               left={(props) => <List.Icon {...props} icon="phone" />}
             />
             <List.Item
-              title="Account Status"
+              title={t('profile.accountStatus')}
               description={accountActive ? 'Your account is active on the server' : 'Account deactivated — contact support'}
               left={(props) => <List.Icon {...props} icon="account-check" />}
             />
             <List.Item
-              title="Member Since"
+              title={t('profile.memberSince')}
               description={formatDate(user?.createdAt)}
               left={(props) => <List.Icon {...props} icon="calendar" />}
             />
             <List.Item
-              title="Companies"
+              title={t('profile.companies')}
               description={`Access to ${user?.companies?.length || 0} workspace(s)`}
               left={(props) => <List.Icon {...props} icon="office-building" />}
               onPress={() => navigation.navigate('CompanySelection')}
@@ -207,9 +197,9 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </Surface>
 
           <Surface style={styles.section} elevation={2}>
-            <Title style={styles.sectionTitle}>Security</Title>
+            <Title style={styles.sectionTitle}>{t('settings.sectionSecurity')}</Title>
             <List.Item
-              title="Email Verification"
+              title={t('profile.emailVerification')}
               description={
                 user?.isEmailVerified
                   ? 'Your email is verified'
@@ -220,8 +210,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
               disabled={verificationBusy || user?.isEmailVerified}
             />
             <List.Item
-              title="Change Password"
-              description="Update your password"
+              title={t('profile.changePassword')}
+              description={t('profile.changePasswordDescription')}
               left={(props) => <List.Icon {...props} icon="lock" />}
               onPress={() => navigation.navigate('ChangePassword')}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}
@@ -229,20 +219,20 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </Surface>
 
           <Surface style={styles.section} elevation={2}>
-            <Title style={styles.sectionTitle}>Activity</Title>
+            <Title style={styles.sectionTitle}>{t('profile.activity')}</Title>
             <List.Item
-              title="Last Updated"
+              title={t('profile.lastUpdated')}
               description={formatDateTime(user?.updatedAt)}
               left={(props) => <List.Icon {...props} icon="clock-outline" />}
             />
             <List.Item
-              title="Last Sign-in"
+              title={t('profile.lastSignIn')}
               description={formatDateTime(user?.lastLogin)}
               left={(props) => <List.Icon {...props} icon="login" />}
             />
             <List.Item
-              title="Login History"
-              description="View sign-in and account timeline"
+              title={t('profile.loginHistory')}
+              description={t('profile.loginHistoryDescription')}
               left={(props) => <List.Icon {...props} icon="history" />}
               onPress={() => navigation.navigate('LoginHistory')}
               right={(props) => <List.Icon {...props} icon="chevron-right" />}

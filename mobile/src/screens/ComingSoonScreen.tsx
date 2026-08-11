@@ -3,25 +3,27 @@ import { View, StyleSheet } from 'react-native';
 import { Text, Surface } from 'react-native-paper';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Placeholder for Chat / Ask Your Business — production build shows Coming Soon.
  */
 const ComingSoonScreen: React.FC = () => {
+  const { t } = useTranslation();
   return (
     <View style={styles.container}>
       <Surface style={styles.card} elevation={3}>
         <View style={styles.iconWrap}>
           <Icon name="chat-processing-outline" size={48} color={dashboardColors.accent} />
         </View>
-        <Text style={styles.title}>Coming Soon</Text>
+        <Text style={styles.title}>{t('common.comingSoon')}</Text>
         <Text style={styles.subtitle}>
           AI chat for your business data is under development. You can continue using Dashboard,
           Transactions, Inventory, and Reports.
         </Text>
         <View style={styles.badge}>
           <Icon name="hammer-wrench" size={16} color="#64748b" />
-          <Text style={styles.badgeText}>Available in a future update</Text>
+          <Text style={styles.badgeText}>{t('comingSoon.futureUpdate')}</Text>
         </View>
       </Surface>
     </View>

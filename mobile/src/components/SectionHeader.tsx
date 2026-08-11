@@ -9,6 +9,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { colors, hexToRgba } from '../theme/colors';
 import { radius, spacing } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
+import { useTranslation } from 'react-i18next';
 
 interface SectionHeaderProps {
   title: string;
@@ -22,7 +23,9 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
   icon,
   accentColor,
   onViewAll,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <View style={styles.row}>
     <View style={styles.left}>
       <View style={[styles.chip, { backgroundColor: hexToRgba(accentColor, 0.14) }]}>
@@ -32,13 +35,13 @@ const SectionHeader: React.FC<SectionHeaderProps> = ({
     </View>
     {onViewAll ? (
       <TouchableOpacity onPress={onViewAll} activeOpacity={0.7} accessibilityRole="button">
-        <Text style={[styles.viewAll, { color: accentColor }]}>
-          View all <Text style={styles.chev}>›</Text>
+        <Text style={[styles.viewAll, { color: accentColor }]}>{t('common.viewAll')}<Text style={styles.chev}>›</Text>
         </Text>
       </TouchableOpacity>
     ) : null}
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   row: {

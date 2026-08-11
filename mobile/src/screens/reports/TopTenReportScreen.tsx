@@ -16,33 +16,35 @@ import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
 import { useCompany } from '../../store/hooks';
+import { useTranslation } from 'react-i18next';
 import {
   reportService,
   TopTenCategory,
   TopTenReportData,
   TopTenRow,
 } from '../../services/reportService';
-import { formatCurrency, formatDate, toLocalDateString } from '../../utils/formatters';
+import {
+  formatCurrency,
+  formatDate,
+  formatDateShortYear,
+  formatQuantity,
+  toLocalDateString,
+} from '../../utils/formatters';
 
 const PRIMARY = '#1565C0';
 
-const CATEGORIES: { id: TopTenCategory; label: string }[] = [
-  { id: 'customers', label: 'Customers' },
-  { id: 'suppliers', label: 'Suppliers' },
-  { id: 'items_sold_value', label: 'Items Sold by Value' },
-  { id: 'items_purchased_value', label: 'Items Purchased by Value' },
-  { id: 'items_sold_qty', label: 'Items Sold by Quantity' },
-  { id: 'items_purchased_qty', label: 'Items Purchased by Quantity' },
+const CATEGORIES: { id: TopTenCategory; labelKey: string }[] = [
+  // Keys, not text: module scope is out of reach of any hook.
+  { id: 'customers', labelKey: 'reports.topTen.customers' },
+  { id: 'suppliers', labelKey: 'reports.topTen.suppliers' },
+  { id: 'items_sold_value', labelKey: 'reports.topTen.itemsSoldValue' },
+  { id: 'items_purchased_value', labelKey: 'reports.topTen.itemsPurchasedValue' },
+  { id: 'items_sold_qty', labelKey: 'reports.topTen.itemsSoldQty' },
+  { id: 'items_purchased_qty', labelKey: 'reports.topTen.itemsPurchasedQty' },
 ];
 
-const formatPeriodLabel = (start: Date, end: Date): string => {
-  const fmt = (d: Date) =>
-    d
-      .toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })
-      .toUpperCase()
-      .replace(/ /g, ' ');
-  return `${fmt(start)} to ${fmt(end)}`;
-};
+const formatPeriodLabel = (start: Date, end: Date): string =>
+  `${formatDateShortYear(start).toUpperCase()} to ${formatDateShortYear(end).toUpperCase()}`;
 
 const startOfDay = (d: Date) => {
   const x = new Date(d);
@@ -71,6 +73,7 @@ const resolveFiscalYearRange = (company: any): { start: Date; end: Date } => {
 };
 
 const TopTenReportScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { selectedCompany } = useCompany();
 
@@ -143,7 +146,7 @@ const TopTenReportScreen = () => {
     const from = startOfDay(draftStart);
     const to = startOfDay(draftEnd);
     if (from.getTime() > to.getTime()) {
-      Alert.alert('Invalid period', 'From date must be on or before To date.');
+      Alert.alert(t('reports.invalidPeriod'), t('reports.invalidPeriodMessage'));
       return;
     }
     setStartDate(from);
@@ -242,7 +245,7 @@ const TopTenReportScreen = () => {
     category === 'items_sold_qty' || category === 'items_purchased_qty';
 
   const categoryLabel =
-    CATEGORIES.find((c) => c.id === category)?.label ?? 'Top 10';
+    t(CATEGORIES.find((c) => c.id === category)?.labelKey ?? 'reports.topTen.title');
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -259,7 +262,7 @@ const TopTenReportScreen = () => {
       </View>
       <View style={styles.rowRight}>
         {isQtyView ? (
-          <Text style={styles.rowValue}>{item.quantity?.toLocaleString() ?? '0'}</Text>
+          <Text style={styles.rowValue}>{formatQuantity(item.quantity)}</Text>
         ) : (
           <Text style={styles.rowValue}>{formatCurrency(item.totalAmount)}</Text>
         )}
@@ -278,7 +281,7 @@ const TopTenReportScreen = () => {
   if (!selectedCompany) {
     return (
       <View style={styles.centered}>
-        <Text style={styles.emptyText}>Select a company to view Top 10 report.</Text>
+        <Text style={styles.emptyText}>{t('reports.selectCompany')}</Text>
       </View>
     );
   }
@@ -289,7 +292,7 @@ const TopTenReportScreen = () => {
         <TouchableOpacity onPress={() => navigation.goBack()} style={styles.headerBtn}>
           <Icon name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Top 10</Text>
+        <Text style={styles.headerTitle}>{t('reports.topTen.title')}</Text>
         <View style={styles.headerActions}>
           <TouchableOpacity onPress={openPeriodModal} style={styles.headerIconBtn}>
             <Icon name="calendar-range" size={22} color="#fff" />
@@ -302,7 +305,7 @@ const TopTenReportScreen = () => {
           <View style={styles.summaryTextCol}>
             <Text style={styles.totalAmount}>
               {isQtyView
-                ? headerTotal.toLocaleString(undefined, { maximumFractionDigits: 2 })
+                ? formatQuantity(headerTotal)
                 : formatCurrency(headerTotal)}
             </Text>
             <TouchableOpacity onPress={openPeriodModal}>
@@ -333,7 +336,7 @@ const TopTenReportScreen = () => {
         <View style={styles.errorBox}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -346,13 +349,13 @@ const TopTenReportScreen = () => {
           }
           ListHeaderComponent={
             <View style={styles.listHeader}>
-              <Text style={styles.colHeaderName}>Name</Text>
+              <Text style={styles.colHeaderName}>{t('reports.name')}</Text>
               <Text style={styles.colHeaderValue}>{isQtyView ? 'Qty' : 'Amount'}</Text>
             </View>
           }
           ListEmptyComponent={
             <Text style={styles.empty}>
-              No data for this period. Sync sales/purchase vouchers from Tally.
+              {t('reports.noTopTenData')}
             </Text>
           }
           contentContainerStyle={activeRows.length === 0 ? styles.emptyList : undefined}
@@ -382,7 +385,7 @@ const TopTenReportScreen = () => {
                     category === cat.id && styles.menuItemTextActive,
                   ]}
                 >
-                  {cat.label}
+                  {t(cat.labelKey)}
                 </Text>
               </TouchableOpacity>
             ))}
@@ -401,7 +404,7 @@ const TopTenReportScreen = () => {
           onPress={() => setPeriodModalVisible(false)}
         >
           <Pressable style={styles.periodSheet} onPress={(e) => e.stopPropagation()}>
-            <Text style={styles.periodSheetTitle}>Select period</Text>
+            <Text style={styles.periodSheetTitle}>{t('reports.selectPeriod')}</Text>
 
             <View style={styles.presetRow}>
               {['This Month', 'Last Month', 'This Year', 'Financial Year'].map((preset) => (
@@ -419,7 +422,7 @@ const TopTenReportScreen = () => {
               style={styles.dateField}
               onPress={() => setActivePicker('from')}
             >
-              <Text style={styles.dateFieldLabel}>From date</Text>
+              <Text style={styles.dateFieldLabel}>{t('reports.fromDate')}</Text>
               <Text style={styles.dateFieldValue}>{formatDate(draftStart)}</Text>
               <Icon name="calendar" size={22} color={PRIMARY} />
             </TouchableOpacity>
@@ -428,7 +431,7 @@ const TopTenReportScreen = () => {
               style={styles.dateField}
               onPress={() => setActivePicker('to')}
             >
-              <Text style={styles.dateFieldLabel}>To date</Text>
+              <Text style={styles.dateFieldLabel}>{t('reports.toDate')}</Text>
               <Text style={styles.dateFieldValue}>{formatDate(draftEnd)}</Text>
               <Icon name="calendar" size={22} color={PRIMARY} />
             </TouchableOpacity>
@@ -450,10 +453,10 @@ const TopTenReportScreen = () => {
                   setActivePicker(null);
                 }}
               >
-                <Text style={styles.periodCancelText}>Cancel</Text>
+                <Text style={styles.periodCancelText}>{t('common.cancel')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.periodApplyBtn} onPress={applyPeriod}>
-                <Text style={styles.periodApplyText}>Apply</Text>
+                <Text style={styles.periodApplyText}>{t('transactions.apply')}</Text>
               </TouchableOpacity>
             </View>
           </Pressable>

@@ -6,11 +6,13 @@ import { useSelector } from 'react-redux';
 import { useNetwork, useOffline, useSync } from '../../store/hooks';
 import { RootState } from '../../store';
 import { formatRelativeTime } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 /**
  * Shown when the phone cannot reach the API — app uses last synced data from cache.
  */
 const OfflineBanner: React.FC = () => {
+  const { t } = useTranslation();
   const network = useNetwork();
   const offline = useOffline();
   const manualOffline = useSelector((s: RootState) => s.settings.offlineMode);
@@ -27,23 +29,24 @@ const OfflineBanner: React.FC = () => {
     return null;
   }
 
-  const lastLabel = lastSyncTime ? formatRelativeTime(lastSyncTime) : 'unknown';
+  const lastLabel = lastSyncTime
+    ? formatRelativeTime(lastSyncTime)
+    : t('offline.unknown');
 
-  let sub = `Showing last synced data (last update ${lastLabel}).`;
+  let sub = t('offline.cached', { lastSync: lastLabel });
   if (manualOffline) {
-    sub = 'Offline mode is turned on in Settings. Turn it off to load live data from the server.';
+    sub = t('offline.manual');
   } else if (deviceOnline && !isOnline) {
-    sub =
-      'Phone is online but the app cannot reach your backend. Check API_BASE_URL in mobile/.env — use your PC IP (e.g. http://192.168.1.x:5000/api) or run: adb reverse tcp:5000 tcp:5000';
+    sub = t('offline.backendUnreachable');
   } else if (!deviceOnline) {
-    sub = 'No network connection. Showing cached data until you are back online.';
+    sub = t('offline.noNetwork');
   }
 
   return (
     <View style={styles.wrap}>
       <Icon name="cloud-off-outline" size={18} color="#92400e" />
       <View style={styles.textBlock}>
-        <Text style={styles.title}>Offline mode</Text>
+        <Text style={styles.title}>{t('offline.title')}</Text>
         <Text style={styles.sub}>{sub}</Text>
       </View>
     </View>

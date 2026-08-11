@@ -5,6 +5,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { Voucher } from '../../types';
 import { formatCurrencyAbs, formatRelativeTime } from '../../utils/formatters';
 import { dashboardColors, voucherTypeColor } from './dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 interface RecentVouchersListProps {
   vouchers: Voucher[];
@@ -18,13 +19,15 @@ const RecentVouchersList: React.FC<RecentVouchersListProps> = ({
   loading,
   onVoucherPress,
   onSeeAllPress,
-}) => (
+}) => {
+  const { t } = useTranslation();
+  return (
   <View style={styles.card}>
     <View style={styles.header}>
-      <Text style={styles.title}>Recent vouchers</Text>
+      <Text style={styles.title}>{t('dashboard.recentVouchers')}</Text>
       {onSeeAllPress ? (
         <TouchableOpacity onPress={onSeeAllPress}>
-          <Text style={styles.seeAll}>See all</Text>
+          <Text style={styles.seeAll}>{t('dashboard.seeAll')}</Text>
         </TouchableOpacity>
       ) : null}
     </View>
@@ -34,7 +37,7 @@ const RecentVouchersList: React.FC<RecentVouchersListProps> = ({
     ) : vouchers.length === 0 ? (
       <View style={styles.empty}>
         <Icon name="receipt-text-outline" size={32} color={dashboardColors.muted} />
-        <Text style={styles.emptyText}>No vouchers yet. Sync from Tally to see activity.</Text>
+        <Text style={styles.emptyText}>{t('dashboard.noVouchersYet')}</Text>
       </View>
     ) : (
       vouchers.map((v, index) => (
@@ -72,7 +75,8 @@ const RecentVouchersList: React.FC<RecentVouchersListProps> = ({
       ))
     )}
   </View>
-);
+  );
+};
 
 const styles = StyleSheet.create({
   card: {

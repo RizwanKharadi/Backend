@@ -14,6 +14,7 @@ import { colors, gradients } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { HeroNetWorth, HeroReceivables } from '../types/dashboard';
+import { useTranslation } from 'react-i18next';
 
 type HeroCardProps =
   | {
@@ -70,12 +71,15 @@ const ProgressRing: React.FC<{ progress: number; center: string; label: string }
   );
 };
 
-const Footer: React.FC = () => (
-  <View style={styles.footer}>
-    <Text style={styles.footerText}>View Details</Text>
-    <Icon name="chevron-right" size={16} color={colors.textOnDarkMuted} />
-  </View>
-);
+const Footer: React.FC = () => {
+  const { t } = useTranslation();
+  return (
+    <View style={styles.footer}>
+      <Text style={styles.footerText}>{t('common.viewDetails')}</Text>
+      <Icon name="chevron-right" size={16} color={colors.textOnDarkMuted} />
+    </View>
+  );
+};
 
 /** Display-only footer: explains what the figure is made of instead of drilling down. */
 const FormulaFooter: React.FC<{ label: string }> = ({ label }) => (
@@ -87,6 +91,7 @@ const FormulaFooter: React.FC<{ label: string }> = ({ label }) => (
 );
 
 const HeroCard: React.FC<HeroCardProps> = (props) => {
+  const { t } = useTranslation();
   const isNetWorth = props.variant === 'netWorth';
   const gradient = isNetWorth ? gradients.heroNetWorth : gradients.heroReceivables;
   // No handler ⇒ the card is a read-out, not a link: don't offer a tap target.
@@ -108,7 +113,7 @@ const HeroCard: React.FC<HeroCardProps> = (props) => {
         {isNetWorth ? (
           <>
             <View style={styles.titleRow}>
-              <Text style={styles.title}>Net Worth</Text>
+              <Text style={styles.title}>{t('dashboard.netWorth')}</Text>
               <Icon name="eye-outline" size={15} color="#9FB6D6" />
             </View>
             <View style={styles.bodyRow}>
@@ -136,11 +141,11 @@ const HeroCard: React.FC<HeroCardProps> = (props) => {
               <View style={styles.receivableIcon}>
                 <Icon name="account-group-outline" size={14} color={colors.greenBright} />
               </View>
-              <Text style={styles.title}>Receivables Overview</Text>
+              <Text style={styles.title}>{t('dashboard.receivablesOverview')}</Text>
             </View>
             <View style={styles.bodyRow}>
               <View style={styles.flexShrink}>
-                <Text style={styles.subLabel}>Total Outstanding</Text>
+                <Text style={styles.subLabel}>{t('dashboard.totalOutstanding')}</Text>
                 <Text style={styles.valueSm} numberOfLines={1} adjustsFontSizeToFit>
                   {props.data.value}
                 </Text>

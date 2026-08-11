@@ -12,7 +12,8 @@ import { useNavigation } from '@react-navigation/native';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 import { useCompany } from '../../store/hooks';
 import { reportService, InactiveItemRow } from '../../services/reportService';
-import { formatCurrency, formatDate } from '../../utils/formatters';
+import { formatCurrency, formatDate, formatQuantity } from '../../utils/formatters';
+import { useTranslation } from 'react-i18next';
 import InactiveDaysFilterModal, {
   InactiveDaysFilterId,
   inactiveFilterLabel,
@@ -21,6 +22,7 @@ import InactiveDaysFilterModal, {
 const PRIMARY = '#1565C0';
 
 const InactiveItemScreen = () => {
+  const { t } = useTranslation();
   const navigation = useNavigation<any>();
   const { selectedCompany } = useCompany();
 
@@ -70,13 +72,8 @@ const InactiveItemScreen = () => {
 
   const filterSubtitle = inactiveFilterLabel(filterId, customDays, 'item');
 
-  const formatQty = (qty: number, unit: string) => {
-    const n = Number(qty);
-    const formatted = Number.isInteger(n)
-      ? n.toLocaleString()
-      : n.toLocaleString(undefined, { maximumFractionDigits: 2 });
-    return `Qty: ${formatted} ${unit || 'Nos'}`;
-  };
+  const formatQty = (qty: number, unit: string) =>
+    `Qty: ${formatQuantity(qty)} ${unit || 'Nos'}`;
 
   const renderRow = ({ item }: { item: InactiveItemRow }) => (
     <View style={styles.row}>
@@ -101,7 +98,7 @@ const InactiveItemScreen = () => {
           <Icon name="arrow-left" size={24} color="#fff" />
         </TouchableOpacity>
         <View style={styles.headerCenter}>
-          <Text style={styles.headerTitle}>Item</Text>
+          <Text style={styles.headerTitle}>{t('inventory.detail.item')}</Text>
           <Text style={styles.headerSub}>{filterSubtitle}</Text>
         </View>
         <TouchableOpacity
@@ -114,19 +111,17 @@ const InactiveItemScreen = () => {
 
       <View style={styles.statsBar}>
         <Text style={styles.statText}>
-          <Text style={styles.statBold}>{summary.inactiveCount}</Text> Items
-        </Text>
+          <Text style={styles.statBold}>{summary.inactiveCount}</Text>{t('tally.entity.items')}</Text>
         <Text style={styles.statText}>
-          <Text style={styles.statBold}>{summary.percentOfTotal}%</Text> Of Total
-        </Text>
+          <Text style={styles.statBold}>{summary.percentOfTotal}%</Text>{t('reports.ofTotal')}</Text>
         <Text style={styles.statText}>
           <Text style={styles.statBold}>{formatCurrency(summary.totalValue)}</Text>
         </Text>
       </View>
 
       <View style={styles.colHeader}>
-        <Text style={styles.colLeft}>Name & Closing</Text>
-        <Text style={styles.colRight}>Last Sale Date</Text>
+        <Text style={styles.colLeft}>{t('reports.nameAndClosing')}</Text>
+        <Text style={styles.colRight}>{t('reports.lastSaleDate')}</Text>
       </View>
 
       {loading ? (
@@ -137,7 +132,7 @@ const InactiveItemScreen = () => {
         <View style={styles.centered}>
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity onPress={load}>
-            <Text style={styles.retry}>Retry</Text>
+            <Text style={styles.retry}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       ) : (
@@ -156,7 +151,7 @@ const InactiveItemScreen = () => {
             />
           }
           ListEmptyComponent={
-            <Text style={styles.empty}>No inactive items for this filter.</Text>
+            <Text style={styles.empty}>{t('reports.noInactiveItems')}</Text>
           }
         />
       )}

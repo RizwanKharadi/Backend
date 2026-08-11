@@ -6,7 +6,11 @@
 
 export interface SubscriptionState {
   type: 'trial' | 'active' | 'expired';
-  label: string;
+  /** Literal label. Ignored when `labelKey` is set. */
+  label?: string;
+  /** Translation key — preferred, since this is built outside React. */
+  labelKey?: string;
+  labelParams?: Record<string, unknown>;
 }
 
 export interface SyncState {
@@ -91,7 +95,8 @@ export type DashboardTab = 'dashboard' | 'transactions' | 'inventory' | 'reports
 
 export interface NavItem {
   key: DashboardTab;
-  label: string;
+  /** Translation key; the tab bar resolves it at render. */
+  labelKey: string;
   icon: string;
 }
 

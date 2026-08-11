@@ -14,6 +14,7 @@ import BrandLogo from './BrandLogo';
 import { colors, gradients } from '../theme/colors';
 import { radius, spacing, hitSlop } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
+import { useTranslation } from 'react-i18next';
 
 interface TransactionHeaderProps {
   title: string;
@@ -80,6 +81,7 @@ const TransactionHeader: React.FC<TransactionHeaderProps> = ({
   onProfilePress,
   onSettingsPress,
 }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
 
   return (
@@ -96,20 +98,20 @@ const TransactionHeader: React.FC<TransactionHeaderProps> = ({
         <View style={styles.logoRow}>
           <BrandLogo size={38} />
           <View>
-            <Text style={styles.logoWord}>TallyFin</Text>
-            <Text style={styles.tagline}>Track · Analyze · Grow</Text>
+            <Text style={styles.logoWord}>{t('common.appName')}</Text>
+            <Text style={styles.tagline}>{t('common.tagline')}</Text>
           </View>
         </View>
 
         <View style={styles.actionsRow}>
           <GlassButton
             icon="bell-outline"
-            label="Notifications"
+            label={t('notifications.title')}
             onPress={onNotificationsPress}
             badge={unreadCount}
           />
-          <GlassButton icon="account-outline" label="Profile" onPress={onProfilePress} />
-          <GlassButton icon="cog-outline" label="Settings" onPress={onSettingsPress} />
+          <GlassButton icon="account-outline" label={t('profile.title')} onPress={onProfilePress} />
+          <GlassButton icon="cog-outline" label={t('settings.title')} onPress={onSettingsPress} />
         </View>
       </View>
 

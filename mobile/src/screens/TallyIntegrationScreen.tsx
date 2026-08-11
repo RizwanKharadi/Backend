@@ -33,9 +33,11 @@ import {
   updateTallySettings,
   fetchSyncStatistics,
 } from '../store/slices/tallySlice';
-import { formatDate, formatTime } from '../utils/formatters';
+import { formatDate, formatDateTime } from '../utils/formatters';
+import { useTranslation } from 'react-i18next';
 
 const TallyIntegrationScreen: React.FC = () => {
+  const { t } = useTranslation();
   const dispatch = useAppDispatch();
   const { 
     connections, 
@@ -97,12 +99,12 @@ const TallyIntegrationScreen: React.FC = () => {
       }));
 
       if (result.payload.connected) {
-        Alert.alert('Success', 'Connection to Tally successful!');
+        Alert.alert(t('common.success'), t('tally.connectSuccess'));
       } else {
-        Alert.alert('Error', result.payload.message || 'Failed to connect to Tally');
+        Alert.alert(t('common.error'), result.payload.message || t('tally.connectFailed'));
       }
     } catch (error) {
-      Alert.alert('Error', 'Failed to test connection');
+      Alert.alert(t('common.error'), t('tally.testFailed'));
     }
   };
 
@@ -110,12 +112,12 @@ const TallyIntegrationScreen: React.FC = () => {
     if (!selectedCompany) return;
 
     Alert.alert(
-      'Full Sync',
-      'This will sync all data between the app and Tally. This may take some time. Continue?',
+      t('tally.fullSync.title'),
+      t('tally.fullSync.message'),
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: t('common.cancel'), style: 'cancel' },
         {
-          text: 'Sync',
+          text: t('tally.fullSync.confirm'),
           onPress: async () => {
             try {
               await dispatch(performFullSync({
@@ -125,10 +127,10 @@ const TallyIntegrationScreen: React.FC = () => {
                   entities: ['vouchers', 'items', 'parties'],
                 },
               }));
-              Alert.alert('Success', 'Full sync initiated successfully');
+              Alert.alert(t('common.success'), t('tally.fullSync.started'));
               loadTallyData();
             } catch (error) {
-              Alert.alert('Error', 'Failed to initiate full sync');
+              Alert.alert(t('common.error'), t('tally.fullSync.failed'));
             }
           },
         },
@@ -144,9 +146,9 @@ const TallyIntegrationScreen: React.FC = () => {
         companyId: selectedCompany.id,
         settings: newSettings,
       }));
-      Alert.alert('Success', 'Settings updated successfully');
+      Alert.alert(t('common.success'), t('tally.settingsUpdated'));
     } catch (error) {
-      Alert.alert('Error', 'Failed to update settings');
+      Alert.alert(t('common.error'), t('tally.settingsFailed'));
     }
   };
 
@@ -168,7 +170,7 @@ const TallyIntegrationScreen: React.FC = () => {
       {/* Connection Status */}
       <Card style={styles.card}>
         <Card.Content>
-          <Title>Connection Status</Title>
+          <Title>{t('tally.connectionStatus')}</Title>
           {connections.length > 0 ? (
             connections.map((connection) => (
               <List.Item
@@ -184,13 +186,13 @@ const TallyIntegrationScreen: React.FC = () => {
                 )}
                 right={(props) => (
                   <Chip mode="outlined">
-                    {connection.isActive ? 'Active' : 'Inactive'}
+                    {connection.isActive ? t('tally.active') : t('tally.inactive')}
                   </Chip>
                 )}
               />
             ))
           ) : (
-            <Paragraph>No connections configured</Paragraph>
+            <Paragraph>{t('tally.noConnections')}</Paragraph>
           )}
         </Card.Content>
       </Card>
@@ -198,11 +200,11 @@ const TallyIntegrationScreen: React.FC = () => {
       {/* Sync Status */}
       <Card style={styles.card}>
         <Card.Content>
-          <Title>Sync Status</Title>
+          <Title>{t('tally.syncStatus')}</Title>
           {syncStatus ? (
             <>
               <View style={styles.statusRow}>
-                <Text>Status:</Text>
+                <Text>{t('tally.statusLabel')}</Text>
                 <Chip 
                   mode="outlined"
                   textStyle={{ color: getSyncStatusColor(syncStatus.status) }}
@@ -213,14 +215,19 @@ const TallyIntegrationScreen: React.FC = () => {
               
               {syncStatus.lastSyncTime && (
                 <View style={styles.statusRow}>
-                  <Text>Last Sync:</Text>
-                  <Text>{formatDate(syncStatus.lastSyncTime)} at {formatTime(syncStatus.lastSyncTime)}</Text>
+                  <Text>{t('tally.lastSyncLabel')}</Text>
+                  <Text>{formatDateTime(syncStatus.lastSyncTime)}</Text>
                 </View>
               )}
 
               {syncStatus.progress && (
                 <View style={styles.progressContainer}>
-                  <Text>Progress: {syncStatus.progress.current}/{syncStatus.progress.total}</Text>
+                  <Text>
+                    {t('tally.progress', {
+                      current: syncStatus.progress.current,
+                      total: syncStatus.progress.total,
+                    })}
+                  </Text>
                   <ProgressBar 
                     progress={syncStatus.progress.current / syncStatus.progress.total}
                     style={styles.progressBar}
@@ -231,22 +238,22 @@ const TallyIntegrationScreen: React.FC = () => {
 
               {syncStatus.stats && (
                 <View style={styles.statsContainer}>
-                  <Title style={styles.statsTitle}>Sync Statistics</Title>
+                  <Title style={styles.statsTitle}>{t('tally.syncStatistics')}</Title>
                   <View style={styles.statsGrid}>
                     <View style={styles.statItem}>
-                      <Text style={styles.statLabel}>Vouchers</Text>
+                      <Text style={styles.statLabel}>{t('tally.entity.vouchers')}</Text>
                       <Text style={styles.statValue}>
                         {syncStatus.stats.vouchers.synced}/{syncStatus.stats.vouchers.synced + syncStatus.stats.vouchers.failed}
                       </Text>
                     </View>
                     <View style={styles.statItem}>
-                      <Text style={styles.statLabel}>Items</Text>
+                      <Text style={styles.statLabel}>{t('tally.entity.items')}</Text>
                       <Text style={styles.statValue}>
                         {syncStatus.stats.items.synced}/{syncStatus.stats.items.synced + syncStatus.stats.items.failed}
                       </Text>
                     </View>
                     <View style={styles.statItem}>
-                      <Text style={styles.statLabel}>Parties</Text>
+                      <Text style={styles.statLabel}>{t('tally.entity.parties')}</Text>
                       <Text style={styles.statValue}>
                         {syncStatus.stats.parties.synced}/{syncStatus.stats.parties.synced + syncStatus.stats.parties.failed}
                       </Text>
@@ -256,7 +263,7 @@ const TallyIntegrationScreen: React.FC = () => {
               )}
             </>
           ) : (
-            <Paragraph>No sync status available</Paragraph>
+            <Paragraph>{t('tally.noSyncStatus')}</Paragraph>
           )}
         </Card.Content>
       </Card>
@@ -264,15 +271,15 @@ const TallyIntegrationScreen: React.FC = () => {
       {/* Test Connection */}
       <Card style={styles.card}>
         <Card.Content>
-          <Title>Test Connection</Title>
+          <Title>{t('tally.testConnection')}</Title>
           <TextInput
-            label="Host"
+            label={t('tally.host')}
             value={connectionForm.host}
             onChangeText={(text) => setConnectionForm({ ...connectionForm, host: text })}
             style={styles.input}
           />
           <TextInput
-            label="Port"
+            label={t('tally.port')}
             value={connectionForm.port}
             onChangeText={(text) => setConnectionForm({ ...connectionForm, port: text })}
             keyboardType="numeric"
@@ -283,7 +290,7 @@ const TallyIntegrationScreen: React.FC = () => {
             onPress={handleTestConnection}
             style={styles.testButton}
           >
-            Test Connection
+            {t('tally.testConnection')}
           </Button>
         </Card.Content>
       </Card>
@@ -295,10 +302,10 @@ const TallyIntegrationScreen: React.FC = () => {
       {settings && (
         <Card style={styles.card}>
           <Card.Content>
-            <Title>Sync Settings</Title>
+            <Title>{t('sync.settings')}</Title>
             
             <View style={styles.settingRow}>
-              <Text>Auto Sync</Text>
+              <Text>{t('settings.autoSync.title')}</Text>
               <Switch
                 value={settings.autoSync}
                 onValueChange={(value) => 
@@ -308,7 +315,7 @@ const TallyIntegrationScreen: React.FC = () => {
             </View>
 
             <View style={styles.settingRow}>
-              <Text>Sync Interval (minutes)</Text>
+              <Text>{t('tally.syncIntervalMinutes')}</Text>
               <TextInput
                 value={settings.syncInterval.toString()}
                 onChangeText={(text) => 
@@ -321,10 +328,10 @@ const TallyIntegrationScreen: React.FC = () => {
 
             <Divider style={styles.divider} />
 
-            <Title style={styles.sectionTitle}>Sync Entities</Title>
+            <Title style={styles.sectionTitle}>{t('tally.syncEntities')}</Title>
             
             <View style={styles.settingRow}>
-              <Text>Vouchers</Text>
+              <Text>{t('tally.entity.vouchers')}</Text>
               <Switch
                 value={settings.entities.vouchers}
                 onValueChange={(value) => 
@@ -337,7 +344,7 @@ const TallyIntegrationScreen: React.FC = () => {
             </View>
 
             <View style={styles.settingRow}>
-              <Text>Items</Text>
+              <Text>{t('tally.entity.items')}</Text>
               <Switch
                 value={settings.entities.items}
                 onValueChange={(value) => 
@@ -350,7 +357,7 @@ const TallyIntegrationScreen: React.FC = () => {
             </View>
 
             <View style={styles.settingRow}>
-              <Text>Parties</Text>
+              <Text>{t('tally.entity.parties')}</Text>
               <Switch
                 value={settings.entities.parties}
                 onValueChange={(value) => 
@@ -383,7 +390,7 @@ const TallyIntegrationScreen: React.FC = () => {
                 {log.status}
               </Chip>
               <Text style={styles.logDate}>
-                {formatDate(log.timestamp)} {formatTime(log.timestamp)}
+                {formatDateTime(log.timestamp)}
               </Text>
             </View>
             <Paragraph style={styles.logMessage}>{log.message}</Paragraph>
@@ -394,7 +401,7 @@ const TallyIntegrationScreen: React.FC = () => {
       
       {syncLogs.length === 0 && (
         <View style={styles.emptyContainer}>
-          <Text>No sync logs available</Text>
+          <Text>{t('tally.noLogs')}</Text>
         </View>
       )}
     </ScrollView>
@@ -406,7 +413,7 @@ const TallyIntegrationScreen: React.FC = () => {
         <Card key={conflict.id} style={styles.card}>
           <Card.Content>
             <View style={styles.conflictHeader}>
-              <Title>{conflict.entityType} Conflict</Title>
+              <Title>{t('tally.conflictTitle', { entity: conflict.entityType })}</Title>
               <Chip mode="outlined">{conflict.conflictType}</Chip>
             </View>
             <Paragraph>Entity ID: {conflict.entityId}</Paragraph>
@@ -416,13 +423,13 @@ const TallyIntegrationScreen: React.FC = () => {
             
             <View style={styles.conflictActions}>
               <Button mode="outlined" style={styles.conflictButton}>
-                Use Local
+                {t('tally.useLocal')}
               </Button>
               <Button mode="outlined" style={styles.conflictButton}>
-                Use Tally
+                {t('tally.useTally')}
               </Button>
               <Button mode="contained" style={styles.conflictButton}>
-                Merge
+                {t('tally.merge')}
               </Button>
             </View>
           </Card.Content>
@@ -431,7 +438,7 @@ const TallyIntegrationScreen: React.FC = () => {
       
       {syncConflicts.length === 0 && (
         <View style={styles.emptyContainer}>
-          <Text>No sync conflicts</Text>
+          <Text>{t('tally.noConflicts')}</Text>
         </View>
       )}
     </ScrollView>
@@ -441,7 +448,7 @@ const TallyIntegrationScreen: React.FC = () => {
     return (
       <View style={styles.loadingContainer}>
         <ActivityIndicator size="large" />
-        <Text>Loading Tally integration...</Text>
+        <Text>{t('tally.loading')}</Text>
       </View>
     );
   }
@@ -454,28 +461,28 @@ const TallyIntegrationScreen: React.FC = () => {
           onPress={() => setActiveTab('status')}
           style={styles.tabButton}
         >
-          Status
+          {t('tally.tab.status')}
         </Button>
         <Button
           mode={activeTab === 'settings' ? 'contained' : 'outlined'}
           onPress={() => setActiveTab('settings')}
           style={styles.tabButton}
         >
-          Settings
+          {t('tally.tab.settings')}
         </Button>
         <Button
           mode={activeTab === 'logs' ? 'contained' : 'outlined'}
           onPress={() => setActiveTab('logs')}
           style={styles.tabButton}
         >
-          Logs
+          {t('tally.tab.logs')}
         </Button>
         <Button
           mode={activeTab === 'conflicts' ? 'contained' : 'outlined'}
           onPress={() => setActiveTab('conflicts')}
           style={styles.tabButton}
         >
-          Conflicts
+          {t('tally.tab.conflicts')}
         </Button>
       </View>
 

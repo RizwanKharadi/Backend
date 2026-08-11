@@ -22,11 +22,12 @@ import { colors } from '../theme/colors';
 import { radius, spacing, shadows } from '../theme/spacing';
 import { fontSize, fontWeight } from '../theme/typography';
 import { SalesPeriod, SalesSeries } from '../types/dashboard';
+import { useTranslation } from 'react-i18next';
 
-const PERIODS: { key: SalesPeriod; label: string }[] = [
-  { key: '7D', label: '7 Days' },
-  { key: '30D', label: '30 Days' },
-  { key: '90D', label: '90 Days' },
+const PERIODS: { key: SalesPeriod; labelKey: string }[] = [
+  { key: '7D', labelKey: 'dashboard.period.7d' },
+  { key: '30D', labelKey: 'dashboard.period.30d' },
+  { key: '90D', labelKey: 'dashboard.period.90d' },
 ];
 
 interface SalesChartProps {
@@ -60,6 +61,7 @@ const SalesChart: React.FC<SalesChartProps> = ({
   onPeriodChange,
   screenPadding = spacing.md,
 }) => {
+  const { t } = useTranslation();
   const [tooltip, setTooltip] = useState<Tooltip | null>(null);
 
   const chartWidth = Dimensions.get('window').width - screenPadding * 2 - spacing.md * 2;
@@ -69,7 +71,7 @@ const SalesChart: React.FC<SalesChartProps> = ({
     <View style={[styles.card, shadows.card]}>
       <View style={styles.headerRow}>
         <View>
-          <Text style={styles.title}>Sales Trend</Text>
+          <Text style={styles.title}>{t('dashboard.salesTrend')}</Text>
           <View style={styles.valueRow}>
             <Text style={styles.value}>{value}</Text>
           </View>
@@ -92,7 +94,7 @@ const SalesChart: React.FC<SalesChartProps> = ({
               accessibilityState={{ selected: active }}
             >
               <Text style={[styles.segmentText, active && styles.segmentTextActive]}>
-                {p.label}
+                {t(p.labelKey)}
               </Text>
             </TouchableOpacity>
           );
@@ -107,7 +109,7 @@ const SalesChart: React.FC<SalesChartProps> = ({
         ) : !hasData ? (
           <View style={styles.center}>
             <Icon name="chart-line" size={28} color={colors.textTertiary} />
-            <Text style={styles.emptyText}>No sales data for this period</Text>
+            <Text style={styles.emptyText}>{t('dashboard.noSalesData')}</Text>
           </View>
         ) : (
           <>
