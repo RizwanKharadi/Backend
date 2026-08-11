@@ -10,6 +10,9 @@ contextBridge.exposeInMainWorld('electronAPI', {
   serverRegister: (payload) => ipcRenderer.invoke('server-register', payload),
   serverForgotPassword: (email) => ipcRenderer.invoke('server-forgot-password', email),
   serverResetPassword: (payload) => ipcRenderer.invoke('server-reset-password', payload),
+  // OTP: shared by signup verification and password reset.
+  serverVerifyOtp: (payload) => ipcRenderer.invoke('server-verify-otp', payload),
+  serverResendOtp: (payload) => ipcRenderer.invoke('server-resend-otp', payload),
   serverLogout: () => ipcRenderer.invoke('server-logout'),
   validateSession: () => ipcRenderer.invoke('server-validate-session'),
   backendGetCompanies: () => ipcRenderer.invoke('backend-get-companies'),

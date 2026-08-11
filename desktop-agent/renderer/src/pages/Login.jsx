@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   EnvelopeIcon,
   LockClosedIcon,
@@ -109,7 +109,14 @@ const FeatureItem = ({ icon: Icon, title, description }) => (
 )
 
 const Login = ({ onSuccess }) => {
-  const { serverLogin, serverRegister, serverForgotPassword, serverResetPassword } = useElectronAPI()
+  const {
+    serverLogin,
+    serverRegister,
+    serverForgotPassword,
+    serverResetPassword,
+    serverVerifyOtp,
+    serverResendOtp
+  } = useElectronAPI()
   const [mode, setMode] = useState('login')
   const [status, setStatus] = useState('idle')
   const [showLoginPassword, setShowLoginPassword] = useState(false)
@@ -127,6 +134,10 @@ const Login = ({ onSuccess }) => {
     confirmPassword: ''
   })
   const [forgotForm, setForgotForm] = useState({ email: '' })
+  // Which flow the code belongs to, and who it went to.
+  const [otpContext, setOtpContext] = useState({ email: '', purpose: 'email_verification' })
+  const [otpCode, setOtpCode] = useState('')
+  const [resendIn, setResendIn] = useState(0)
   const [resetForm, setResetForm] = useState({ token: '', password: '', confirmPassword: '' })
 
   const isLoading = status === 'loading'
@@ -140,7 +151,16 @@ const Login = ({ onSuccess }) => {
     setStatus('loading')
     try {
       const result = await serverLogin(loginForm)
-      if (result?.success) onSuccess?.(false)
+      if (result?.requiresVerification) {
+        // Password was right; the address just isn't verified yet.
+        setOtpContext({ email: result.email || loginForm.email, purpose: 'email_verification' })
+        setOtpCode('')
+        setResendIn(60)
+        setMode('otp')
+        toast(result.message || 'Please verify your email.')
+      } else if (result?.success) {
+        onSuccess?.(false)
+      }
     } finally {
       setStatus('idle')
       setLoginForm((prev) => ({ ...prev, password: '' }))
@@ -179,7 +199,15 @@ const Login = ({ onSuccess }) => {
         password: signupForm.password,
         tallyLicense: tallyLicense || undefined
       })
-      if (result?.success) {
+      if (result?.requiresVerification) {
+        // No session yet — the account is unusable until the emailed code is
+        // confirmed, so move to the OTP step rather than the dashboard.
+        setOtpContext({ email: result.email || signupForm.email, purpose: 'email_verification' })
+        setOtpCode('')
+        setResendIn(60)
+        setMode('otp')
+        toast.success(result.message || 'Enter the code we emailed you.')
+      } else if (result?.success) {
         toast.success('Welcome! Link your Tally company next.')
         onSuccess?.(true)
       }
@@ -199,13 +227,59 @@ const Login = ({ onSuccess }) => {
     try {
       const result = await serverForgotPassword(forgotForm.email)
       if (result?.success) {
-        toast.success('Reset instructions received. Enter the reset code below.')
-        setResetForm((prev) => ({
-          ...prev,
-          token: result.resetToken || prev.token
-        }))
-        setMode('reset')
+        // Always advance, whether or not the address has an account — telling
+        // the caller otherwise would leak who is a customer.
+        setOtpContext({ email: forgotForm.email, purpose: 'password_reset' })
+        setOtpCode('')
+        setResendIn(60)
+        setMode('otp')
       }
+    } finally {
+      setStatus('idle')
+    }
+  }
+
+
+  // Resend cooldown mirrors the server's; the server is still the authority.
+  useEffect(() => {
+    if (resendIn <= 0) return undefined
+    const timer = setInterval(() => setResendIn((s) => (s > 0 ? s - 1 : 0)), 1000)
+    return () => clearInterval(timer)
+  }, [resendIn])
+
+  const handleVerifyOtp = async (e) => {
+    e?.preventDefault?.()
+    if (otpCode.length !== 6) {
+      toast.error('Enter the 6-digit code')
+      return
+    }
+    setStatus('loading')
+    try {
+      const result = await serverVerifyOtp(otpContext.email, otpCode, otpContext.purpose)
+      if (!result?.success) return
+
+      if (otpContext.purpose === 'password_reset') {
+        // The code is spent; the ticket authorises exactly one password change.
+        setResetForm({ token: result.resetTicket || '', password: '', confirmPassword: '' })
+        setMode('reset')
+        toast.success('Code verified. Choose a new password.')
+      } else {
+        toast.success('Email verified. Link your Tally company next.')
+        onSuccess?.(true)
+      }
+    } finally {
+      setStatus('idle')
+      setOtpCode('')
+    }
+  }
+
+  const handleResendOtp = async () => {
+    if (resendIn > 0) return
+    setStatus('loading')
+    try {
+      await serverResendOtp(otpContext.email, otpContext.purpose)
+      setResendIn(60)
+      setOtpCode('')
     } finally {
       setStatus('idle')
     }
@@ -227,6 +301,7 @@ const Login = ({ onSuccess }) => {
     }
     setStatus('loading')
     try {
+      // resetForm.token holds the one-shot ticket from verifying the OTP.
       const result = await serverResetPassword(resetForm.token, resetForm.password)
       if (result?.success) {
         toast.success('Password updated. Sign in with your new password.')
@@ -244,6 +319,7 @@ const Login = ({ onSuccess }) => {
     login: 'Welcome back',
     signup: 'Create account',
     forgot: 'Forgot password',
+    otp: 'Verify your email',
     reset: 'Reset password'
   }
 
@@ -251,7 +327,8 @@ const Login = ({ onSuccess }) => {
     login: 'Sign in to continue syncing your Tally data',
     signup: 'Register to start linking Tally companies',
     forgot: 'Enter your email to receive a password reset code',
-    reset: 'Enter the reset code and choose a new password'
+    otp: 'Enter the 6-digit code we emailed you',
+    reset: 'Choose a new password'
   }
 
   return (
@@ -315,10 +392,16 @@ const Login = ({ onSuccess }) => {
 
           <div className="bg-white rounded-2xl shadow-strong border border-slate-100/80 overflow-hidden">
             <div className="px-8 pt-8 pb-2">
-              {(mode === 'forgot' || mode === 'reset') && (
+              {mode !== 'login' && mode !== 'signup' && (
                 <button
                   type="button"
-                  onClick={() => setMode(mode === 'reset' ? 'forgot' : 'login')}
+                  onClick={() => {
+                    // A verified reset ticket is single-use, so stepping back from
+                    // the password form means starting the whole flow again.
+                    setOtpCode('')
+                    setResetForm({ token: '', password: '', confirmPassword: '' })
+                    setMode('login')
+                  }}
                   className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-primary-600 mb-3 transition-colors"
                 >
                   <ArrowLeftIcon className="w-4 h-4" />
@@ -516,7 +599,8 @@ const Login = ({ onSuccess }) => {
                     required
                   />
                   <p className="text-xs text-slate-500 leading-relaxed">
-                    A reset code will be provided. Enter it on the next screen to set a new password.
+                    We&apos;ll email a 6-digit code. Enter it on the next screen to set a new
+                    password.
                   </p>
                   <button
                     type="submit"
@@ -532,16 +616,74 @@ const Login = ({ onSuccess }) => {
                     {isLoading ? 'Sending…' : 'Send reset code'}
                   </button>
                 </form>
+              ) : mode === 'otp' ? (
+                <form onSubmit={handleVerifyOtp} className="space-y-5">
+                  <div className="rounded-xl bg-primary-50 border border-primary-100 px-4 py-3">
+                    <p className="text-xs text-slate-600 leading-relaxed">
+                      We sent a 6-digit code to{' '}
+                      <span className="font-semibold text-slate-900">{otpContext.email}</span>. It
+                      expires in 10 minutes.
+                    </p>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-sm font-medium text-slate-700">
+                      Verification code
+                    </label>
+                    <input
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      autoFocus
+                      placeholder="000000"
+                      className={clsx(
+                        'w-full rounded-xl border border-slate-200 bg-slate-50/80 py-3.5 px-4',
+                        'text-center text-2xl font-semibold tracking-[0.5em] text-slate-900',
+                        'placeholder:text-slate-300 placeholder:tracking-[0.5em]',
+                        'transition-all duration-200',
+                        'focus:bg-white focus:border-primary-500 focus:ring-4 focus:ring-primary-500/15 focus:outline-none'
+                      )}
+                    />
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={isLoading || otpCode.length !== 6}
+                    className={clsx(
+                      'w-full py-3.5 rounded-xl text-sm font-semibold text-white',
+                      'bg-gradient-to-r from-primary-600 to-indigo-600',
+                      'shadow-lg shadow-primary-500/30',
+                      'hover:from-primary-700 hover:to-indigo-700',
+                      'disabled:opacity-60 disabled:cursor-not-allowed'
+                    )}
+                  >
+                    {isLoading ? 'Verifying…' : 'Verify'}
+                  </button>
+
+                  <div className="text-center">
+                    <button
+                      type="button"
+                      onClick={handleResendOtp}
+                      disabled={resendIn > 0 || isLoading}
+                      className="text-sm font-medium text-primary-600 hover:text-primary-700 disabled:text-slate-400 disabled:cursor-not-allowed"
+                    >
+                      {resendIn > 0 ? `Resend code in ${resendIn}s` : 'Resend code'}
+                    </button>
+                  </div>
+                </form>
               ) : (
                 <form onSubmit={handleResetPassword} className="space-y-4">
-                  <AuthField
-                    label="Reset code"
-                    icon={KeyIcon}
-                    value={resetForm.token}
-                    onChange={(e) => setResetForm({ ...resetForm, token: e.target.value })}
-                    placeholder="Paste reset code"
-                    required
-                  />
+                  {!resetForm.token && (
+                    <AuthField
+                      label="Reset code"
+                      icon={KeyIcon}
+                      value={resetForm.token}
+                      onChange={(e) => setResetForm({ ...resetForm, token: e.target.value })}
+                      placeholder="Paste reset code"
+                      required
+                    />
+                  )}
                   <AuthField
                     label="New password"
                     icon={LockClosedIcon}

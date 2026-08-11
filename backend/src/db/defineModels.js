@@ -72,6 +72,46 @@ export function defineAllModels(sequelize) {
     { tableName: 'users', defaultScope: {}, scopes: { withPassword: { attributes: { include: ['password'] } } } }
   );
 
+  /**
+   * One-time passcodes for email verification and password reset.
+   *
+   * A separate table rather than columns on `users` for three reasons: a user
+   * can legitimately have both an email-verification and a password-reset code
+   * live at once; the rate-limit counters do not belong on the user record; and
+   * a new table is created by `sequelize.sync()` without needing
+   * MYSQL_SYNC_ALTER, so this deploys without touching the users table.
+   *
+   * Keyed by email, not user id — password reset must behave identically for an
+   * address that has no account, or the endpoint leaks who is a customer.
+   *
+   * `codeHash` is an HMAC, never the code itself. A 6-digit code is only a
+   * million possibilities, so a plain hash in a leaked dump would fall in
+   * seconds; the HMAC key means an attacker needs the server secret too.
+   */
+  const Otp = sequelize.define(
+    'Otp',
+    {
+      id: ID,
+      email: { type: STR, allowNull: false },
+      purpose: { type: STR(32), allowNull: false },
+      codeHash: { type: STR, allowNull: false },
+      expiresAt: { type: DATE, allowNull: false },
+      /** Wrong guesses against the current code. */
+      attempts: { type: INT, defaultValue: 0 },
+      /** Set once used, so a correct code cannot be replayed. */
+      consumedAt: { type: DATE, allowNull: true },
+      /** Drives the resend cooldown. */
+      lastSentAt: { type: DATE, allowNull: true },
+      /** Sends inside the current rate-limit window. */
+      sendCount: { type: INT, defaultValue: 0 },
+      windowStartedAt: { type: DATE, allowNull: true },
+    },
+    {
+      tableName: 'otps',
+      indexes: [{ fields: ['email', 'purpose'], unique: true, name: 'otps_email_purpose_unique' }],
+    }
+  );
+
   const Company = sequelize.define(
     'Company',
     {
@@ -937,6 +977,7 @@ export function defineAllModels(sequelize) {
     Notification: NotificationCompat,
     TallySerialRegistration: createCompatModel('TallySerialRegistration', TallySerialRegistration, { registry }),
     TallyImportQueue: createCompatModel('TallyImportQueue', TallyImportQueue, { registry }),
+    Otp: createCompatModel('Otp', Otp, { registry }),
   };
 
   Object.assign(registry, models);

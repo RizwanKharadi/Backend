@@ -1,0 +1,76 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome to FinSync360</title>
+    <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 0; }
+        .container { max-width: 600px; margin: 0 auto; padding: 20px; }
+        .header { background: linear-gradient(135deg, #20c997, #17a085); color: white; padding: 30px 20px; text-align: center; border-radius: 8px 8px 0 0; }
+        .content { background: #ffffff; padding: 30px 20px; border: 1px solid #e9ecef; }
+        .welcome-box { background: #d1ecf1; padding: 20px; margin: 20px 0; border-radius: 6px; border-left: 4px solid #20c997; }
+        .footer { background: #f8f9fa; padding: 20px; text-align: center; font-size: 12px; color: #6c757d; border-radius: 0 0 8px 8px; }
+        .btn { display: inline-block; padding: 12px 24px; background: #20c997; color: white; text-decoration: none; border-radius: 6px; margin: 10px 5px; }
+        .btn:hover { background: #17a085; }
+        .feature-list { list-style: none; padding: 0; }
+        .feature-list li { padding: 8px 0; }
+        .feature-list li:before { content: "✓"; color: #20c997; font-weight: bold; margin-right: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Welcome to FinSync360!</h1>
+            <h2>Your Complete ERP Solution</h2>
+        </div>
+
+        <div class="content">
+            <p>Dear {{user.name}},</p>
+
+            <p>Welcome to FinSync360! We're excited to have you on board. Your account has been successfully created and verified.</p>
+
+            <div class="welcome-box">
+                <h3>What's Next?</h3>
+                <ul class="feature-list">
+                    <li>Set up your company profile</li>
+                    <li>Add your first customers and suppliers</li>
+                    <li>Create your inventory items</li>
+                    <li>Start creating invoices and managing payments</li>
+                    <li>Explore our Tally integration features</li>
+                </ul>
+            </div>
+
+            <p style="text-align: center;">
+                <a href="{{dashboardLink}}" class="btn">Go to Dashboard</a>
+                <a href="{{helpLink}}" class="btn">Getting Started Guide</a>
+            </p>
+
+            <h3>Key Features Available:</h3>
+            <ul class="feature-list">
+                <li>Complete Voucher Management (Sales, Purchase, Payments)</li>
+                <li>Advanced Inventory Tracking</li>
+                <li>Digital Payment Integration (Razorpay, UPI)</li>
+                <li>Automated WhatsApp & Email Notifications</li>
+                <li>GST Compliance & Reporting</li>
+                <li>Tally ERP Integration</li>
+                <li>Multi-Company Support</li>
+            </ul>
+
+            <p>If you have any questions or need assistance getting started, our support team is here to help!</p>
+
+            <p>Thank you for choosing FinSync360!</p>
+
+            <p>Best regards,<br>
+            <strong>The FinSync360 Team</strong>
+            </p>
+        </div>
+
+        <div class="footer">
+            <p>Need help? Contact our support team or visit our help center.</p>
+            <p>This email was sent to {{user.email}}</p>
+        </div>
+    </div>
+</body>
+</html>

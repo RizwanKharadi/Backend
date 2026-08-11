@@ -349,10 +349,34 @@ export const useElectronAPI = () => {
     }
   }, [isElectronAvailable])
 
-  const serverResetPassword = useCallback(async (token, password) => {
+  const serverVerifyOtp = useCallback(async (email, otp, purpose) => {
     if (!isElectronAvailable) return { success: false }
     try {
-      const result = await window.electronAPI.serverResetPassword({ token, password })
+      return await window.electronAPI.serverVerifyOtp({ email, otp, purpose })
+    } catch (error) {
+      console.error('Verify OTP failed:', error)
+      toast.error(error.message || 'Could not verify that code')
+      return { success: false, error: error.message }
+    }
+  }, [isElectronAvailable])
+
+  const serverResendOtp = useCallback(async (email, purpose) => {
+    if (!isElectronAvailable) return { success: false }
+    try {
+      const result = await window.electronAPI.serverResendOtp({ email, purpose })
+      if (result?.success) toast.success(result.message || 'Code sent')
+      return result
+    } catch (error) {
+      console.error('Resend OTP failed:', error)
+      toast.error(error.message || 'Could not send a new code')
+      return { success: false, error: error.message }
+    }
+  }, [isElectronAvailable])
+
+  const serverResetPassword = useCallback(async (resetTicket, password) => {
+    if (!isElectronAvailable) return { success: false }
+    try {
+      const result = await window.electronAPI.serverResetPassword({ resetTicket, password })
       if (result?.success) {
         toast.success(result.message || 'Password updated')
       }
@@ -827,6 +851,8 @@ export const useElectronAPI = () => {
     serverLogin,
     serverRegister,
     serverForgotPassword,
+    serverVerifyOtp,
+    serverResendOtp,
     serverResetPassword,
     
     // Tally

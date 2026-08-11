@@ -832,6 +832,16 @@ class DesktopAgent {
               `Cannot reach backend at ${apiUrl}. Check that the server is online and the API URL is correct in Settings.`
             );
           }
+          // Correct password but unverified address. Hand this back as data
+          // rather than an error so the UI can open the OTP step.
+          if (error?.response?.status === 403 && error?.response?.data?.requiresVerification) {
+            return {
+              success: false,
+              requiresVerification: true,
+              email: error.response.data.email || credentials.email,
+              message: error.response.data.message || 'Please verify your email.'
+            };
+          }
           const message = error?.response?.data?.message || error.message || 'Login failed';
           throw new Error(message);
         }
@@ -857,6 +867,18 @@ class DesktopAgent {
           }, {
             timeout: 15000
           });
+
+          // Registration deliberately returns no session now: the account is
+          // unusable until the emailed code is confirmed, so the renderer moves
+          // to the OTP step and the config is written by server-verify-otp.
+          if (response?.data?.requiresVerification) {
+            return {
+              success: true,
+              requiresVerification: true,
+              email: response.data.email || payload.email,
+              message: response.data.message || 'Enter the code we emailed you.'
+            };
+          }
 
           const token = response?.data?.data?.token;
           const refreshToken = response?.data?.data?.refreshToken || '';
@@ -915,7 +937,7 @@ class DesktopAgent {
         }
       });
 
-      ipcMain.handle('server-reset-password', async (event, { token, password }) => {
+      ipcMain.handle('server-reset-password', async (event, { resetTicket, password }) => {
         const config = this.configManager.getConfig();
         const apiUrl = this.resolveApiUrl(config);
 
@@ -924,7 +946,11 @@ class DesktopAgent {
         }
 
         try {
-          const response = await axios.put(`${apiUrl}/auth/reset-password/${token}`, {
+          // The old PUT /reset-password/:token form relied on the server
+          // handing the token back to the caller, which was an account-takeover
+          // hole. The ticket comes from verifying an emailed OTP instead.
+          const response = await axios.post(`${apiUrl}/auth/reset-password`, {
+            resetTicket,
             password
           }, { timeout: 15000 });
 
@@ -934,6 +960,77 @@ class DesktopAgent {
           };
         } catch (error) {
           const message = error?.response?.data?.message || error.message || 'Could not reset password';
+          throw new Error(message);
+        }
+      });
+
+ipcMain.handle('server-verify-otp', async (event, { email, otp, purpose }) => {
+        const config = this.configManager.getConfig();
+        const apiUrl = this.resolveApiUrl(config);
+
+        if (!apiUrl) {
+          throw new Error('Backend API URL is not configured.');
+        }
+
+        try {
+          const response = await axios.post(`${apiUrl}/auth/verify-otp`, {
+            email,
+            otp,
+            purpose
+          }, { timeout: 15000 });
+
+          const data = response?.data?.data || {};
+
+          // Verifying a signup returns a session — store it exactly as login
+          // does, so the agent is connected the moment the code is accepted.
+          if (purpose === 'email_verification' && data.token) {
+            const newConfig = {
+              ...config,
+              server: {
+                ...config.server,
+                token: data.token,
+                refreshToken: data.refreshToken || '',
+                userEmail: data.user?.email || email,
+                deviceToken: '',
+                companyId: '',
+                linkedCompanies: []
+              }
+            };
+
+            this.configManager.setConfig(newConfig);
+            await this.applyServerRuntimeConfig(newConfig);
+            await this.webSocketClient.ensureConnected();
+
+            return { success: true, token: data.token, userEmail: data.user?.email || email };
+          }
+
+          return { success: true, resetTicket: data.resetTicket };
+        } catch (error) {
+          const message = error?.response?.data?.message || error.message || 'Could not verify that code';
+          throw new Error(message);
+        }
+      });
+
+      ipcMain.handle('server-resend-otp', async (event, { email, purpose }) => {
+        const config = this.configManager.getConfig();
+        const apiUrl = this.resolveApiUrl(config);
+
+        if (!apiUrl) {
+          throw new Error('Backend API URL is not configured.');
+        }
+
+        try {
+          const response = await axios.post(`${apiUrl}/auth/resend-otp`, {
+            email,
+            purpose
+          }, { timeout: 15000 });
+
+          return {
+            success: response?.data?.success !== false,
+            message: response?.data?.message || 'Code sent'
+          };
+        } catch (error) {
+          const message = error?.response?.data?.message || error.message || 'Could not send a new code';
           throw new Error(message);
         }
       });

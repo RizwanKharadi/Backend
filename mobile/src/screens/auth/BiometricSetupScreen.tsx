@@ -17,6 +17,7 @@ import { setBiometricEnabled as setAuthBiometricEnabled } from '../../store/slic
 import { biometricService } from '../../services/biometricService';
 import { AuthStackScreenProps } from '../../types/navigation';
 import { styles } from './BiometricSetupScreen.styles';
+import { useTranslation } from 'react-i18next';
 
 type Props = AuthStackScreenProps<'BiometricSetup'>;
 
@@ -27,6 +28,7 @@ interface BiometricType {
 }
 
 const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
 
@@ -51,13 +53,13 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
         type: capabilities.biometryType,
         error: capabilities.isSupported
           ? undefined
-          : 'Biometric authentication is not available on this device',
+          : t('auth.biometric.unavailable'),
       });
     } catch (error: any) {
       setBiometricInfo({
         available: false,
         type: null,
-        error: error.message || 'Biometric authentication not available',
+        error: error.message || t('auth.biometric.notAvailable'),
       });
     } finally {
       setIsLoading(false);
@@ -69,7 +71,7 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
       setIsEnabling(true);
       const biometricType = await biometricService.getBiometricTypeString();
       await biometricService.authenticate({
-        title: 'Enable biometric login',
+        title: t('settings.biometric.enableTitle'),
         description: `Authenticate with ${biometricType} to continue`,
       });
       await biometricService.markBiometricEnabled();
@@ -77,11 +79,11 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
       dispatch(setAuthBiometricEnabled(true));
 
       Alert.alert(
-        'Success',
+        t('common.success'),
         'Biometric authentication has been enabled. Sign in once with your password, or enable it from Settings after login.',
         [
           {
-            text: 'Continue',
+            text: t('sync.force.confirm'),
             onPress: () => navigation.navigate('Login'),
           },
         ]
@@ -89,8 +91,8 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
     } catch (error: any) {
       console.error('Biometric setup error:', error);
       Alert.alert(
-        'Setup Failed',
-        error.message || 'Failed to enable biometric authentication',
+        t('settings.biometric.setupFailed'),
+        error.message || t('settings.biometric.couldNotEnable'),
         [{ text: 'OK' }]
       );
     } finally {
@@ -100,11 +102,11 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
 
   const skipBiometric = () => {
     Alert.alert(
-      'Skip Biometric Setup',
-      'You can enable biometric authentication later in settings.',
+      t('auth.biometric.skipTitle'),
+      t('auth.biometric.skipMessage'),
       [
         {
-          text: 'Cancel',
+          text: t('common.cancel'),
           style: 'cancel',
         },
         {
@@ -131,13 +133,13 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
   const getBiometricTitle = () => {
     switch (biometricInfo.type) {
       case 'TouchID':
-        return 'Touch ID';
+        return t('auth.biometric.touchId');
       case 'FaceID':
-        return 'Face ID';
+        return t('auth.biometric.faceId');
       case 'Fingerprint':
-        return 'Fingerprint';
+        return t('auth.biometric.fingerprint');
       default:
-        return 'Biometric Authentication';
+        return t('settings.biometric.title');
     }
   };
 
@@ -146,7 +148,7 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
       <View style={[styles.container, styles.centered]}>
         <ActivityIndicator size="large" color={theme.colors.primary} />
         <Text variant="bodyLarge" style={styles.loadingText}>
-          Checking biometric availability...
+          {t('auth.biometric.checking')}
         </Text>
       </View>
     );
@@ -166,8 +168,8 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
           </Text>
           <Text variant="bodyLarge" style={[styles.subtitle, { color: theme.colors.onSurfaceVariant }]}>
             {biometricInfo.available
-              ? 'Secure your account with biometric authentication'
-              : 'Biometric authentication is not available on this device'
+              ? t('auth.biometric.secureAccount')
+              : t('auth.biometric.unavailable')
             }
           </Text>
         </View>
@@ -178,19 +180,19 @@ const BiometricSetupScreen: React.FC<Props> = ({ navigation }) => {
               <View style={styles.featureItem}>
                 <Icon name="shield-check" size={24} color={theme.colors.primary} />
                 <Text variant="bodyMedium" style={styles.featureText}>
-                  Enhanced security for your account
+                  {t('auth.biometric.featureSecurity')}
                 </Text>
               </View>
               <View style={styles.featureItem}>
                 <Icon name="lightning-bolt" size={24} color={theme.colors.primary} />
                 <Text variant="bodyMedium" style={styles.featureText}>
-                  Quick and convenient login
+                  {t('auth.biometric.featureQuick')}
                 </Text>
               </View>
               <View style={styles.featureItem}>
                 <Icon name="lock" size={24} color={theme.colors.primary} />
                 <Text variant="bodyMedium" style={styles.featureText}>
-                  Your biometric data stays on your device
+                  {t('auth.biometric.featureLocal')}
                 </Text>
               </View>
             </Card.Content>

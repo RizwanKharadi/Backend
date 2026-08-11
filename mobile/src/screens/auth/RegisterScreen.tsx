@@ -30,6 +30,7 @@ import { initializeRealtimeServices } from '../../services';
 import { AuthStackScreenProps } from '../../types/navigation';
 import { RegisterData } from '../../types';
 import { pickDefaultCompany } from '../../utils/companySelection';
+import { useTranslation } from 'react-i18next';
 
 type Props = AuthStackScreenProps<'Register'>;
 
@@ -42,6 +43,7 @@ interface RegisterForm {
 }
 
 const RegisterScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const theme = useTheme();
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
@@ -79,7 +81,19 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         password: data.password,
       };
 
-      await dispatch(register(payload)).unwrap();
+      const result = await dispatch(register(payload)).unwrap();
+
+      // Registration no longer signs the user in — the account is unusable
+      // until the emailed code is confirmed. Company selection happens after
+      // verification, once there is a session to make requests with.
+      if (result?.requiresVerification) {
+        navigation.navigate('OtpVerification', {
+          email: result.email || payload.email,
+          purpose: 'email_verification',
+          name: payload.name,
+        });
+        return;
+      }
 
       const companiesResult = await dispatch(fetchCompanies({})).unwrap();
 
@@ -99,8 +113,8 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       }
     } catch (err: any) {
       Alert.alert(
-        'Registration failed',
-        err || 'Please check your details and try again.'
+        t('auth.register.failed'),
+        err || t('auth.register.checkDetails')
       );
     }
   };
@@ -118,12 +132,10 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
         <View style={styles.header}>
           <Icon name="account-plus" size={72} color={theme.colors.primary} />
           <Text variant="headlineMedium" style={styles.title}>
-            Create account
+            {t('auth.register.title')}
           </Text>
           <Text variant="bodyLarge" style={styles.subtitle}>
-            Sign up with the same email and password you will use in the desktop
-            sync agent. After you run sync, only your Tally company data appears
-            here.
+            {t('auth.register.subtitle')}
           </Text>
         </View>
 
@@ -133,15 +145,15 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               control={control}
               name="name"
               rules={{
-                required: 'Name is required',
+                required: t('auth.field.nameRequired'),
                 minLength: {
                   value: 2,
-                  message: 'Name must be at least 2 characters',
+                  message: t('auth.field.nameMin'),
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  label="Full name"
+                  label={t('auth.field.fullName')}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -163,15 +175,15 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               control={control}
               name="email"
               rules={{
-                required: 'Email is required',
+                required: t('auth.field.emailRequired'),
                 pattern: {
                   value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: 'Please enter a valid email address',
+                  message: t('auth.field.emailInvalid'),
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  label="Email"
+                  label={t('auth.field.email')}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -195,15 +207,15 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               control={control}
               name="phone"
               rules={{
-                required: 'Phone is required',
+                required: t('auth.field.phoneRequired'),
                 minLength: {
                   value: 8,
-                  message: 'Enter a valid phone number',
+                  message: t('auth.field.phoneInvalid'),
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  label="Phone"
+                  label={t('auth.field.phone')}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -226,15 +238,15 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               control={control}
               name="password"
               rules={{
-                required: 'Password is required',
+                required: t('auth.field.passwordRequired'),
                 minLength: {
                   value: 6,
-                  message: 'Password must be at least 6 characters',
+                  message: t('auth.field.passwordMin'),
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  label="Password"
+                  label={t('auth.field.password')}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -263,13 +275,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               control={control}
               name="confirmPassword"
               rules={{
-                required: 'Please confirm your password',
+                required: t('auth.field.confirmRequired'),
                 validate: (value) =>
                   value === passwordValue || 'Passwords do not match',
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <TextInput
-                  label="Confirm password"
+                  label={t('auth.field.confirmPassword')}
                   value={value}
                   onChangeText={onChange}
                   onBlur={onBlur}
@@ -307,15 +319,13 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
               disabled={isLoading}
               style={styles.primaryButton}
               contentStyle={styles.buttonContent}
-            >
-              Create account
-            </Button>
+            >{t('auth.register.title')}</Button>
           </View>
         </Surface>
 
         <View style={styles.footer}>
           <Text variant="bodyMedium" style={styles.footerText}>
-            Already have an account?{' '}
+            {t('auth.register.haveAccount')}{' '}
           </Text>
           <Button
             mode="text"
@@ -323,7 +333,7 @@ const RegisterScreen: React.FC<Props> = ({ navigation }) => {
             disabled={isLoading}
             compact
           >
-            Sign in
+            {t('auth.login.signIn')}
           </Button>
         </View>
       </ScrollView>

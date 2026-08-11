@@ -33,6 +33,8 @@ import {
 import { setSelectedCompany as setPersistedCompanyId } from '../../store/slices/settingsSlice';
 import { initializeRealtimeServices } from '../../services';
 import { pickDefaultCompany } from '../../utils/companySelection';
+import { useTranslation } from 'react-i18next';
+import { FinnyMascot } from '../../components/mascot';
 
 type Props = AuthStackScreenProps<'Login'>;
 
@@ -49,6 +51,7 @@ const FEATURES = [
 ] as const;
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const dispatch = useDispatch<AppDispatch>();
   const { isLoading, error } = useSelector((state: RootState) => state.auth);
@@ -114,7 +117,19 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
         }
       }
     } catch (err: any) {
-      Alert.alert('Login Failed', err || 'Please check your credentials and try again.');
+      // Correct password, unverified address — send them to the OTP screen
+      // rather than telling them their credentials are wrong.
+      if (err?.requiresVerification) {
+        navigation.navigate('OtpVerification', {
+          email: err.email || data.email.toLowerCase().trim(),
+          purpose: 'email_verification',
+        });
+        return;
+      }
+      Alert.alert(
+        t('auth.login.failed'),
+        err?.message || err || t('auth.login.checkCredentials')
+      );
     }
   };
 
@@ -133,7 +148,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       }
     } catch (err: any) {
       Alert.alert(
-        'Biometric Login Failed',
+        t('auth.login.biometricFailed'),
         err || 'Please try again or use password login.'
       );
     }
@@ -171,8 +186,8 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 resizeMode="contain"
               />
             </View>
-            <Text style={styles.brand}>TallyFin</Text>
-            <Text style={styles.tagline}>TRACK • ANALYZE • GROW</Text>
+            <Text style={styles.brand}>{t('common.appName')}</Text>
+            <Text style={styles.tagline}>{t('common.tagline')}</Text>
 
             <View style={styles.featureRow}>
               {FEATURES.map((f) => (
@@ -186,22 +201,29 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
 
           {/* Card */}
           <View style={styles.card}>
-            <Text style={styles.cardTitle}>Welcome back</Text>
-            <Text style={styles.cardSubtitle}>Sign in to continue to your dashboard</Text>
+            {/* Small welcoming Finny — beside the heading, deliberately not
+                large enough to compete with the sign-in form. */}
+            <View style={styles.welcomeRow}>
+              <FinnyMascot pose="welcome" size="sm" animation="wave" decorative />
+              <View style={styles.welcomeText}>
+                <Text style={styles.cardTitle}>{t('auth.login.welcomeBack')}</Text>
+                <Text style={styles.cardSubtitle}>{t('auth.login.subtitle')}</Text>
+              </View>
+            </View>
 
             <Controller
               control={control}
               name="email"
               rules={{
-                required: 'Email is required',
+                required: t('auth.field.emailRequired'),
                 pattern: {
                   value: /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i,
-                  message: 'Enter a valid email address',
+                  message: t('auth.field.emailInvalid'),
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.fieldLabel}>Email</Text>
+                  <Text style={styles.fieldLabel}>{t('auth.field.email')}</Text>
                   <View
                     style={[
                       styles.inputRow,
@@ -244,15 +266,15 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
               control={control}
               name="password"
               rules={{
-                required: 'Password is required',
+                required: t('auth.field.passwordRequired'),
                 minLength: {
                   value: 6,
-                  message: 'At least 6 characters',
+                  message: t('auth.field.passwordMin'),
                 },
               }}
               render={({ field: { onChange, onBlur, value } }) => (
                 <View style={styles.fieldWrap}>
-                  <Text style={styles.fieldLabel}>Password</Text>
+                  <Text style={styles.fieldLabel}>{t('auth.field.password')}</Text>
                   <View
                     style={[
                       styles.inputRow,
@@ -313,7 +335,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                     <View style={[styles.checkbox, value && styles.checkboxChecked]}>
                       {value ? <Icon name="check" size={14} color="#fff" /> : null}
                     </View>
-                    <Text style={styles.rememberText}>Remember me</Text>
+                    <Text style={styles.rememberText}>{t('auth.login.rememberMe')}</Text>
                   </TouchableOpacity>
                 )}
               />
@@ -321,7 +343,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 onPress={() => navigation.navigate('ForgotPassword')}
                 disabled={isLoading}
               >
-                <Text style={styles.forgotLink}>Forgot password?</Text>
+                <Text style={styles.forgotLink}>{t('auth.login.forgotPassword')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -342,7 +364,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
-                  <Text style={styles.primaryBtnText}>Sign in</Text>
+                  <Text style={styles.primaryBtnText}>{t('auth.login.signIn')}</Text>
                   <Icon name="arrow-right" size={22} color="#fff" />
                 </>
               )}
@@ -358,24 +380,21 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
                 <View style={styles.biometricIconWrap}>
                   <Icon name="fingerprint" size={28} color={authColors.primary} />
                 </View>
-                <Text style={styles.biometricText}>Sign in with biometrics</Text>
+                <Text style={styles.biometricText}>{t('auth.login.signInBiometric')}</Text>
               </TouchableOpacity>
             ) : null}
           </View>
 
           <View style={styles.footer}>
-            <Text style={styles.footerHint}>
-              Sign up here or on the TallyFin Desktop Agent. Use the same email and password on both
-              — after you sync from desktop, your Tally data appears in this app.
-            </Text>
+            <Text style={styles.footerHint}>{t('auth.login.signUpHint')}</Text>
             <TouchableOpacity
               onPress={() => navigation.navigate('Register')}
               disabled={isLoading}
               style={styles.signUpRow}
               activeOpacity={0.7}
             >
-              <Text style={styles.footerHint}>Don&apos;t have an account? </Text>
-              <Text style={styles.signUpLink}>Sign up</Text>
+              <Text style={styles.footerHint}>{t('auth.login.noAccount')} </Text>
+              <Text style={styles.signUpLink}>{t('auth.register.signUp')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -468,6 +487,14 @@ const styles = StyleSheet.create({
       },
       android: { elevation: 10 },
     }),
+  },
+  welcomeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  welcomeText: {
+    flex: 1,
   },
   cardTitle: {
     fontSize: 24,

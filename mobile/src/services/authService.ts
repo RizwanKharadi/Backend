@@ -2,7 +2,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import EncryptedStorage from 'react-native-encrypted-storage';
 import ReactNativeBiometrics from 'react-native-biometrics';
 import { apiClient } from './apiClient';
-import { LoginCredentials, RegisterData, AuthResponse, User } from '../types';
+import { LoginCredentials, RegisterData, AuthResponse, User, OtpPurpose } from '../types';
 
 const TOKEN_KEY = 'auth_token';
 const REFRESH_TOKEN_KEY = 'auth_refresh_token';
@@ -93,7 +93,19 @@ class AuthService {
       
       throw new Error(response.data.message || 'Login failed');
     } catch (error: any) {
-      throw new Error(error.response?.data?.message || error.message || 'Login failed');
+      // A 403 with requiresVerification means the password was right but the
+      // address is unverified. Flag it on the thrown error so the screen can
+      // open the OTP flow instead of showing "wrong password".
+      const data = error.response?.data;
+      const err = new Error(data?.message || error.message || 'Login failed') as Error & {
+        requiresVerification?: boolean;
+        email?: string;
+      };
+      if (data?.requiresVerification) {
+        err.requiresVerification = true;
+        err.email = data.email || normalized.email;
+      }
+      throw err;
     }
   }
 
@@ -109,7 +121,20 @@ class AuthService {
     };
     try {
       const response = await apiClient.post('/auth/register', normalized);
-      
+
+      // Registration no longer returns a session: the account is unusable until
+      // the emailed OTP is confirmed. The caller routes to the OTP screen.
+      if (response.data.success && response.data.requiresVerification) {
+        return {
+          success: true,
+          requiresVerification: true,
+          email: response.data.email || normalized.email,
+          token: null,
+          refreshToken: null,
+          user: null,
+        } as AuthResponse;
+      }
+
       if (response.data.success) {
         const { token, refreshToken, user: rawUser } = response.data.data;
         const user = normalizeUser(rawUser);
@@ -486,6 +511,103 @@ class AuthService {
       ]);
     } catch (error) {
       console.error('Failed to clear auth data:', error);
+    }
+  }
+
+  /**
+   * Confirm an emailed OTP.
+   *
+   * For `email_verification` the server hands back a session, because verifying
+   * is the final step of signing up — the user should not have to type their
+   * password again. For `password_reset` it returns a short-lived ticket that
+   * authorises exactly one password change.
+   */
+  async verifyOtp(
+    email: string,
+    otp: string,
+    purpose: OtpPurpose
+  ): Promise<{ success: boolean; resetTicket?: string; user?: User }> {
+    try {
+      const response = await apiClient.post('/auth/verify-otp', {
+        email: email.toLowerCase().trim(),
+        otp: otp.trim(),
+        purpose,
+      });
+
+      const data = response.data?.data || {};
+
+      if (purpose === 'email_verification' && data.token) {
+        const user = normalizeUser(data.user);
+        await EncryptedStorage.setItem(TOKEN_KEY, data.token);
+        if (data.refreshToken) {
+          await EncryptedStorage.setItem(REFRESH_TOKEN_KEY, data.refreshToken);
+        }
+        await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+        return { success: true, user };
+      }
+
+      return { success: true, resetTicket: data.resetTicket };
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || error.message || 'Could not verify that code'
+      );
+    }
+  }
+
+  /** Ask for a new OTP. The server enforces the cooldown. */
+  async resendOtp(email: string, purpose: OtpPurpose): Promise<{ message: string }> {
+    try {
+      const response = await apiClient.post('/auth/resend-otp', {
+        email: email.toLowerCase().trim(),
+        purpose,
+      });
+      return { message: response.data?.message || 'Code sent' };
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || error.message || 'Could not send a new code'
+      );
+    }
+  }
+
+  /** Start a password reset. Always succeeds, whether or not the account exists. */
+  async forgotPassword(email: string): Promise<{ message: string }> {
+    try {
+      const response = await apiClient.post('/auth/forgot-password', {
+        email: email.toLowerCase().trim(),
+      });
+      return { message: response.data?.message || 'Check your email' };
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || error.message || 'Could not start password reset'
+      );
+    }
+  }
+
+  /** Finish a password reset with the ticket from verifyOtp. */
+  async resetPassword(
+    resetTicket: string,
+    password: string
+  ): Promise<{ success: boolean; user: User }> {
+    try {
+      const response = await apiClient.post('/auth/reset-password', {
+        resetTicket,
+        password,
+      });
+
+      const { token, refreshToken, user: rawUser } = response.data.data;
+      const user = normalizeUser(rawUser);
+
+      await EncryptedStorage.setItem(TOKEN_KEY, token);
+      if (refreshToken) {
+        await EncryptedStorage.setItem(REFRESH_TOKEN_KEY, refreshToken);
+      }
+      await AsyncStorage.setItem(USER_KEY, JSON.stringify(user));
+
+      return { success: true, user };
+    } catch (error: any) {
+      throw new Error(
+        error.response?.data?.message || error.message || 'Could not update your password'
+      );
     }
   }
 
