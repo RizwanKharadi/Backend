@@ -1,0 +1,7 @@
+# Files that are executed or parsed on Linux servers must keep LF endings.
+# Without this, core.autocrlf=true on Windows checkouts rewrites them to CRLF and
+# bash fails with the confusing `$'\r': command not found`.
+*.sh        text eol=lf
+*.conf      text eol=lf
+Dockerfile  text eol=lf
+Procfile    text eol=lf

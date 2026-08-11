@@ -1,6 +1,6 @@
 const PRODUCTION_SERVER = {
-  url: 'wss://web-production-577680.up.railway.app/tally-agent',
-  apiUrl: 'https://web-production-577680.up.railway.app/api',
+  url: 'wss://api.aiminfocom.com/tally-agent',
+  apiUrl: 'https://api.aiminfocom.com/api',
 };
 
 const DEVELOPMENT_SERVER = {
