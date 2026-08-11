@@ -4,6 +4,7 @@ import type {
   VoucherItem,
   TallyVoucherEntryMode,
 } from '../types';
+import { formatNumber, DOCUMENT_LOCALE } from './formatters';
 
 export const VOUCHER_TYPE_LABELS: Record<string, string> = {
   sales: 'Sales',
@@ -176,18 +177,18 @@ export function formatDDMMYYYY(dateString: string): string {
   return `${dd}-${mm}-${yyyy}`;
 }
 
+// Printed documents are pinned to DOCUMENT_LOCALE: an invoice's number format
+// is a property of the invoice, not of the language the app is displaying.
 export function formatTableAmount(n: number): string {
-  return n.toLocaleString('en-IN', {
+  return formatNumber(n, {
+    locale: DOCUMENT_LOCALE,
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
 }
 
 export function formatInr(amount: number): string {
-  return new Intl.NumberFormat('en-IN', {
-    style: 'currency',
-    currency: 'INR',
-  }).format(amount);
+  return `₹${formatTableAmount(amount)}`;
 }
 
 export function formatReference(ref: Voucher['reference']): string {
@@ -299,10 +300,20 @@ export function buildTermsText(voucher: Voucher): string {
 
 export interface VoucherDocumentContext {
   companyName?: string;
-  companyAddress?: string;
+  /**
+   * The server stores this as a JSON object
+   * ({line1, line2, city, state, pincode, country}); older records may still be
+   * a plain string. The invoice renderer accepts either — passing the object
+   * straight into a template is what printed "[object Object]".
+   */
+  companyAddress?: string | Record<string, unknown>;
   companyGst?: string;
   companyPhone?: string;
   companyEmail?: string;
+  /** Printed under the seller block and used for the jurisdiction footer. */
+  companyState?: string;
+  /** Printed as "Company's PAN" above the declaration. */
+  companyPan?: string;
 }
 
 export function prepareVoucherDocumentData(voucher: Voucher) {

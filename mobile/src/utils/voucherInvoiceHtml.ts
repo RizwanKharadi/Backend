@@ -1,16 +1,34 @@
+/**
+ * Print/PDF invoice laid out to match TallyPrime's "Tax Invoice" format.
+ *
+ * The point of this document is that a customer who has seen the Tally print
+ * should not be able to tell this one came from somewhere else. That means a
+ * hairline-bordered table grid — not cards, not accent colours, not rounded
+ * corners — with the same field names in the same boxes.
+ *
+ * Where Tally has a field we do not sync (Delivery Note, Dispatched through,
+ * Terms of Delivery …) the box is still drawn and simply left empty, which is
+ * exactly what Tally does when those fields are blank.
+ *
+ * Deliberately English-only. This follows the printed-document rule in
+ * docs/I18N.md: an invoice's layout and wording belong to the invoice, not to
+ * whatever language the app is currently displaying.
+ */
 import type { Voucher, VoucherEntry, VoucherItem } from '../types';
 import {
   type VoucherDocumentContext,
   prepareVoucherDocumentData,
-  formatDDMMYYYY,
   formatTableAmount,
-  formatInr,
   formatReference,
   rupeesToWords,
   resolveVoucherDisplayAmount,
   entryDisplayAmount,
-  tallyByToPrefix,
+  voucherDisplayType,
 } from './voucherDocument';
+
+// ---------------------------------------------------------------------------
+// Small helpers
+// ---------------------------------------------------------------------------
 
 function escapeHtml(text: string | number | undefined | null): string {
   if (text == null) return '';
@@ -21,539 +39,592 @@ function escapeHtml(text: string | number | undefined | null): string {
     .replace(/"/g, '&quot;');
 }
 
-function statusBadgeClass(status: string): string {
-  switch (status) {
-    case 'posted':
-    case 'approved':
-    case 'paid':
-      return 'badge-success';
-    case 'cancelled':
-      return 'badge-danger';
-    default:
-      return 'badge-muted';
-  }
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+
+/** Tally prints dates as 10-Aug-26. */
+function tallyDate(value: string | Date | undefined | null): string {
+  if (!value) return '';
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return '';
+  return `${d.getDate()}-${MONTHS[d.getMonth()]}-${String(d.getFullYear()).slice(2)}`;
 }
 
-function renderGstLine(item: VoucherItem): string {
-  const g = item.gst;
-  if (!g) return '';
-  const parts = [
-    g.cgst ? `CGST ${g.cgst}%` : '',
-    g.sgst ? `SGST ${g.sgst}%` : '',
-    g.igst ? `IGST ${g.igst}%` : '',
-    g.cess ? `Cess ${g.cess}%` : '',
-  ].filter(Boolean);
-  if (!parts.length) return '';
-  return `<div class="sub-line">${escapeHtml(parts.join(' · '))}</div>`;
+/** Tally prints quantities to three decimals with the unit: "1.000 No." */
+function tallyQty(qty: number | undefined, unit?: string): string {
+  const n = Number(qty);
+  if (!Number.isFinite(n) || n === 0) return '';
+  return `${n.toFixed(3)}${unit ? ' ' + unit : ''}`;
 }
 
-function renderItemsTable(items: VoucherItem[]): string {
-  if (!items.length) {
-    return '<p class="empty-note">No inventory line items on this voucher.</p>';
+function num(value: unknown): number {
+  const n = typeof value === 'string' ? Number(value) : (value as number);
+  return Number.isFinite(n) ? n : 0;
+}
+
+/**
+ * The company address arrives as a JSON object from the server
+ * ({line1, line2, city, state, pincode, country}) but older records and some
+ * callers still pass a plain string. Rendering the object directly is what
+ * produced the literal "[object Object]" on the previous invoice.
+ */
+function addressLines(address: unknown): string[] {
+  if (!address) return [];
+  if (typeof address === 'string') {
+    return address.split(/\r?\n|,\s*/).map((s) => s.trim()).filter(Boolean);
   }
-  const rows = items
+  if (typeof address !== 'object') return [];
+  const a = address as Record<string, unknown>;
+  const cityLine = [a.city, a.pincode].map((x) => (x ? String(x).trim() : '')).filter(Boolean).join('-');
+  return [a.line1, a.line2, a.street, cityLine, a.country]
+    .map((x) => (x == null ? '' : String(x).trim()))
+    .filter((x) => x && x.toLowerCase() !== 'unknown');
+}
+
+/** First non-empty value across the alternative key spellings the API uses. */
+function pick(source: Record<string, unknown> | undefined, ...keys: string[]): string {
+  if (!source) return '';
+  for (const k of keys) {
+    const v = source[k];
+    if (v != null && String(v).trim() !== '') return String(v).trim();
+  }
+  return '';
+}
+
+/** A tax ledger line (CGST / SGST / IGST / Cess), as opposed to a charge. */
+function isTaxLedger(name: string): boolean {
+  return /\b(cgst|sgst|utgst|igst|cess|central tax|state tax|integrated tax)\b/i.test(name || '');
+}
+
+// ---------------------------------------------------------------------------
+// Item rows
+// ---------------------------------------------------------------------------
+
+/**
+ * Tally shows a Disc. % column. We do not sync a discount field, but it is
+ * recoverable: when the line amount is below rate x quantity, the difference is
+ * the discount. Anything under 0.01% is treated as rounding, not a discount.
+ */
+function discountPercent(item: VoucherItem): number | null {
+  const gross = num(item.rate) * num(item.quantity);
+  const net = num(item.amount);
+  if (gross <= 0 || net <= 0 || net >= gross) return null;
+  const pct = ((gross - net) / gross) * 100;
+  return pct < 0.01 ? null : pct;
+}
+
+function renderItemRows(items: VoucherItem[]): string {
+  return items
+    .map((item, idx) => {
+      const disc = discountPercent(item);
+      const subLines = [
+        item.description ? escapeHtml(item.description) : '',
+      ]
+        .filter(Boolean)
+        .map((line) => `<div class="sub">${line}</div>`)
+        .join('');
+
+      return `
+      <tr>
+        <td class="c-sl">${idx + 1}</td>
+        <td class="c-desc"><span class="item-name">${escapeHtml(item.itemName)}</span>${subLines}</td>
+        <td class="c-hsn">${escapeHtml(item.hsnCode || '')}</td>
+        <td class="c-qty b">${escapeHtml(tallyQty(item.quantity, item.unit))}</td>
+        <td class="c-rate">${item.rate ? formatTableAmount(num(item.rate)) : ''}</td>
+        <td class="c-per">${escapeHtml(item.unit || '')}</td>
+        <td class="c-disc">${disc == null ? '' : `${disc.toFixed(disc % 1 === 0 ? 0 : 2)} %`}</td>
+        <td class="c-amt b">${formatTableAmount(num(item.amount))}</td>
+      </tr>`;
+    })
+    .join('');
+}
+
+/**
+ * Ledger lines (taxes, freight, round off) print under the items, right-aligned
+ * against the description column, exactly as Tally stacks them.
+ */
+function renderLedgerRows(rows: VoucherEntry[]): string {
+  return rows
     .map(
-      (item, idx) => `
-      <tr class="${idx % 2 === 1 ? 'row-alt' : ''}">
-        <td class="col-sn">${idx + 1}</td>
-        <td class="col-item">
-          <div class="item-name">${escapeHtml(item.itemName || 'Item')}</div>
-          ${item.description ? `<div class="sub-line">${escapeHtml(item.description)}</div>` : ''}
-          ${item.hsnCode ? `<div class="sub-line">HSN/SAC: ${escapeHtml(item.hsnCode)}</div>` : ''}
-          ${renderGstLine(item)}
-        </td>
-        <td class="col-qty num">${escapeHtml(formatTableAmount(item.quantity))} ${escapeHtml(item.unit || 'Nos')}</td>
-        <td class="col-rate num">${escapeHtml(formatTableAmount(item.rate))}</td>
-        <td class="col-amt num">${escapeHtml(formatTableAmount(item.amount))}</td>
+      (entry) => `
+      <tr>
+        <td class="c-sl"></td>
+        <td class="c-desc ledger-name">${escapeHtml(entry.accountName)}</td>
+        <td class="c-hsn"></td>
+        <td class="c-qty"></td>
+        <td class="c-rate"></td>
+        <td class="c-per"></td>
+        <td class="c-disc"></td>
+        <td class="c-amt b">${formatTableAmount(entryDisplayAmount(entry))}</td>
       </tr>`
     )
     .join('');
-
-  return `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th class="col-sn">#</th>
-          <th class="col-item">Item / Description</th>
-          <th class="col-qty">Qty</th>
-          <th class="col-rate">Rate</th>
-          <th class="col-amt">Amount</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
 }
 
-function renderAsVoucherLedger(
-  ledgerRows: VoucherEntry[],
-  debitTotal: number,
-  creditTotal: number
-): string {
-  if (!ledgerRows.length) {
-    return '<p class="empty-note">No ledger particulars.</p>';
+// ---------------------------------------------------------------------------
+// HSN / tax summary
+// ---------------------------------------------------------------------------
+
+interface HsnRow {
+  hsn: string;
+  taxable: number;
+  cgstRate: number;
+  cgst: number;
+  sgstRate: number;
+  sgst: number;
+  igstRate: number;
+  igst: number;
+}
+
+/**
+ * Build the HSN-wise tax table.
+ *
+ * Preferred source is each item's own GST rates. Tally-synced vouchers often
+ * carry the tax only as ledger lines, though, so when the items have no rates
+ * the voucher totals are apportioned across the HSN groups by taxable value and
+ * the rate is derived back from that. Either way the column totals tie out to
+ * the voucher, which is the property that matters on a tax document.
+ */
+function buildHsnRows(voucher: Voucher, items: VoucherItem[]): HsnRow[] {
+  if (!items.length) return [];
+
+  const groups = new Map<string, { taxable: number; item: VoucherItem }>();
+  for (const item of items) {
+    const key = item.hsnCode || '';
+    const existing = groups.get(key);
+    if (existing) existing.taxable += num(item.amount);
+    else groups.set(key, { taxable: num(item.amount), item });
   }
-  const rows = ledgerRows
-    .map((entry) => {
-      const prefix = tallyByToPrefix(entry);
-      const subLines = (entry.subLines || [])
-        .map((s) => `<div class="sub-line indent">${escapeHtml(s.text)}</div>`)
-        .join('');
-      const narr =
-        entry.narration && !(entry.subLines || []).some((s) => s.isNarration)
-          ? `<div class="sub-line indent">${escapeHtml(entry.narration)}</div>`
-          : '';
-      return `
-      <tr>
-        <td class="col-part">
-          <span class="prefix">${escapeHtml(prefix)}</span> ${escapeHtml(entry.accountName)}
-          ${subLines}${narr}
-        </td>
-        <td class="col-dr num">${entry.debitAmount > 0 ? escapeHtml(formatTableAmount(entry.debitAmount)) : ''}</td>
-        <td class="col-cr num">${entry.creditAmount > 0 ? escapeHtml(formatTableAmount(entry.creditAmount)) : ''}</td>
+
+  const totalTaxable = [...groups.values()].reduce((s, g) => s + g.taxable, 0);
+  const t = voucher.totals || {};
+  const voucherCgst = num(t.cgst);
+  const voucherSgst = num(t.sgst);
+  const voucherIgst = num(t.igst);
+  const itemsCarryRates = items.some(
+    (i) => num(i.gst?.cgst) || num(i.gst?.sgst) || num(i.gst?.igst)
+  );
+
+  return [...groups.entries()].map(([hsn, g]) => {
+    if (itemsCarryRates) {
+      const cgstRate = num(g.item.gst?.cgst);
+      const sgstRate = num(g.item.gst?.sgst);
+      const igstRate = num(g.item.gst?.igst);
+      return {
+        hsn,
+        taxable: g.taxable,
+        cgstRate,
+        cgst: (g.taxable * cgstRate) / 100,
+        sgstRate,
+        sgst: (g.taxable * sgstRate) / 100,
+        igstRate,
+        igst: (g.taxable * igstRate) / 100,
+      };
+    }
+    const share = totalTaxable > 0 ? g.taxable / totalTaxable : 0;
+    const cgst = voucherCgst * share;
+    const sgst = voucherSgst * share;
+    const igst = voucherIgst * share;
+    const rateOf = (amount: number) => (g.taxable > 0 ? (amount / g.taxable) * 100 : 0);
+    return {
+      hsn,
+      taxable: g.taxable,
+      cgstRate: rateOf(cgst),
+      cgst,
+      sgstRate: rateOf(sgst),
+      sgst,
+      igstRate: rateOf(igst),
+      igst,
+    };
+  });
+}
+
+function rateLabel(rate: number): string {
+  if (!rate) return '';
+  return `${Number(rate.toFixed(2))}%`;
+}
+
+function renderHsnTable(rows: HsnRow[], useIgst: boolean): string {
+  if (!rows.length) return '';
+
+  const totals = rows.reduce(
+    (acc, r) => ({
+      taxable: acc.taxable + r.taxable,
+      cgst: acc.cgst + r.cgst,
+      sgst: acc.sgst + r.sgst,
+      igst: acc.igst + r.igst,
+    }),
+    { taxable: 0, cgst: 0, sgst: 0, igst: 0 }
+  );
+
+  const head = useIgst
+    ? `<th class="ctr" colspan="2">IGST</th>`
+    : `<th class="ctr" colspan="2">CGST</th><th class="ctr" colspan="2">SGST/UTGST</th>`;
+
+  const subHead = useIgst
+    ? `<th class="ctr sm">Rate</th><th class="ctr sm">Amount</th>`
+    : `<th class="ctr sm">Rate</th><th class="ctr sm">Amount</th><th class="ctr sm">Rate</th><th class="ctr sm">Amount</th>`;
+
+  const body = rows
+    .map((r) => {
+      const cells = useIgst
+        ? `<td class="ctr">${rateLabel(r.igstRate)}</td><td class="num">${r.igst ? formatTableAmount(r.igst) : ''}</td>`
+        : `<td class="ctr">${rateLabel(r.cgstRate)}</td><td class="num">${r.cgst ? formatTableAmount(r.cgst) : ''}</td>` +
+          `<td class="ctr">${rateLabel(r.sgstRate)}</td><td class="num">${r.sgst ? formatTableAmount(r.sgst) : ''}</td>`;
+      const total = useIgst ? r.igst : r.cgst + r.sgst;
+      return `<tr>
+        <td>${escapeHtml(r.hsn)}</td>
+        <td class="num">${formatTableAmount(r.taxable)}</td>
+        ${cells}
+        <td class="num">${formatTableAmount(total)}</td>
       </tr>`;
     })
     .join('');
 
-  return `
-    <table class="data-table ledger-dr-cr">
-      <thead>
-        <tr>
-          <th class="col-part">Particulars</th>
-          <th class="col-dr">Debit</th>
-          <th class="col-cr">Credit</th>
-        </tr>
-      </thead>
-      <tbody>
-        ${rows}
-        <tr class="total-row">
-          <td class="col-part"><strong>Total</strong></td>
-          <td class="col-dr num"><strong>${escapeHtml(formatTableAmount(debitTotal))}</strong></td>
-          <td class="col-cr num"><strong>${escapeHtml(formatTableAmount(creditTotal))}</strong></td>
-        </tr>
-      </tbody>
-    </table>`;
-}
+  const totalCells = useIgst
+    ? `<td></td><td class="num b">${formatTableAmount(totals.igst)}</td>`
+    : `<td></td><td class="num b">${formatTableAmount(totals.cgst)}</td>` +
+      `<td></td><td class="num b">${formatTableAmount(totals.sgst)}</td>`;
+  const grandTax = useIgst ? totals.igst : totals.cgst + totals.sgst;
 
-function renderInvoiceLedger(ledgerRows: VoucherEntry[], headerLabel: string): string {
-  if (!ledgerRows.length) {
-    return '<p class="empty-note">No ledger lines.</p>';
-  }
-  const rows = ledgerRows
-    .map(
-      (entry) => `
+  return `
+  <table class="grid hsn">
+    <thead>
       <tr>
-        <td class="col-part">${escapeHtml(entry.accountName)}</td>
-        <td class="col-amt num">${escapeHtml(formatTableAmount(entryDisplayAmount(entry)))}</td>
-      </tr>`
-    )
-    .join('');
-
-  return `
-    <table class="data-table">
-      <thead>
-        <tr>
-          <th class="col-part">${escapeHtml(headerLabel)}</th>
-          <th class="col-amt">Amount</th>
-        </tr>
-      </thead>
-      <tbody>${rows}</tbody>
-    </table>`;
-}
-
-function renderTaxSummary(voucher: Voucher): string {
-  const t = voucher.totals;
-  if (!t) return '';
-  const lines: string[] = [];
-  if (t.subtotal != null && t.subtotal !== 0) {
-    lines.push(row('Subtotal', t.subtotal));
-  }
-  if (t.discount != null && t.discount !== 0) {
-    lines.push(row('Discount', -Math.abs(t.discount)));
-  }
-  if (t.taxableAmount != null && t.taxableAmount !== 0) {
-    lines.push(row('Taxable Amount', t.taxableAmount));
-  }
-  if (t.cgst) lines.push(row('CGST', t.cgst));
-  if (t.sgst) lines.push(row('SGST', t.sgst));
-  if (t.igst) lines.push(row('IGST', t.igst));
-  if (t.cess) lines.push(row('Cess', t.cess));
-  if (t.roundOff) lines.push(row('Round Off', t.roundOff));
-  if (!lines.length) return '';
-
-  function row(label: string, value: number) {
-    return `
+        <th class="ctr" rowspan="2">HSN/SAC</th>
+        <th class="ctr" rowspan="2">Taxable<br/>Value</th>
+        ${head}
+        <th class="ctr" rowspan="2">Total<br/>Tax Amount</th>
+      </tr>
+      <tr>${subHead}</tr>
+    </thead>
+    <tbody>
+      ${body}
       <tr>
-        <td>${escapeHtml(label)}</td>
-        <td class="num">${escapeHtml(formatTableAmount(value))}</td>
-      </tr>`;
-  }
-
-  return `
-    <div class="tax-box">
-      <div class="section-title">Tax Summary</div>
-      <table class="summary-table">${lines.join('')}</table>
-    </div>`;
+        <td class="num b">Total</td>
+        <td class="num b">${formatTableAmount(totals.taxable)}</td>
+        ${totalCells}
+        <td class="num b">${formatTableAmount(grandTax)}</td>
+      </tr>
+    </tbody>
+  </table>`;
 }
 
-/**
- * Print- and PDF-ready HTML document for any voucher type (Tally-synced).
- */
+// ---------------------------------------------------------------------------
+// Party blocks
+// ---------------------------------------------------------------------------
+
+function partyBlock(
+  heading: string,
+  name: string,
+  lines: string[],
+  gstin: string,
+  stateName: string
+): string {
+  const addr = lines.map((l) => `<div>${escapeHtml(l)}</div>`).join('');
+  return `
+  <div class="party">
+    <div class="party-head">${escapeHtml(heading)}</div>
+    <div class="party-name">${escapeHtml(name)}</div>
+    ${addr}
+    ${gstin ? `<div class="kv"><span class="k">GSTIN/UIN</span><span class="s">:</span><span>${escapeHtml(gstin)}</span></div>` : ''}
+    ${stateName ? `<div class="kv"><span class="k">State Name</span><span class="s">:</span><span>${escapeHtml(stateName)}</span></div>` : ''}
+  </div>`;
+}
+
+/** One labelled cell of the top-right meta grid. */
+function metaCell(label: string, value: string): string {
+  return `<td class="meta"><div class="meta-l">${escapeHtml(label)}</div><div class="meta-v">${escapeHtml(value)}</div></td>`;
+}
+
+// ---------------------------------------------------------------------------
+// Document
+// ---------------------------------------------------------------------------
+
 export function buildVoucherInvoiceHtml(
   voucher: Voucher,
   context: VoucherDocumentContext = {}
 ): string {
   const doc = prepareVoucherDocumentData(voucher);
-  const displayAmount = resolveVoucherDisplayAmount(voucher);
-  const companyName = context.companyName?.trim() || 'FinSync360';
+  const items = doc.items || [];
+  const ctx = context as unknown as Record<string, unknown>;
+
+  const companyName = pick(ctx, 'companyName') || 'Company';
+  const companyAddr = addressLines((ctx as { companyAddress?: unknown }).companyAddress);
+  const companyGstin = pick(ctx, 'companyGst', 'companyGstin', 'gstin', 'gstNumber');
+  const companyState = pick(ctx, 'companyState', 'state');
+  // Tally prints "SUBJECT TO <CITY> JURISDICTION". Fall back to the state name
+  // with its ", Code : 27" suffix stripped — that suffix belongs in the address
+  // block, not in a jurisdiction line.
+  const jurisdiction =
+    (typeof (ctx as { companyAddress?: { city?: string } }).companyAddress === 'object'
+      ? String(
+          (ctx as { companyAddress?: { city?: string } }).companyAddress?.city || ''
+        ).trim()
+      : '') || companyState.split(',')[0].trim();
+  const companyPan = pick(ctx, 'companyPan', 'pan', 'panNumber');
+  const companyEmail = pick(ctx, 'companyEmail', 'email');
+  const companyPhone = pick(ctx, 'companyPhone', 'phone');
+
+  const partyName = (voucher.partyName || '').trim();
+  const partyGstin = (voucher.partyGstin || '').trim();
+  const partyState = (voucher.placeOfSupply || '').trim();
+  const shipping = (
+    voucher as unknown as { shipping?: { address?: unknown; method?: string } }
+  ).shipping;
+  const partyAddr = addressLines(shipping?.address);
+
   const refStr = formatReference(voucher.reference);
-  const generatedAt = new Date().toLocaleString('en-IN');
-  const accent = doc.accent;
+  const refDate =
+    voucher.reference && typeof voucher.reference === 'object'
+      ? tallyDate((voucher.reference as { date?: string }).date)
+      : '';
 
-  const metaRows: string[] = [
-    metaCell('Voucher No.', voucher.voucherNumber),
-    metaCell('Date', formatDDMMYYYY(voucher.date)),
-    metaCell('Due Date', doc.dueStr),
-    metaCell('Entry Mode', doc.entryMode),
-    metaCell('Status', voucher.status),
-    metaCell('Party', voucher.partyName?.trim() || '—'),
-  ];
-  if (refStr) metaRows.push(metaCell('Reference', refStr));
-  if (voucher.tallyPersistedView) {
-    metaRows.push(metaCell('Tally View', voucher.tallyPersistedView));
-  }
+  // Taxes and charges print as rows beneath the items, taxes first — Tally's
+  // order — so the eye runs items → tax → total.
+  const ledgerRows = (doc.ledgerRows || []).filter((e) => entryDisplayAmount(e) !== 0);
+  const taxRows = ledgerRows.filter((e) => isTaxLedger(e.accountName));
+  const otherRows = ledgerRows.filter((e) => !isTaxLedger(e.accountName));
 
-  const ledgerSectionTitle = doc.isAsVoucher
-    ? 'Particulars (As Voucher)'
-    : doc.isAccountingInvoice
-      ? 'Particulars'
-      : 'Ledger Entries';
+  const totalQty = items.reduce((s, i) => s + num(i.quantity), 0);
+  const unit = items.find((i) => i.unit)?.unit || '';
+  const grandTotal = resolveVoucherDisplayAmount(voucher);
 
-  const ledgerHtml = doc.isAsVoucher
-    ? renderAsVoucherLedger(doc.ledgerRows, doc.ledgerDebitTotal, doc.ledgerCreditTotal)
-    : renderInvoiceLedger(doc.ledgerRows, ledgerSectionTitle);
+  const t = voucher.totals || {};
+  const hsnRows = buildHsnRows(voucher, items);
+  const useIgst = num(t.igst) > 0 || items.some((i) => num(i.gst?.igst) > 0);
+  const totalTax = hsnRows.reduce(
+    (s, r) => s + (useIgst ? r.igst : r.cgst + r.sgst),
+    0
+  );
 
-  const itemsHtml = doc.showItemsSection
-    ? `<div class="section">
-        <div class="section-title">Items</div>
-        ${renderItemsTable(doc.items)}
-      </div>`
-    : '';
-
-  const companyBlock = `
-    <div class="company-block">
-      <div class="company-name">${escapeHtml(companyName)}</div>
-      ${context.companyAddress ? `<div class="company-meta">${escapeHtml(context.companyAddress)}</div>` : ''}
-      ${context.companyGst ? `<div class="company-meta">GSTIN: ${escapeHtml(context.companyGst)}</div>` : ''}
-      ${context.companyPhone ? `<div class="company-meta">Phone: ${escapeHtml(context.companyPhone)}</div>` : ''}
-      ${context.companyEmail ? `<div class="company-meta">Email: ${escapeHtml(context.companyEmail)}</div>` : ''}
-    </div>`;
+  const title = /sales/i.test(voucher.voucherType) ? 'Tax Invoice' : voucherDisplayType(voucher);
 
   return `<!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>${escapeHtml(doc.title)} — ${escapeHtml(voucher.voucherNumber)}</title>
-  <style>
-    @page { size: A4; margin: 14mm; }
-    * { box-sizing: border-box; }
-    body {
-      font-family: 'Segoe UI', system-ui, -apple-system, Roboto, Helvetica, Arial, sans-serif;
-      font-size: 11pt;
-      color: #1a237e;
-      margin: 0;
-      padding: 0;
-      background: #fff;
-      -webkit-print-color-adjust: exact;
-      print-color-adjust: exact;
-    }
-    .page { max-width: 210mm; margin: 0 auto; padding: 8px 4px 24px; }
-    .top-bar {
-      height: 6px;
-      background: linear-gradient(90deg, ${accent} 0%, #0D47A1 100%);
-      border-radius: 4px;
-      margin-bottom: 18px;
-    }
-    .header {
-      display: table;
-      width: 100%;
-      margin-bottom: 20px;
-    }
-    .header-left, .header-right {
-      display: table-cell;
-      vertical-align: top;
-    }
-    .header-right { text-align: right; width: 42%; }
-    .company-name {
-      font-size: 20pt;
-      font-weight: 700;
-      color: #0D47A1;
-      letter-spacing: -0.3px;
-      margin-bottom: 6px;
-    }
-    .company-meta { font-size: 9pt; color: #546e7a; line-height: 1.45; }
-    .voucher-badge {
-      display: inline-block;
-      background: ${accent};
-      color: #fff;
-      font-size: 11pt;
-      font-weight: 700;
-      padding: 8px 16px;
-      border-radius: 6px;
-      letter-spacing: 0.3px;
-      margin-bottom: 8px;
-    }
-    .voucher-sub { font-size: 9pt; color: #607d8b; }
-    .status-pill {
-      display: inline-block;
-      margin-top: 8px;
-      padding: 4px 10px;
-      border-radius: 12px;
-      font-size: 8pt;
-      font-weight: 700;
-      text-transform: uppercase;
-    }
-    .badge-success { background: #e8f5e9; color: #2e7d32; border: 1px solid #a5d6a7; }
-    .badge-danger { background: #ffebee; color: #c62828; border: 1px solid #ef9a9a; }
-    .badge-muted { background: #eceff1; color: #546e7a; border: 1px solid #cfd8dc; }
-    .meta-grid {
-      display: table;
-      width: 100%;
-      border: 1px solid #e3eaf2;
-      border-radius: 8px;
-      background: #f8fafc;
-      margin-bottom: 18px;
-      border-collapse: separate;
-    }
-    .meta-row { display: table-row; }
-    .meta-cell {
-      display: table-cell;
-      width: 33.33%;
-      padding: 10px 12px;
-      border-bottom: 1px solid #e8eef5;
-      vertical-align: top;
-    }
-    .meta-label {
-      font-size: 7.5pt;
-      text-transform: uppercase;
-      letter-spacing: 0.6px;
-      color: #78909c;
-      font-weight: 700;
-      margin-bottom: 3px;
-    }
-    .meta-value { font-size: 10pt; font-weight: 600; color: #263238; }
-    .section { margin-bottom: 18px; }
-    .section-title {
-      font-size: 9pt;
-      font-weight: 800;
-      letter-spacing: 1px;
-      color: #546e7a;
-      text-transform: uppercase;
-      margin-bottom: 8px;
-      padding-bottom: 4px;
-      border-bottom: 2px solid ${accent};
-    }
-    .data-table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 9.5pt;
-    }
-    .data-table thead th {
-      background: #eceff1;
-      color: #37474f;
-      font-weight: 700;
-      text-align: left;
-      padding: 8px 8px;
-      border: 1px solid #cfd8dc;
-    }
-    .data-table tbody td {
-      padding: 7px 8px;
-      border: 1px solid #e0e0e0;
-      vertical-align: top;
-    }
-    .data-table .row-alt td { background: #fafbfc; }
-    .data-table .total-row td {
-      background: #e8eaf6;
-      border-top: 2px solid ${accent};
-      font-weight: 700;
-    }
-    .col-sn { width: 28px; text-align: center; }
-    .col-item { min-width: 140px; }
-    .col-qty { width: 72px; }
-    .col-rate { width: 72px; }
-    .col-amt { width: 88px; }
-    .col-part { min-width: 200px; }
-    .col-dr, .col-cr { width: 80px; }
-    .num { text-align: right; white-space: nowrap; }
-    .item-name { font-weight: 600; color: #263238; }
-    .sub-line { font-size: 8.5pt; color: #607d8b; margin-top: 2px; }
-    .sub-line.indent { margin-left: 12px; }
-    .prefix { font-weight: 800; color: ${accent}; }
-    .empty-note { color: #90a4ae; font-style: italic; padding: 8px 0; }
-    .amount-hero {
-      display: table;
-      width: 100%;
-      margin: 16px 0;
-      border: 2px solid ${accent};
-      border-radius: 10px;
-      overflow: hidden;
-    }
-    .amount-hero-inner {
-      display: table-cell;
-      padding: 16px 20px;
-      background: linear-gradient(135deg, #f5f9ff 0%, #e8f0fe 100%);
-      vertical-align: middle;
-    }
-    .amount-label { font-size: 9pt; color: #546e7a; font-weight: 700; text-transform: uppercase; }
-    .amount-value { font-size: 22pt; font-weight: 800; color: ${accent}; margin-top: 4px; }
-    .words-box {
-      margin-top: 10px;
-      padding: 12px 14px;
-      background: #fffde7;
-      border-left: 4px solid #fbc02d;
-      border-radius: 0 6px 6px 0;
-      font-size: 9.5pt;
-      color: #5d4037;
-      line-height: 1.5;
-    }
-    .words-label { font-weight: 700; color: #f57f17; font-size: 8pt; text-transform: uppercase; }
-    .tax-box { margin-top: 12px; }
-    .summary-table { width: 100%; max-width: 280px; margin-left: auto; border-collapse: collapse; }
-    .summary-table td { padding: 5px 8px; border-bottom: 1px solid #e0e0e0; }
-    .summary-table td:first-child { color: #546e7a; }
-    .notes-grid { display: table; width: 100%; }
-    .notes-col { display: table-cell; width: 50%; padding-right: 12px; vertical-align: top; }
-    .notes-body {
-      font-size: 9.5pt;
-      color: #455a64;
-      line-height: 1.55;
-      white-space: pre-wrap;
-      min-height: 40px;
-      padding: 10px;
-      background: #fafafa;
-      border: 1px solid #eee;
-      border-radius: 6px;
-    }
-    .footer {
-      margin-top: 28px;
-      padding-top: 12px;
-      border-top: 1px solid #cfd8dc;
-      font-size: 8pt;
-      color: #90a4ae;
-      text-align: center;
-    }
-    .sign-row {
-      display: table;
-      width: 100%;
-      margin-top: 32px;
-    }
-    .sign-cell {
-      display: table-cell;
-      width: 50%;
-      text-align: center;
-      padding-top: 40px;
-      border-top: 1px solid #90a4ae;
-      font-size: 9pt;
-      color: #546e7a;
-    }
-    @media print {
-      body { padding: 0; }
-      .page { padding: 0; }
-      .section { page-break-inside: avoid; }
-      .amount-hero { page-break-inside: avoid; }
-    }
-  </style>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${escapeHtml(title)} ${escapeHtml(voucher.voucherNumber || '')}</title>
+<style>
+  @page { size: A4; margin: 8mm; }
+  * { box-sizing: border-box; }
+  body {
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 10.5px;
+    color: #000;
+    margin: 0;
+    -webkit-print-color-adjust: exact;
+  }
+  .doc-title { text-align: center; font-size: 15px; font-weight: bold; margin: 0 0 6px; }
+  table { border-collapse: collapse; width: 100%; }
+  .outer, .grid { border: 1px solid #000; }
+  .outer td, .grid td, .grid th { border: 1px solid #000; vertical-align: top; padding: 2px 4px; }
+  .no-b { border: 0 !important; }
+  .b { font-weight: bold; }
+  .ctr { text-align: center; }
+  .num { text-align: right; }
+  .sm { font-size: 9.5px; }
+
+  /* Seller / consignee / buyer */
+  .seller-name { font-size: 13px; font-weight: bold; }
+  .seller-line { font-size: 9.5px; line-height: 1.35; }
+  .party { padding: 2px 0; }
+  .party-head { font-size: 10.5px; }
+  .party-name { font-size: 12px; font-weight: bold; margin: 1px 0; }
+  .party div { line-height: 1.4; }
+  .kv { display: flex; }
+  .kv .k { display: inline-block; min-width: 96px; }
+  .kv .s { width: 10px; }
+
+  /* Top-right meta grid */
+  .meta { height: 34px; }
+  .meta-l { font-size: 10px; }
+  .meta-v { font-weight: bold; font-size: 11px; }
+
+  /* Items */
+  .items th { border: 1px solid #000; padding: 3px 4px; font-weight: normal; text-align: center; }
+  .items td { border-left: 1px solid #000; border-right: 1px solid #000; border-top: 0; border-bottom: 0; }
+  .items .head-row th { vertical-align: middle; }
+  .item-name { font-weight: bold; }
+  .sub { font-style: italic; padding-left: 10px; }
+  .ledger-name { text-align: right; font-style: italic; font-weight: bold; }
+  .c-sl { width: 4%; text-align: center; }
+  .c-desc { width: 38%; }
+  .c-hsn { width: 10%; text-align: center; }
+  .c-qty { width: 11%; text-align: right; }
+  .c-rate { width: 11%; text-align: right; }
+  .c-per { width: 5%; text-align: center; }
+  .c-disc { width: 8%; text-align: center; }
+  .c-amt { width: 13%; text-align: right; }
+  .spacer td { height: 46px; }
+  .total-row td { border-top: 1px solid #000; border-bottom: 1px solid #000; font-weight: bold; }
+
+  .words { font-size: 12px; font-weight: bold; }
+  .eoe { text-align: right; font-style: italic; }
+  .hsn th { font-weight: normal; }
+  .decl { font-size: 10px; line-height: 1.35; }
+  .sign { text-align: right; height: 62px; position: relative; }
+  .sign .for { font-weight: bold; }
+  .sign .auth { position: absolute; right: 4px; bottom: 2px; }
+  .foot { text-align: center; margin-top: 6px; font-size: 11px; }
+  .foot .small { font-size: 10.5px; margin-top: 4px; }
+</style>
 </head>
 <body>
-  <div class="page">
-    <div class="top-bar"></div>
-    <div class="header">
-      <div class="header-left">${companyBlock}</div>
-      <div class="header-right">
-        <div class="voucher-badge">${escapeHtml(doc.title)}</div>
-        <div class="voucher-sub">${escapeHtml(voucher.voucherType.replace(/_/g, ' ').toUpperCase())}</div>
-        <span class="status-pill ${statusBadgeClass(voucher.status)}">${escapeHtml(voucher.status)}</span>
-      </div>
-    </div>
+  <div class="doc-title">${escapeHtml(title)}</div>
 
-    <div class="meta-grid">
-      ${chunkMetaRows(metaRows, 3)}
-    </div>
+  <table class="outer">
+    <tr>
+      <!-- Left: seller + consignee + buyer -->
+      <td style="width:55%; padding:0;">
+        <table style="width:100%; border:0;">
+          <tr>
+            <td class="no-b" style="border-bottom:1px solid #000 !important;">
+              <div class="seller-name">${escapeHtml(companyName)}</div>
+              <div class="seller-line">
+                ${companyAddr.map((l) => `<div>${escapeHtml(l)}</div>`).join('')}
+                ${companyGstin ? `<div>GSTIN/UIN: ${escapeHtml(companyGstin)}</div>` : ''}
+                ${companyState ? `<div>State Name : ${escapeHtml(companyState)}</div>` : ''}
+                ${companyEmail ? `<div>E-Mail : ${escapeHtml(companyEmail)}</div>` : ''}
+                ${companyPhone ? `<div>Phone : ${escapeHtml(companyPhone)}</div>` : ''}
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td class="no-b" style="border-bottom:1px solid #000 !important;">
+              ${partyBlock('Consignee (Ship to)', partyName, partyAddr, partyGstin, partyState)}
+            </td>
+          </tr>
+          <tr>
+            <td class="no-b" style="height:150px;">
+              ${partyBlock('Buyer (Bill to)', partyName, partyAddr, partyGstin, partyState)}
+            </td>
+          </tr>
+        </table>
+      </td>
 
-    ${itemsHtml}
+      <!-- Right: meta grid -->
+      <td style="width:45%; padding:0;">
+        <table style="width:100%; border:0;">
+          <tr>
+            ${metaCell('Invoice No.', voucher.voucherNumber || '')}
+            ${metaCell('Dated', tallyDate(voucher.date))}
+          </tr>
+          <tr>
+            ${metaCell('Delivery Note', '')}
+            ${metaCell('Mode/Terms of Payment', voucher.terms?.paymentTerms || '')}
+          </tr>
+          <tr>
+            ${metaCell('Reference No. & Date.', refStr + (refDate ? `  dt. ${refDate}` : ''))}
+            ${metaCell('Other References', '')}
+          </tr>
+          <tr>
+            ${metaCell("Buyer's Order No.", refStr)}
+            ${metaCell('Dated', refDate)}
+          </tr>
+          <tr>
+            ${metaCell('Dispatch Doc No.', '')}
+            ${metaCell('Delivery Note Date', '')}
+          </tr>
+          <tr>
+            ${metaCell('Dispatched through', shipping?.method || '')}
+            ${/* Destination is the delivery place, which we do not sync — Tally
+                  leaves it blank too rather than substituting place of supply. */ ''}
+            ${metaCell('Destination', '')}
+          </tr>
+          <tr>
+            <td class="meta" colspan="2" style="height:auto;">
+              <div class="meta-l">Terms of Delivery</div>
+              <div class="meta-v">${escapeHtml(voucher.terms?.deliveryTerms || '')}</div>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
 
-    <div class="section">
-      <div class="section-title">${escapeHtml(ledgerSectionTitle)}</div>
-      ${ledgerHtml}
-    </div>
+  <!-- Items -->
+  <table class="grid items" style="border-top:0;">
+    <thead>
+      <tr class="head-row">
+        <th class="c-sl">Sl<br/>No.</th>
+        <th class="c-desc">Description of<br/>Goods and Services</th>
+        <th class="c-hsn">HSN/SAC</th>
+        <th class="c-qty">Quantity</th>
+        <th class="c-rate">Rate</th>
+        <th class="c-per">per</th>
+        <th class="c-disc">Disc. %</th>
+        <th class="c-amt">Amount</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${renderItemRows(items)}
+      ${taxRows.length || otherRows.length ? '<tr><td class="c-sl">&nbsp;</td><td colspan="7"></td></tr>' : ''}
+      ${renderLedgerRows(taxRows)}
+      ${renderLedgerRows(otherRows)}
+      <tr class="spacer"><td class="c-sl"></td><td colspan="7"></td></tr>
+      <tr class="total-row">
+        <td class="c-sl"></td>
+        <td class="num">Total</td>
+        <td class="c-hsn"></td>
+        <td class="c-qty">${escapeHtml(tallyQty(totalQty, unit))}</td>
+        <td class="c-rate"></td>
+        <td class="c-per"></td>
+        <td class="c-disc"></td>
+        <td class="c-amt">&#8377; ${formatTableAmount(grandTotal)}</td>
+      </tr>
+    </tbody>
+  </table>
 
-    <div class="amount-hero">
-      <div class="amount-hero-inner">
-        <div class="amount-label">Total Amount</div>
-        <div class="amount-value">${escapeHtml(formatInr(displayAmount))}</div>
-        <div class="words-box">
-          <div class="words-label">Amount in words</div>
-          ${escapeHtml(rupeesToWords(displayAmount))}
-        </div>
-      </div>
-    </div>
+  <!-- Amount in words -->
+  <table class="grid" style="border-top:0;">
+    <tr>
+      <td style="border-right:0;">Amount Chargeable (in words)</td>
+      <td class="eoe" style="border-left:0;">E. &amp; O.E</td>
+    </tr>
+    <tr>
+      <td class="words" colspan="2" style="border-top:0;">INR ${escapeHtml(rupeesToWords(grandTotal).replace(/\s*Rupees/i, '').replace(/\s+/g, ' ').trim())}</td>
+    </tr>
+  </table>
 
-    ${renderTaxSummary(voucher)}
+  ${renderHsnTable(hsnRows, useIgst)}
 
-    <div class="section">
-      <div class="notes-grid">
-        <div class="notes-col">
-          <div class="section-title">Terms &amp; Conditions</div>
-          <div class="notes-body">${escapeHtml(doc.termsText.trim() || '—')}</div>
-        </div>
-        <div class="notes-col">
-          <div class="section-title">Narration / Notes</div>
-          <div class="notes-body">${escapeHtml(voucher.narration?.trim() || '—')}</div>
-        </div>
-      </div>
-    </div>
+  ${
+    totalTax > 0
+      ? `<table class="grid" style="border-top:0;">
+    <tr><td>Tax Amount (in words) : <span class="b">INR ${escapeHtml(
+      rupeesToWords(totalTax).replace(/\s*Rupees/i, '').replace(/\s+/g, ' ').trim()
+    )}</span></td></tr>
+  </table>`
+      : ''
+  }
 
+  <table class="grid" style="border-top:0;">
     ${
-      voucher.tallyId
-        ? `<div class="section">
-        <div class="section-title">Sync</div>
-        <div class="notes-body" style="min-height:auto">
-          Tally ID: ${escapeHtml(voucher.tallyId)}
-          ${voucher.lastSyncedAt ? `\nLast synced: ${escapeHtml(new Date(voucher.lastSyncedAt).toLocaleString('en-IN'))}` : ''}
-        </div>
-      </div>`
+      companyPan
+        ? `<tr><td colspan="2">Company's PAN <span style="display:inline-block;width:60px"></span>: <span class="b">${escapeHtml(companyPan)}</span></td></tr>`
         : ''
     }
+    <tr>
+      <td style="width:55%;">
+        <div>Declaration</div>
+        <div class="decl">We declare that this invoice shows the actual price of the
+        goods described and that all particulars are true and correct.</div>
+      </td>
+      <td class="sign" style="width:45%;">
+        <div class="for">for ${escapeHtml(companyName)}</div>
+        <div class="auth">Authorised Signatory</div>
+      </td>
+    </tr>
+  </table>
 
-    <div class="sign-row">
-      <div class="sign-cell">Prepared by</div>
-      <div class="sign-cell">Authorized Signatory</div>
-    </div>
-
-    <div class="footer">
-      Generated by FinSync360 · ${escapeHtml(generatedAt)} · This is a computer-generated document.
-    </div>
+  <div class="foot">
+    ${jurisdiction ? `SUBJECT TO ${escapeHtml(jurisdiction.toUpperCase())} JURISDICTION` : ''}
+    <div class="small">This is a Computer Generated Invoice</div>
   </div>
 </body>
 </html>`;
-}
-
-function metaCell(label: string, value: string): string {
-  return `
-    <div class="meta-cell">
-      <div class="meta-label">${escapeHtml(label)}</div>
-      <div class="meta-value">${escapeHtml(value)}</div>
-    </div>`;
-}
-
-function chunkMetaRows(cellsHtml: string[], perRow: number): string {
-  const rows: string[] = [];
-  for (let i = 0; i < cellsHtml.length; i += perRow) {
-    const chunk = cellsHtml.slice(i, i + perRow);
-    while (chunk.length < perRow) {
-      chunk.push('<div class="meta-cell"></div>');
-    }
-    rows.push(`<div class="meta-row">${chunk.join('')}</div>`);
-  }
-  return rows.join('');
 }
