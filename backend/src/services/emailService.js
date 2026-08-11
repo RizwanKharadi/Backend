@@ -10,6 +10,13 @@ import moment from 'moment';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+// One-time codes are deliberately put in the subject line so they show up in a
+// phone's notification preview — which also means the subject must never reach
+// a log file verbatim. Hashing the codes in the database is pointless if a
+// plaintext copy sits in pm2's stdout log for anyone with shell access to read.
+const redactSubject = (subject) =>
+  typeof subject === 'string' ? subject.replace(/\b\d{4,8}\b/g, '******') : subject;
+
 class EmailService {
   constructor() {
     this.transporter = null;
@@ -194,13 +201,13 @@ class EmailService {
           status: 'sent',
           timestamp: new Date(),
           to: mailOptions.to,
-          subject: mailOptions.subject
+          subject: redactSubject(mailOptions.subject)
         });
       }
 
       logger.info('Email sent immediately:', {
         to: mailOptions.to,
-        subject: mailOptions.subject,
+        subject: redactSubject(mailOptions.subject),
         messageId: result.messageId
       });
 
@@ -237,7 +244,7 @@ class EmailService {
     logger.info('Email added to queue:', {
       emailId,
       to: mailOptions.to,
-      subject: mailOptions.subject,
+      subject: redactSubject(mailOptions.subject),
       queueLength: this.emailQueue.length
     });
 
@@ -280,7 +287,7 @@ class EmailService {
               status: 'sent',
               timestamp: new Date(),
               to: emailItem.mailOptions.to,
-              subject: emailItem.mailOptions.subject,
+              subject: redactSubject(emailItem.mailOptions.subject),
               emailId: emailItem.id
             });
           }
@@ -315,7 +322,7 @@ class EmailService {
                 status: 'failed',
                 timestamp: new Date(),
                 to: emailItem.mailOptions.to,
-                subject: emailItem.mailOptions.subject,
+                subject: redactSubject(emailItem.mailOptions.subject),
                 error: error.message
               });
             }
