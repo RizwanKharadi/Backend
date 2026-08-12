@@ -17,6 +17,8 @@ const state = {
   vouchers: [],
   outstanding: null,
   companyLookup: null,
+  analyticsThrows: false,
+  customerMissing: false,
 };
 
 const countMatching = (rows, filter) =>
@@ -87,6 +89,24 @@ jest.unstable_mockModule('../src/utils/logger.js', () => ({
   default: { info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
+// The analytics maths has its own suite; here we only care that the router hands
+// each handler the resolved company and surfaces the result.
+const analyticsCalls = [];
+const analyticsStub = (name) => async (companyId, ...rest) => {
+  analyticsCalls.push({ name, companyId, rest });
+  if (state.analyticsThrows) throw new Error('boom');
+  if (name === 'customer' && state.customerMissing) return null;
+  return { ok: true, name, company: companyId };
+};
+
+jest.unstable_mockModule('../src/services/ml/analyticsService.js', () => ({
+  getBusinessMetrics: analyticsStub('business'),
+  getCustomerInsights: analyticsStub('customer'),
+  getInventoryAnalytics: analyticsStub('inventory'),
+  getPaymentTrends: analyticsStub('trends'),
+  getRiskDashboard: analyticsStub('risk'),
+}));
+
 const { default: mlRoutes } = await import('../src/routes/ml.js');
 
 const app = express();
@@ -110,6 +130,9 @@ beforeEach(() => {
   state.vouchers = [];
   state.outstanding = null;
   state.companyLookup = null;
+  state.analyticsThrows = false;
+  state.customerMissing = false;
+  analyticsCalls.length = 0;
 });
 
 describe('authentication', () => {
@@ -200,12 +223,53 @@ describe('models/status', () => {
   });
 });
 
+describe('analytics endpoints', () => {
+  it.each([
+    ['/ml/api/v1/business-metrics', 'business'],
+    ['/ml/api/v1/inventory-analytics', 'inventory'],
+    ['/ml/api/v1/payment-trends', 'trends'],
+    ['/ml/api/v1/risk-dashboard', 'risk'],
+  ])('serves %s scoped to the resolved company', async (path, name) => {
+    const res = await request(app).get(path).expect(200);
+
+    expect(res.body).toMatchObject({ ok: true, name });
+    expect(analyticsCalls.at(-1)).toMatchObject({ name, companyId: COMPANY_A });
+  });
+
+  it('passes days_back through to business metrics, clamped', async () => {
+    await request(app).get('/ml/api/v1/business-metrics').query({ days_back: 9000 }).expect(200);
+    expect(analyticsCalls.at(-1).rest[0]).toBe(365);
+
+    await request(app).get('/ml/api/v1/business-metrics').query({ days_back: -5 }).expect(200);
+    expect(analyticsCalls.at(-1).rest[0]).toBe(1);
+  });
+
+  it('404s an unknown customer instead of returning an empty profile', async () => {
+    state.customerMissing = true;
+    const res = await request(app).get('/ml/api/v1/customer-insights/nobody').expect(404);
+    expect(res.body.success).toBe(false);
+  });
+
+  it('answers 500 without leaking internals when a report fails', async () => {
+    state.analyticsThrows = true;
+    const res = await request(app).get('/ml/api/v1/risk-dashboard').expect(500);
+    expect(res.body.message).toMatch(/failed to build/i);
+    expect(JSON.stringify(res.body)).not.toMatch(/boom/);
+  });
+
+  it('still refuses another company on an analytics route', async () => {
+    await request(app)
+      .get('/ml/api/v1/risk-dashboard')
+      .query({ companyId: COMPANY_B })
+      .expect(403);
+  });
+});
+
 describe('unbuilt endpoints', () => {
   it.each([
     ['post', '/ml/api/v1/payment-delay'],
     ['post', '/ml/api/v1/risk-assessment'],
-    ['get', '/ml/api/v1/business-metrics'],
-    ['get', '/ml/api/v1/risk-dashboard'],
+    ['post', '/ml/api/v1/inventory-forecast'],
   ])('answers 501 for %s %s rather than fake data', async (method, path) => {
     const res = await request(app)[method](path).expect(501);
     expect(res.body.code).toBe('not_implemented');

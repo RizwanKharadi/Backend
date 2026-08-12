@@ -24,6 +24,13 @@ const KEY_MAX = 191;
 
 const normKey = (value) => String(value || '').trim().toLowerCase().slice(0, KEY_MAX);
 
+/**
+ * Bills identify their party by name, not id — Tally's outstanding report carries
+ * no ids. Anything joining billhistory to parties has to normalise the same way,
+ * so the rule lives here rather than being reimplemented per caller.
+ */
+export const normalisePartyKey = normKey;
+
 function toDate(value) {
   if (!value) return null;
   const d = value instanceof Date ? value : new Date(value);
