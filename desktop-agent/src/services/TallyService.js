@@ -635,9 +635,19 @@ class TallyService extends EventEmitter {
     const from = this.formatYyyyMmDd(fromDateIso);
     const to = this.formatYyyyMmDd(toDateIso);
     const includeFullLines = options.detailLevel === 'full';
-    /** Minimal FETCH — Tally still embeds ALLLEDGERENTRIES / INVENTORYALLOCATIONS in export XML. */
+    /**
+     * Minimal FETCH — Tally still embeds ALLLEDGERENTRIES / INVENTORYALLOCATIONS in export XML.
+     *
+     * BILLALLOCATIONS.LIST has to be asked for explicitly. It sits one level
+     * deeper, inside each ledger entry, and Tally does not embed it the way it
+     * embeds the entry lists. Without it every bill-referenced receipt and
+     * payment arrived with no NAME and no BILLTYPE, so the parser fell back to
+     * its "On Account" default and the link between a receipt and the invoice
+     * it settles was lost — which silently breaks outstanding and bill-wise
+     * ageing, not just the display.
+     */
     const fetchFields = includeFullLines
-      ? 'DATE,GUID,MASTERID,ALTERID,VOUCHERNUMBER,VOUCHERTYPENAME,PARTYLEDGERNAME,AMOUNT,ALLINVENTORYENTRIES.LIST,ALLLEDGERENTRIES.LIST,LEDGERENTRIES.LIST,NARRATION,PERSISTEDVIEW,VCHENTRYMODE'
+      ? 'DATE,GUID,MASTERID,ALTERID,VOUCHERNUMBER,VOUCHERTYPENAME,PARTYLEDGERNAME,AMOUNT,ALLINVENTORYENTRIES.LIST,ALLLEDGERENTRIES.LIST,LEDGERENTRIES.LIST,BILLALLOCATIONS.LIST,NARRATION,PERSISTEDVIEW,VCHENTRYMODE'
       : 'DATE,GUID,MASTERID,ALTERID,VCHENTRYMODE,VOUCHERTYPENAME,PARTYLEDGERNAME,AMOUNT,PERSISTEDVIEW';
     const companyLine = companyName ? `\n        <SVCURRENTCOMPANY>${comp}</SVCURRENTCOMPANY>` : '';
     return `<?xml version="1.0" encoding="UTF-8"?>
