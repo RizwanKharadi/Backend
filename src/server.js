@@ -18,7 +18,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import logger from './utils/logger.js';
 import errorHandler from './middleware/errorHandler.js';
-import createMlProxy from './middleware/mlProxy.js';
+import mlRoutes from './routes/ml.js';
 import { connectDB } from './config/database.js';
 import tallyWebSocketService from './services/tallyWebSocketService.js';
 import tallySyncService from './services/tallySyncService.js';
@@ -139,9 +139,12 @@ app.use('/api/', limiter);
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
 
-// ML microservice (FastAPI) — after body parser; mobile → /api/ml/api/v1/...
-app.use('/api/ml', createMlProxy());
-app.use('/ml', createMlProxy());
+// Insights API — after body parser; mobile calls /ml/api/v1/... and both mounts
+// serve the same router so older builds pointing at /api/ml keep working.
+// Formerly proxied to a FastAPI service on :8001; it now runs in-process, which
+// is what puts these endpoints behind auth and company scoping.
+app.use('/api/ml/api/v1', mlRoutes);
+app.use('/ml/api/v1', mlRoutes);
 
 // Data sanitization
 app.use(hpp());
