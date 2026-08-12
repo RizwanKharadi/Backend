@@ -21,6 +21,13 @@ import BillHistory from '../models/BillHistory.js';
 import OutstandingReceivable from '../models/OutstandingReceivable.js';
 import Voucher from '../models/Voucher.js';
 import logger from '../utils/logger.js';
+import {
+  getBusinessMetrics,
+  getCustomerInsights,
+  getInventoryAnalytics,
+  getPaymentTrends,
+  getRiskDashboard,
+} from '../services/ml/analyticsService.js';
 
 const router = express.Router();
 
@@ -256,11 +263,53 @@ router.post('/payment-delay', notImplemented('Payment delay prediction'));
 router.post('/payment-delay/bulk', notImplemented('Bulk payment delay prediction'));
 router.post('/inventory-forecast', notImplemented('Inventory forecast'));
 router.post('/risk-assessment', notImplemented('Risk assessment'));
-router.get('/business-metrics', notImplemented('Business metrics'));
-router.get('/customer-insights/:customerId', notImplemented('Customer insights'));
-router.get('/inventory-analytics', notImplemented('Inventory analytics'));
-router.get('/payment-trends', notImplemented('Payment trends'));
-router.get('/risk-dashboard', notImplemented('Risk dashboard'));
+
+/** Wrap an analytics call so one failing report cannot take down the process. */
+const analytics = (name, handler) => async (req, res) => {
+  try {
+    const result = await handler(req);
+    if (result === null) {
+      return res.status(404).json({ success: false, message: `${name}: not found` });
+    }
+    return res.json(result);
+  } catch (error) {
+    logger.error(`Insights ${name} failed`, {
+      company: req.mlCompanyId,
+      error: error.message,
+      stack: error.stack,
+    });
+    return res.status(500).json({ success: false, message: `Failed to build ${name}` });
+  }
+};
+
+router.get(
+  '/business-metrics',
+  analytics('business metrics', (req) =>
+    getBusinessMetrics(req.mlCompanyId, Math.min(365, Math.max(1, Number(req.query.days_back) || 30)))
+  )
+);
+
+router.get(
+  '/customer-insights/:customerId',
+  analytics('customer insights', (req) =>
+    getCustomerInsights(req.mlCompanyId, req.params.customerId)
+  )
+);
+
+router.get(
+  '/inventory-analytics',
+  analytics('inventory analytics', (req) => getInventoryAnalytics(req.mlCompanyId))
+);
+
+router.get(
+  '/payment-trends',
+  analytics('payment trends', (req) => getPaymentTrends(req.mlCompanyId))
+);
+
+router.get(
+  '/risk-dashboard',
+  analytics('risk dashboard', (req) => getRiskDashboard(req.mlCompanyId))
+);
 
 router.use((req, res) => {
   res.status(404).json({
