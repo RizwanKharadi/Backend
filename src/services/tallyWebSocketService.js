@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { isValidId } from '../db/queryUtils.js';
 import TallyConnection from '../models/TallyConnection.js';
 import tallyCommunicationService from './tallyCommunicationService.js';
+import { recordBillSnapshot } from './billHistoryService.js';
 import Company from '../models/Company.js';
 import User from '../models/User.js';
 import Voucher from '../models/Voucher.js';
@@ -3123,6 +3124,16 @@ class TallyWebSocketService {
     const totalOutstanding =
       Number(incoming.totalOutstanding) ||
       ledgers.reduce((sum, l) => sum + Number(l.totalOutstanding || 0), 0);
+
+    // Fold this snapshot into payment history before the row below overwrites the
+    // previous one. Derived data: recordBillSnapshot swallows its own failures so
+    // a history problem can never cost us the outstanding figures themselves.
+    await recordBillSnapshot({
+      company: company._id,
+      reportName,
+      ledgers,
+      asOfDate,
+    });
 
     const filter = { company: company._id, reportName };
     const update = {

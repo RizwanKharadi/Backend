@@ -570,6 +570,64 @@ export function defineAllModels(sequelize) {
   );
 
   /**
+   * Append-only payment history, derived from successive Bills Receivable /
+   * Bills Payable snapshots.
+   *
+   * `outstandingreceivables` holds exactly one row per (company, reportName) and
+   * is overwritten on every sync, so it answers "what is owed right now" but not
+   * "does this party usually pay late" — the question every risk and prediction
+   * feature is built on. This table keeps a row per bill for its whole life:
+   * seen while it is open, marked settled when it stops appearing in snapshots.
+   *
+   * `settledAt` is the asOfDate of the first snapshot the bill was missing from,
+   * so its precision equals the customer's sync frequency — good enough for
+   * "usually pays ~3 weeks late", not for exact day counts.
+   */
+  const BillHistory = sequelize.define(
+    'BillHistory',
+    {
+      id: ID,
+      company: { type: STR(36), allowNull: false },
+      // Receivable and payable bills share this table, as they do in outstandingreceivables.
+      reportName: { type: STR(64), allowNull: false, defaultValue: 'Bills Receivable' },
+      partyName: { type: STR, allowNull: false },
+      billRef: { type: STR, allowNull: false },
+      // Lowercased, length-capped copies: bill identity is a (party, ref) string
+      // pair, and the unique index over them has to fit MySQL's key length limit.
+      partyKey: { type: STR(191), allowNull: false },
+      billKey: { type: STR(191), allowNull: false },
+      billDate: DATE,
+      billDue: DATE,
+      // Highest balance ever seen — a bill can be partly settled before it closes.
+      originalAmount: { type: FLOAT, defaultValue: 0 },
+      lastSeenBalance: { type: FLOAT, defaultValue: 0 },
+      lastSeenOverdue: { type: INT, allowNull: true },
+      vchType: STR,
+      vchNumber: STR,
+      firstSeenAt: DATE,
+      lastSeenAt: DATE,
+      settledAt: DATE,
+      // settledAt − billDue. Negative means paid early. Null when Tally gave no
+      // due date, or while the bill is still open.
+      daysLate: { type: INT, allowNull: true },
+      // 'open' | 'settled'
+      status: { type: STR(16), defaultValue: 'open' },
+    },
+    {
+      tableName: 'billhistory',
+      indexes: [
+        {
+          unique: true,
+          fields: ['company', 'reportName', 'partyKey', 'billKey'],
+          name: 'billhistory_identity_unique',
+        },
+        { fields: ['company', 'reportName', 'status'] },
+        { fields: ['company', 'partyKey', 'settledAt'] },
+      ],
+    }
+  );
+
+  /**
    * Durable queue for records created in the app that could not be pushed into
    * Tally at the time (agent offline, socket flapping, Tally busy). Without this
    * a create was a one-shot synchronous push: if it missed, the record stayed in
@@ -1022,6 +1080,7 @@ export function defineAllModels(sequelize) {
     ProfitLossReport: createCompatModel('ProfitLossReport', ProfitLossReport, { registry }),
     BalanceSheetReport: createCompatModel('BalanceSheetReport', BalanceSheetReport, { registry }),
     OutstandingReceivable: createCompatModel('OutstandingReceivable', OutstandingReceivable, { registry }),
+    BillHistory: createCompatModel('BillHistory', BillHistory, { registry }),
     Budget: BudgetCompat,
     GSTReturn: GSTReturnCompat,
     Notification: NotificationCompat,
@@ -1047,7 +1106,7 @@ export function defineAllModels(sequelize) {
     Organization, User, Company, Subscription, DeviceLicense, Party, Item, Voucher,
     VoucherDetail, Godown, Unit, VoucherType, TallyAccount, GstRegistration,
     TallyConnection, TallySync, ProfitLossReport, BalanceSheetReport,
-    OutstandingReceivable, Budget, GSTReturn, Notification, TallySerialRegistration,
+    OutstandingReceivable, BillHistory, Budget, GSTReturn, Notification, TallySerialRegistration,
     TallyImportQueue,
   }};
 }
