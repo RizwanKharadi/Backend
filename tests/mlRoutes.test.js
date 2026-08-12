@@ -130,6 +130,7 @@ jest.unstable_mockModule('../src/services/ml/paymentPrediction.js', () => ({
 }));
 
 const { default: mlRoutes } = await import('../src/routes/ml.js');
+const { resetCache, bumpCompanyVersion } = await import('../src/services/ml/cache.js');
 
 const app = express();
 app.use(express.json());
@@ -155,6 +156,9 @@ beforeEach(() => {
   state.analyticsThrows = false;
   state.customerMissing = false;
   analyticsCalls.length = 0;
+  // Cached responses survive between requests by design, which would otherwise
+  // let one test's result answer the next test's call.
+  resetCache();
 });
 
 describe('authentication', () => {
@@ -277,6 +281,31 @@ describe('analytics endpoints', () => {
     const res = await request(app).get('/ml/api/v1/risk-dashboard').expect(500);
     expect(res.body.message).toMatch(/failed to build/i);
     expect(JSON.stringify(res.body)).not.toMatch(/boom/);
+  });
+
+  it('serves a repeat request from cache instead of recomputing', async () => {
+    await request(app).get('/ml/api/v1/risk-dashboard').expect(200);
+    await request(app).get('/ml/api/v1/risk-dashboard').expect(200);
+
+    expect(analyticsCalls.filter((c) => c.name === 'risk')).toHaveLength(1);
+  });
+
+  it('recomputes after that company syncs new data', async () => {
+    await request(app).get('/ml/api/v1/risk-dashboard').expect(200);
+    bumpCompanyVersion(COMPANY_A);
+    await request(app).get('/ml/api/v1/risk-dashboard').expect(200);
+
+    expect(analyticsCalls.filter((c) => c.name === 'risk')).toHaveLength(2);
+  });
+
+  it('does not serve one company cached report to another', async () => {
+    state.user.companies.push({ _id: COMPANY_B, isActive: true });
+
+    await request(app).get('/ml/api/v1/risk-dashboard').expect(200);
+    await request(app).get('/ml/api/v1/risk-dashboard').query({ companyId: COMPANY_B }).expect(200);
+
+    const companies = analyticsCalls.filter((c) => c.name === 'risk').map((c) => c.companyId);
+    expect(companies).toEqual([COMPANY_A, COMPANY_B]);
   });
 
   it('still refuses another company on an analytics route', async () => {
