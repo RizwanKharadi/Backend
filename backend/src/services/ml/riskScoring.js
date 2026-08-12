@@ -26,6 +26,20 @@ const DELAY_CAP_DAYS = 60;
 
 const clamp01 = (n) => Math.min(1, Math.max(0, n));
 
+// Which signals each assessment mode considers.
+//   overall — everything, and NOT renormalised. A party with no payment history
+//             simply cannot reach a high score on ledger facts alone, which is
+//             the intended behaviour: a new customer using their credit limit
+//             looks identical to a bad one, and only one of them deserves to be
+//             flagged.
+//   payment/credit — the caller has explicitly asked about one dimension, so the
+//             score is renormalised to that dimension and reads as a full scale.
+const MODES = {
+  overall: { signals: ['lateRatio', 'avgDelay', 'utilisation', 'currentlyOverdue'], renormalise: false },
+  payment: { signals: ['lateRatio', 'avgDelay'], renormalise: true },
+  credit: { signals: ['utilisation', 'currentlyOverdue'], renormalise: true },
+};
+
 export function riskLevelFor(score) {
   if (score >= 0.7) return 'High';
   if (score >= 0.4) return 'Medium';
@@ -39,6 +53,7 @@ export function riskLevelFor(score) {
  * @param {number} [input.outstanding] current balance owed
  * @param {number} [input.overdueAmount] portion already past its due date
  * @param {number} [input.oldestOverdueDays]
+ * @param {'overall'|'payment'|'credit'} [input.mode]
  */
 export function scoreParty({
   behaviour = null,
@@ -46,12 +61,16 @@ export function scoreParty({
   outstanding = 0,
   overdueAmount = 0,
   oldestOverdueDays = 0,
+  mode = 'overall',
 } = {}) {
+  const { signals, renormalise } = MODES[mode] || MODES.overall;
+  const uses = (signal) => signals.includes(signal);
+
   const factors = [];
   let score = 0;
 
   // 1. How often they have paid late before.
-  if (behaviour?.settledCount) {
+  if (uses('lateRatio') && behaviour?.settledCount) {
     const contribution = clamp01(behaviour.lateRatio) * WEIGHTS.lateRatio;
     score += contribution;
     if (behaviour.lateRatio > 0) {
@@ -63,7 +82,10 @@ export function scoreParty({
       });
     }
 
-    // 2. How late, when they are late.
+  }
+
+  // 2. How late, when they are late.
+  if (uses('avgDelay') && behaviour?.settledCount) {
     const delay = Math.max(0, behaviour.avgDaysLate || 0);
     const delayContribution = clamp01(delay / DELAY_CAP_DAYS) * WEIGHTS.avgDelay;
     score += delayContribution;
@@ -79,7 +101,7 @@ export function scoreParty({
 
   // 3. How much of their credit line is already used.
   const utilisation = creditLimit > 0 ? outstanding / creditLimit : 0;
-  if (creditLimit > 0) {
+  if (uses('utilisation') && creditLimit > 0) {
     const contribution = clamp01(utilisation) * WEIGHTS.utilisation;
     score += contribution;
     if (utilisation > 0.8) {
@@ -93,7 +115,7 @@ export function scoreParty({
   }
 
   // 4. What is overdue right now.
-  if (overdueAmount > 0) {
+  if (uses('currentlyOverdue') && overdueAmount > 0) {
     const share = outstanding > 0 ? clamp01(overdueAmount / outstanding) : 1;
     const contribution = share * WEIGHTS.currentlyOverdue;
     score += contribution;
@@ -107,13 +129,26 @@ export function scoreParty({
     });
   }
 
+  // In a focused mode the score is expressed against that dimension's own scale,
+  // so "high payment risk" means high for a payment question — not capped at the
+  // 0.65 those two signals can reach inside the overall blend.
+  if (renormalise) {
+    const available = signals.reduce((sum, s) => sum + WEIGHTS[s], 0);
+    if (available > 0) score /= available;
+  }
+
   score = clamp01(score);
 
   // Only the two history signals need evidence to be trustworthy; utilisation and
-  // overdue amounts are facts read straight off the current ledger.
-  const historyWeight = WEIGHTS.lateRatio + WEIGHTS.avgDelay;
-  const ledgerWeight = 1 - historyWeight;
-  const confidence = clamp01(ledgerWeight + historyWeight * (behaviour?.confidence ?? 0));
+  // overdue amounts are facts read straight off the current ledger. A mode that
+  // drops the history signals therefore has nothing left to be unsure about.
+  const usedWeight = signals.reduce((sum, s) => sum + WEIGHTS[s], 0);
+  const historyWeight = signals
+    .filter((s) => s === 'lateRatio' || s === 'avgDelay')
+    .reduce((sum, s) => sum + WEIGHTS[s], 0);
+  const ledgerShare = usedWeight > 0 ? (usedWeight - historyWeight) / usedWeight : 1;
+  const historyShare = 1 - ledgerShare;
+  const confidence = clamp01(ledgerShare + historyShare * (behaviour?.confidence ?? 0));
 
   return {
     score: Number(score.toFixed(4)),
@@ -121,6 +156,7 @@ export function scoreParty({
     factors: factors.sort((a, b) => b.impact - a.impact),
     confidence: Number(confidence.toFixed(3)),
     sampleSize: behaviour?.settledCount || 0,
+    mode,
   };
 }
 

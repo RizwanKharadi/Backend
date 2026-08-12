@@ -28,6 +28,11 @@ import {
   getPaymentTrends,
   getRiskDashboard,
 } from '../services/ml/analyticsService.js';
+import {
+  predictPaymentDelay,
+  predictPaymentDelayBulk,
+  assessCustomerRisk,
+} from '../services/ml/paymentPrediction.js';
 
 const router = express.Router();
 
@@ -259,10 +264,7 @@ router.post('/models/retrain', async (req, res) => {
 
 // Built in later phases — registered now so the surface is fixed and the client
 // gets a predictable answer instead of a 404 or a proxy timeout.
-router.post('/payment-delay', notImplemented('Payment delay prediction'));
-router.post('/payment-delay/bulk', notImplemented('Bulk payment delay prediction'));
 router.post('/inventory-forecast', notImplemented('Inventory forecast'));
-router.post('/risk-assessment', notImplemented('Risk assessment'));
 
 /** Wrap an analytics call so one failing report cannot take down the process. */
 const analytics = (name, handler) => async (req, res) => {
@@ -273,6 +275,11 @@ const analytics = (name, handler) => async (req, res) => {
     }
     return res.json(result);
   } catch (error) {
+    // Bad input is the caller's problem and safe to echo; anything else is ours
+    // and gets a generic message so internals stay out of the response.
+    if (error.status === 400) {
+      return res.status(400).json({ success: false, message: error.message });
+    }
     logger.error(`Insights ${name} failed`, {
       company: req.mlCompanyId,
       error: error.message,
@@ -309,6 +316,44 @@ router.get(
 router.get(
   '/risk-dashboard',
   analytics('risk dashboard', (req) => getRiskDashboard(req.mlCompanyId))
+);
+
+router.post(
+  '/payment-delay',
+  analytics('payment delay prediction', (req) => {
+    if (!req.body?.customer_id) {
+      const err = new Error('customer_id is required');
+      err.status = 400;
+      throw err;
+    }
+    return predictPaymentDelay(req.mlCompanyId, {
+      customerId: req.body.customer_id,
+      amount: Number(req.body.amount) || 0,
+      daysAhead: Number(req.body.days_ahead) || 30,
+    });
+  })
+);
+
+router.post(
+  '/payment-delay/bulk',
+  analytics('bulk payment delay prediction', (req) =>
+    predictPaymentDelayBulk(req.mlCompanyId, {
+      customerIds: Array.isArray(req.body?.customer_ids) ? req.body.customer_ids : [],
+      daysAhead: Number(req.body?.days_ahead) || 30,
+    })
+  )
+);
+
+router.post(
+  '/risk-assessment',
+  analytics('risk assessment', (req) => {
+    if (!req.body?.customer_id) {
+      const err = new Error('customer_id is required');
+      err.status = 400;
+      throw err;
+    }
+    return assessCustomerRisk(req.mlCompanyId, req.body.customer_id, req.body.assessment_type);
+  })
 );
 
 router.use((req, res) => {

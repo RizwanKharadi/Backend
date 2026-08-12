@@ -107,6 +107,21 @@ jest.unstable_mockModule('../src/services/ml/analyticsService.js', () => ({
   getRiskDashboard: analyticsStub('risk'),
 }));
 
+jest.unstable_mockModule('../src/services/ml/paymentPrediction.js', () => ({
+  predictPaymentDelay: async (companyId, opts) => {
+    analyticsCalls.push({ name: 'delay', companyId, rest: [opts] });
+    return state.customerMissing ? null : { ok: true, name: 'delay', company: companyId };
+  },
+  predictPaymentDelayBulk: async (companyId, opts) => {
+    analyticsCalls.push({ name: 'bulk', companyId, rest: [opts] });
+    return { predictions: [], summary: {} };
+  },
+  assessCustomerRisk: async (companyId, customerId, type) => {
+    analyticsCalls.push({ name: 'assess', companyId, rest: [customerId, type] });
+    return state.customerMissing ? null : { ok: true, name: 'assess', company: companyId };
+  },
+}));
+
 const { default: mlRoutes } = await import('../src/routes/ml.js');
 
 const app = express();
@@ -265,15 +280,64 @@ describe('analytics endpoints', () => {
   });
 });
 
-describe('unbuilt endpoints', () => {
-  it.each([
-    ['post', '/ml/api/v1/payment-delay'],
-    ['post', '/ml/api/v1/risk-assessment'],
-    ['post', '/ml/api/v1/inventory-forecast'],
-  ])('answers 501 for %s %s rather than fake data', async (method, path) => {
-    const res = await request(app)[method](path).expect(501);
-    expect(res.body.code).toBe('not_implemented');
+describe('prediction endpoints', () => {
+  it('requires a customer_id for a single prediction', async () => {
+    const res = await request(app).post('/ml/api/v1/payment-delay').send({}).expect(400);
+    expect(res.body.message).toMatch(/customer_id/);
   });
+
+  it('passes the request through to the predictor', async () => {
+    await request(app)
+      .post('/ml/api/v1/payment-delay')
+      .send({ customer_id: 'p1', amount: 5000, days_ahead: 45 })
+      .expect(200);
+
+    expect(analyticsCalls.at(-1)).toMatchObject({
+      name: 'delay',
+      companyId: COMPANY_A,
+      rest: [{ customerId: 'p1', amount: 5000, daysAhead: 45 }],
+    });
+  });
+
+  it('404s a prediction for an unknown customer', async () => {
+    state.customerMissing = true;
+    await request(app).post('/ml/api/v1/payment-delay').send({ customer_id: 'ghost' }).expect(404);
+  });
+
+  it('accepts a bulk call with no ids, meaning everyone', async () => {
+    await request(app).post('/ml/api/v1/payment-delay/bulk').send({}).expect(200);
+    expect(analyticsCalls.at(-1)).toMatchObject({ name: 'bulk', rest: [{ customerIds: [] }] });
+  });
+
+  it('forwards the assessment type for risk assessment', async () => {
+    await request(app)
+      .post('/ml/api/v1/risk-assessment')
+      .send({ customer_id: 'p1', assessment_type: 'credit' })
+      .expect(200);
+
+    expect(analyticsCalls.at(-1)).toMatchObject({ name: 'assess', rest: ['p1', 'credit'] });
+  });
+
+  it('requires a customer_id for risk assessment', async () => {
+    await request(app).post('/ml/api/v1/risk-assessment').send({}).expect(400);
+  });
+
+  it('refuses another company on a prediction route', async () => {
+    await request(app)
+      .post('/ml/api/v1/payment-delay')
+      .send({ customer_id: 'p1', companyId: COMPANY_B })
+      .expect(403);
+  });
+});
+
+describe('unbuilt endpoints', () => {
+  it.each([['post', '/ml/api/v1/inventory-forecast']])(
+    'answers 501 for %s %s rather than fake data',
+    async (method, path) => {
+      const res = await request(app)[method](path).expect(501);
+      expect(res.body.code).toBe('not_implemented');
+    }
+  );
 
   it('still requires auth before reporting not implemented', async () => {
     state.user = null;
