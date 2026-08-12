@@ -42,6 +42,7 @@ import { MainStackScreenProps, MainStackParamList } from '../types/navigation';
 import { formatCurrency } from '../utils/formatters';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
@@ -91,8 +92,9 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
     }
   };
   const theme = useTheme();
+  const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
-  
+
   const {
     isMLServiceAvailable,
     mlServiceHealth,
@@ -222,6 +224,15 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
         />
       </Surface>
 
+      {/* Before the first sync there is genuinely nothing to show. Say so, rather
+          than rendering a screen of zeroes that reads like a failing business. */}
+      {!businessMetricsLoading && !businessMetrics && !modelStatus ? (
+        <Surface style={styles.card} elevation={2}>
+          <Title style={styles.cardTitle}>{t('ml.empty.title')}</Title>
+          <Paragraph style={styles.helpText}>{t('ml.empty.needsSync')}</Paragraph>
+        </Surface>
+      ) : null}
+
       {/* Business Metrics */}
       {businessMetrics && (
         <Surface style={styles.card} elevation={2}>
@@ -313,20 +324,29 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
                 <View key={modelName} style={styles.modelItem}>
                   <View style={styles.modelHeader}>
                     <Icon
-                      name={model.status === 'active' ? 'check-circle' : 'alert-circle'}
+                      name={model.status === 'active' ? 'check-circle' : 'timer-sand'}
                       size={16}
-                      color={model.status === 'active' ? theme.colors.primary : theme.colors.error}
+                      color={
+                        model.status === 'active'
+                          ? theme.colors.primary
+                          : theme.colors.onSurfaceVariant
+                      }
                     />
                     <Paragraph style={styles.modelName}>
                       {modelName.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
                     </Paragraph>
                   </View>
+                  {/* Readiness, not accuracy. Nothing is trained, so there is no
+                      accuracy to report — the bar shows how much of the data each
+                      insight needs has actually arrived. */}
                   <Paragraph style={styles.modelAccuracy}>
-                    Accuracy: {formatPercentage(model.accuracy)}
+                    {model.message || `Data readiness: ${formatPercentage(model.readiness)}`}
                   </Paragraph>
                   <ProgressBar
-                    progress={typeof model.accuracy === 'number' ? model.accuracy : 0}
-                    color={theme.colors.primary}
+                    progress={typeof model.readiness === 'number' ? model.readiness : 0}
+                    color={
+                      model.status === 'active' ? theme.colors.primary : theme.colors.outline
+                    }
                     style={styles.accuracyBar}
                   />
                 </View>

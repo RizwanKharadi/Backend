@@ -9,13 +9,25 @@ export interface PaymentPredictionRequest {
   days_ahead?: number;
 }
 
+/** What a figure is based on, so the UI can say when evidence is thin. */
+export interface InsightMeta {
+  basis?: 'party_history' | 'company_average' | 'no_history';
+  settled_bills?: number;
+  outstanding?: number;
+  projected_outstanding?: number;
+  credit_limit?: number;
+  days_ahead?: number;
+}
+
 export interface PaymentPredictionResponse {
   customer_id: string;
+  customer_name?: string;
   delay_probability: number;
   predicted_delay_days: number;
   risk_level: string;
   confidence_score: number;
   factors: Record<string, number>;
+  meta?: InsightMeta;
 }
 
 export interface InventoryForecastRequest {
@@ -32,13 +44,22 @@ export interface InventoryForecastResponse {
     date: string;
     predicted_demand: number;
   }>;
-  reorder_recommendation: {
+  /** Omitted when include_recommendations is false. */
+  reorder_recommendation?: {
     should_reorder: boolean;
     recommended_quantity: number;
-    reorder_date: string;
+    reorder_date: string | null;
     reason: string;
   };
   confidence_score: number;
+  meta?: {
+    daily_demand: number;
+    observation_days: number;
+    sales_lines: number;
+    seasonality_applied: boolean;
+    lead_time_days: number;
+    horizon_demand: number;
+  };
 }
 
 export interface RiskAssessmentRequest {
@@ -48,15 +69,21 @@ export interface RiskAssessmentRequest {
 
 export interface RiskAssessmentResponse {
   customer_id: string;
+  customer_name?: string;
   risk_score: number;
   risk_level: string;
   risk_factors: Array<{
     factor: string;
+    /** Points of the total score this factor contributed. */
     impact: number;
+    value?: string;
     description: string;
   }>;
   recommendations: string[];
   assessment_date: string;
+  assessment_type?: 'credit' | 'payment' | 'overall';
+  confidence?: number;
+  meta?: InsightMeta;
 }
 
 export interface BusinessMetrics {
@@ -182,26 +209,27 @@ export interface RiskDashboard {
   };
 }
 
+export interface InsightReadiness {
+  /** 'active' once there is enough data; 'collecting_data' before that. */
+  status: string;
+  last_trained: string | null;
+  /**
+   * Null while nothing has been measured. Insights are computed from live data
+   * rather than a trained model, so there is no accuracy figure to report — use
+   * `readiness` for the progress bar and `message` for the explanation.
+   */
+  accuracy: number | null;
+  version: string;
+  readiness: number;
+  sample_size: number;
+  message: string;
+}
+
 export interface ModelStatus {
   models: {
-    payment_delay_predictor: {
-      status: string;
-      last_trained: string;
-      accuracy: number;
-      version: string;
-    };
-    risk_assessment: {
-      status: string;
-      last_trained: string;
-      accuracy: number;
-      version: string;
-    };
-    inventory_forecast: {
-      status: string;
-      last_trained: string;
-      accuracy: number;
-      version: string;
-    };
+    payment_delay_predictor: InsightReadiness;
+    risk_assessment: InsightReadiness;
+    inventory_forecast: InsightReadiness;
   };
   overall_health: string;
 }

@@ -20,6 +20,8 @@ import { forecastInventoryDemand } from '../store/slices/mlSlice';
 import { mlService, InventoryForecastResponse } from '../services/mlService';
 import { MainStackScreenProps } from '../types/navigation';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
+import InsightEvidenceNote from '../components/InsightEvidenceNote';
+import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'InventoryForecast'>;
 
@@ -30,6 +32,7 @@ interface FormValues {
 
 const InventoryForecastScreen: React.FC<Props> = ({ navigation }) => {
   const theme = useTheme();
+  const { t } = useTranslation();
   const dispatch = useDispatch<AppDispatch>();
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<InventoryForecastResponse[]>([]);
@@ -162,6 +165,13 @@ const InventoryForecastScreen: React.FC<Props> = ({ navigation }) => {
           </View>
         </Surface>
 
+        {!loading && forecasts.length === 0 ? (
+          <Surface style={styles.card} elevation={2}>
+            <Title style={styles.itemName}>{t('ml.empty.title')}</Title>
+            <Paragraph style={styles.reason}>{t('ml.empty.noItems')}</Paragraph>
+          </Surface>
+        ) : null}
+
         {forecasts.map((item) => {
           const rec = item.reorder_recommendation;
           const urgent = rec?.should_reorder;
@@ -196,12 +206,22 @@ const InventoryForecastScreen: React.FC<Props> = ({ navigation }) => {
                 style={styles.bar}
               />
 
+              {/* An item with no sales forecasts zero; say why rather than let a
+                  flat line of zeroes look like a prediction. */}
+              {item.meta && item.meta.sales_lines === 0 ? (
+                <InsightEvidenceNote message={t('ml.evidence.noSales')} confidence={0} />
+              ) : item.meta && !item.meta.seasonality_applied ? (
+                <InsightEvidenceNote message={t('ml.evidence.seasonalityOff')} confidence={1} />
+              ) : null}
+
               {rec ? (
                 <View style={styles.recBox}>
                   <Paragraph style={styles.recTitle}>Reorder suggestion</Paragraph>
                   <Paragraph>
                     Qty: <Paragraph style={styles.bold}>{rec.recommended_quantity}</Paragraph>
-                    {rec.reorder_date ? ` · By ${rec.reorder_date}` : ''}
+                    {rec.reorder_date
+                      ? ` · By ${new Date(rec.reorder_date).toLocaleDateString()}`
+                      : ''}
                   </Paragraph>
                   {rec.reason ? (
                     <Paragraph style={styles.reason}>{rec.reason}</Paragraph>

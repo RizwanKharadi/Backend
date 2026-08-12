@@ -22,6 +22,7 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 // Components
 import Header from '../components/common/Header';
+import InsightEvidenceNote from '../components/InsightEvidenceNote';
 
 // Store
 import { RootState, AppDispatch } from '../store';
@@ -288,6 +289,14 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
                 </Card.Content>
               </Card>
             </View>
+
+            {/* What the prediction rests on — a 0-day forecast with no history
+                must not read like a confident one. */}
+            <InsightEvidenceNote
+              confidence={prediction.confidence_score}
+              basis={prediction.meta?.basis}
+              sampleSize={prediction.meta?.settled_bills}
+            />
 
             {/* Confidence Bar */}
             <View style={styles.confidenceContainer}>

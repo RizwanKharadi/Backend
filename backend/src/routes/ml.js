@@ -34,6 +34,7 @@ import {
   assessCustomerRisk,
 } from '../services/ml/paymentPrediction.js';
 import { forecastInventoryDemand } from '../services/ml/inventoryForecast.js';
+import { withCache, clearCompany } from '../services/ml/cache.js';
 
 const router = express.Router();
 
@@ -238,11 +239,13 @@ router.get('/models/status', async (req, res) => {
 
 router.post('/models/retrain', async (req, res) => {
   // Nothing is trained today — scores are computed from current data on request.
-  // Kept so the existing mobile button reports honestly instead of erroring.
+  // The button becomes a cache flush, which is the closest honest equivalent to
+  // "recalculate now".
   try {
+    clearCompany(req.mlCompanyId);
     const readiness = await getDataReadiness(req.mlCompanyId);
     res.json({
-      message: 'Insights are recalculated from live data on every request.',
+      message: 'Insights recalculated from the latest synced data.',
       ...toModelStatus(readiness),
     });
   } catch (error) {
@@ -253,10 +256,18 @@ router.post('/models/retrain', async (req, res) => {
 
 // Built in later phases — registered now so the surface is fixed and the client
 // gets a predictable answer instead of a 404 or a proxy timeout.
-/** Wrap an analytics call so one failing report cannot take down the process. */
-const analytics = (name, handler) => async (req, res) => {
+/**
+ * Wrap an analytics call so one failing report cannot take down the process.
+ *
+ * `cacheKey` opts the handler into the short-lived per-company cache. Only
+ * read-only reports use it; anything whose answer depends on request body values
+ * that are not in the key must be left out.
+ */
+const analytics = (name, handler, cacheKey = null) => async (req, res) => {
   try {
-    const result = await handler(req);
+    const result = cacheKey
+      ? await withCache(req.mlCompanyId, cacheKey(req), () => handler(req))
+      : await handler(req);
     if (result === null) {
       return res.status(404).json({ success: false, message: `${name}: not found` });
     }
@@ -276,33 +287,43 @@ const analytics = (name, handler) => async (req, res) => {
   }
 };
 
+const daysBackOf = (req) => Math.min(365, Math.max(1, Number(req.query.days_back) || 30));
+
 router.get(
   '/business-metrics',
-  analytics('business metrics', (req) =>
-    getBusinessMetrics(req.mlCompanyId, Math.min(365, Math.max(1, Number(req.query.days_back) || 30)))
+  analytics(
+    'business metrics',
+    (req) => getBusinessMetrics(req.mlCompanyId, daysBackOf(req)),
+    (req) => `business-metrics:${daysBackOf(req)}`
   )
 );
 
 router.get(
   '/customer-insights/:customerId',
-  analytics('customer insights', (req) =>
-    getCustomerInsights(req.mlCompanyId, req.params.customerId)
+  analytics(
+    'customer insights',
+    (req) => getCustomerInsights(req.mlCompanyId, req.params.customerId),
+    (req) => `customer-insights:${req.params.customerId}`
   )
 );
 
 router.get(
   '/inventory-analytics',
-  analytics('inventory analytics', (req) => getInventoryAnalytics(req.mlCompanyId))
+  analytics(
+    'inventory analytics',
+    (req) => getInventoryAnalytics(req.mlCompanyId),
+    () => 'inventory-analytics'
+  )
 );
 
 router.get(
   '/payment-trends',
-  analytics('payment trends', (req) => getPaymentTrends(req.mlCompanyId))
+  analytics('payment trends', (req) => getPaymentTrends(req.mlCompanyId), () => 'payment-trends')
 );
 
 router.get(
   '/risk-dashboard',
-  analytics('risk dashboard', (req) => getRiskDashboard(req.mlCompanyId))
+  analytics('risk dashboard', (req) => getRiskDashboard(req.mlCompanyId), () => 'risk-dashboard')
 );
 
 router.post(

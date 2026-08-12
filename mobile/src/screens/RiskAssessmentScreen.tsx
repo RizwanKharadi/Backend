@@ -16,6 +16,7 @@ import { useForm, Controller } from 'react-hook-form';
 import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import Header from '../components/common/Header';
+import InsightEvidenceNote from '../components/InsightEvidenceNote';
 import { AppDispatch } from '../store';
 import { assessCustomerRisk } from '../store/slices/mlSlice';
 import { mlService } from '../services/mlService';
@@ -185,6 +186,12 @@ const RiskAssessmentScreen: React.FC<Props> = ({ navigation }) => {
               progress={Math.min(1, assessment.risk_score || 0)}
               color={riskColor}
               style={styles.bar}
+            />
+
+            <InsightEvidenceNote
+              confidence={assessment.confidence}
+              basis={assessment.meta?.settled_bills ? 'party_history' : 'no_history'}
+              sampleSize={assessment.meta?.settled_bills}
             />
 
             {assessment.risk_factors?.length > 0 ? (

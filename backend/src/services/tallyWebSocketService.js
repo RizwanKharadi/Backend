@@ -5,6 +5,7 @@ import { isValidId } from '../db/queryUtils.js';
 import TallyConnection from '../models/TallyConnection.js';
 import tallyCommunicationService from './tallyCommunicationService.js';
 import { recordBillSnapshot } from './billHistoryService.js';
+import { bumpCompanyVersion } from './ml/cache.js';
 import Company from '../models/Company.js';
 import User from '../models/User.js';
 import Voucher from '../models/Voucher.js';
@@ -2310,6 +2311,8 @@ class TallyWebSocketService {
   }
 
   async upsertVoucherSummary(company, incomingVoucher = {}) {
+    // Anything cached for this company was built from data that just changed.
+    bumpCompanyVersion(company?._id);
     const typeResolved = this.resolveIncomingVoucherType(incomingVoucher);
     const voucherType = typeResolved.voucherType;
     const voucherNumber = String(
@@ -3135,6 +3138,8 @@ class TallyWebSocketService {
       asOfDate,
     });
 
+    bumpCompanyVersion(company?._id);
+
     const filter = { company: company._id, reportName };
     const update = {
       company: company._id,
@@ -3305,6 +3310,7 @@ class TallyWebSocketService {
   }
 
   async upsertItem(company, incomingItem = {}) {
+    bumpCompanyVersion(company?._id);
     const name = incomingItem.name || 'Unnamed Item';
     const partNo = String(
       incomingItem.partNo || incomingItem.barcode || incomingItem.alias || ''
@@ -3430,6 +3436,7 @@ class TallyWebSocketService {
   }
 
   async upsertParty(company, incomingParty = {}) {
+    bumpCompanyVersion(company?._id);
     const op = this.buildPartyBulkOp(company, incomingParty);
     if (!op) return;
     await Party.bulkWrite([op], { ordered: true });

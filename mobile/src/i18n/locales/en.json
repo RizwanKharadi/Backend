@@ -565,6 +565,19 @@
       "recommendations": "Recommendations",
       "failedTitle": "Prediction Failed",
       "failed": "Failed to predict payment delay"
+    },
+    "evidence": {
+      "noHistory": "No settled bills on record for this customer yet. This is based on their current balance only — it will sharpen as Tally syncs build up payment history.",
+      "companyAverage": "No payment history for this customer yet, so this uses your average across all customers.",
+      "noSales": "No sales recorded for this item in the last year.",
+      "seasonalityOff": "Not enough sales history to measure seasonality, so demand is projected at a flat rate.",
+      "settledBills": "Based on {{count}} settled bill.",
+      "settledBills_plural": "Based on {{count}} settled bills."
+    },
+    "empty": {
+      "title": "Nothing to show yet",
+      "needsSync": "Run a Tally sync to bring in your data, then check back here.",
+      "noItems": "No stock items matched. Sync from Tally, or clear the item filter to see the busiest items."
     }
   },
   "notifications": {
