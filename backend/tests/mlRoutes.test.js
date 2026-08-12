@@ -107,6 +107,13 @@ jest.unstable_mockModule('../src/services/ml/analyticsService.js', () => ({
   getRiskDashboard: analyticsStub('risk'),
 }));
 
+jest.unstable_mockModule('../src/services/ml/inventoryForecast.js', () => ({
+  forecastInventoryDemand: async (companyId, opts) => {
+    analyticsCalls.push({ name: 'forecast', companyId, rest: [opts] });
+    return [];
+  },
+}));
+
 jest.unstable_mockModule('../src/services/ml/paymentPrediction.js', () => ({
   predictPaymentDelay: async (companyId, opts) => {
     analyticsCalls.push({ name: 'delay', companyId, rest: [opts] });
@@ -330,18 +337,43 @@ describe('prediction endpoints', () => {
   });
 });
 
-describe('unbuilt endpoints', () => {
-  it.each([['post', '/ml/api/v1/inventory-forecast']])(
-    'answers 501 for %s %s rather than fake data',
-    async (method, path) => {
-      const res = await request(app)[method](path).expect(501);
-      expect(res.body.code).toBe('not_implemented');
-    }
-  );
+describe('inventory forecast', () => {
+  it('honours both the flag mobile sends and the one the old service read', async () => {
+    await request(app)
+      .post('/ml/api/v1/inventory-forecast')
+      .send({ item_ids: ['i1'], days_ahead: 60, include_recommendations: false })
+      .expect(200);
 
-  it('still requires auth before reporting not implemented', async () => {
+    expect(analyticsCalls.at(-1)).toMatchObject({
+      name: 'forecast',
+      companyId: COMPANY_A,
+      rest: [
+        {
+          itemIds: ['i1'],
+          daysAhead: 60,
+          includeSeasonality: true,
+          includeRecommendations: false,
+        },
+      ],
+    });
+  });
+
+  it('accepts a single item_id as well as a list', async () => {
+    await request(app).post('/ml/api/v1/inventory-forecast').send({ item_id: 'i9' }).expect(200);
+    expect(analyticsCalls.at(-1).rest[0].itemIds).toEqual(['i9']);
+  });
+
+  it('treats an empty body as forecast everything', async () => {
+    await request(app).post('/ml/api/v1/inventory-forecast').send({}).expect(200);
+    expect(analyticsCalls.at(-1).rest[0]).toMatchObject({ itemIds: [], daysAhead: 90 });
+  });
+});
+
+describe('route surface', () => {
+  it('requires auth on every endpoint', async () => {
     state.user = null;
     await request(app).get('/ml/api/v1/business-metrics').expect(401);
+    await request(app).post('/ml/api/v1/inventory-forecast').expect(401);
   });
 
   it('404s an unknown insights path', async () => {

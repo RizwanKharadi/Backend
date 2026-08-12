@@ -10,42 +10,23 @@
  * in this file and there must never be one.
  */
 
-import Voucher from '../../models/Voucher.js';
 import Party from '../../models/Party.js';
 import Item from '../../models/Item.js';
 import BillHistory from '../../models/BillHistory.js';
 import OutstandingReceivable from '../../models/OutstandingReceivable.js';
 import { getPartyPaymentBehaviour, normalisePartyKey } from '../billHistoryService.js';
 import { scoreParty } from './riskScoring.js';
-
-const DAY_MS = 24 * 60 * 60 * 1000;
-const SALES_TYPES = ['sales', 'Sales'];
-
-const num = (v) => {
-  const n = Number(v);
-  return Number.isFinite(n) ? n : 0;
-};
-
-/** Vouchers store the value in totals.grandTotal, with an older flat amount as fallback. */
-const voucherAmount = (v) => Math.abs(num(v?.totals?.grandTotal ?? v?.amount));
-
-const monthKey = (d) => {
-  const date = d instanceof Date ? d : new Date(d);
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-};
+import {
+  DAY_MS,
+  num,
+  voucherAmount,
+  monthKey,
+  itemStock,
+  reorderLevel,
+  loadSalesVouchers,
+} from './dataAccess.js';
 
 const pct = (part, whole) => (whole > 0 ? Number(((part / whole) * 100).toFixed(1)) : 0);
-
-/** Stock is held per godown; the app sums the same way in inventoryController. */
-function itemStock(item) {
-  const current = Array.isArray(item?.inventory?.currentStock) ? item.inventory.currentStock : [];
-  return current.reduce(
-    (sum, c) => sum + num(c?.availableQuantity ?? c?.quantity ?? c?.qty),
-    0
-  );
-}
-
-const reorderLevel = (item) => num(item?.inventory?.stockLevels?.reorderLevel);
 
 /** Current exposure per party, straight off Tally's outstanding report. */
 async function loadOutstanding(companyId) {
@@ -152,20 +133,6 @@ function stockCounts(items, sold) {
   }
 
   return { lowStock, overstock };
-}
-
-async function loadSalesVouchers(companyId, sinceDays, { withItems = false } = {}) {
-  const since = new Date(Date.now() - sinceDays * DAY_MS);
-  const fields = ['date', 'totals', 'amount', 'party', 'partyName'];
-  if (withItems) fields.push('items');
-
-  return Voucher.find({
-    company: companyId,
-    voucherType: { $in: SALES_TYPES },
-    date: { $gte: since },
-  })
-    .select(fields.join(' '))
-    .lean();
 }
 
 /* ------------------------------------------------------------------ *

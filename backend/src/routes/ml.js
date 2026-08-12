@@ -9,9 +9,9 @@
  * than trusted to each handler.
  *
  * The route surface matches mobile's mlService.ts exactly, so the client needs no
- * changes. Handlers that are not built yet answer 501 with a stable envelope —
- * never a placeholder number, because a plausible-looking figure that nobody can
- * reconcile against Tally is worse than an empty state.
+ * changes. Where the underlying data cannot support an answer, handlers return
+ * empty structures and nulls rather than a placeholder number — a plausible
+ * figure nobody can reconcile against Tally is worse than an empty state.
  */
 
 import express from 'express';
@@ -33,6 +33,7 @@ import {
   predictPaymentDelayBulk,
   assessCustomerRisk,
 } from '../services/ml/paymentPrediction.js';
+import { forecastInventoryDemand } from '../services/ml/inventoryForecast.js';
 
 const router = express.Router();
 
@@ -196,18 +197,6 @@ function toModelStatus(readiness) {
   return { models, overall_health };
 }
 
-/**
- * Placeholder for handlers landing in later phases. Answers a clear, machine
- * readable 501 rather than inventing data.
- */
-const notImplemented = (feature) => (req, res) =>
-  res.status(501).json({
-    success: false,
-    code: 'not_implemented',
-    feature,
-    message: `${feature} is not available yet.`,
-  });
-
 router.use(protect);
 router.use(resolveCompany);
 
@@ -264,8 +253,6 @@ router.post('/models/retrain', async (req, res) => {
 
 // Built in later phases — registered now so the surface is fixed and the client
 // gets a predictable answer instead of a 404 or a proxy timeout.
-router.post('/inventory-forecast', notImplemented('Inventory forecast'));
-
 /** Wrap an analytics call so one failing report cannot take down the process. */
 const analytics = (name, handler) => async (req, res) => {
   try {
@@ -342,6 +329,28 @@ router.post(
       daysAhead: Number(req.body?.days_ahead) || 30,
     })
   )
+);
+
+router.post(
+  '/inventory-forecast',
+  analytics('inventory forecast', (req) => {
+    const body = req.body || {};
+    const ids = Array.isArray(body.item_ids)
+      ? body.item_ids
+      : body.item_id
+        ? [body.item_id]
+        : [];
+
+    return forecastInventoryDemand(req.mlCompanyId, {
+      itemIds: ids,
+      daysAhead: Number(body.days_ahead) || 90,
+      // Mobile sends include_recommendations; the old FastAPI service read
+      // include_seasonality. Both are honoured rather than silently ignored,
+      // which is what happened to whichever one the caller was not using.
+      includeSeasonality: body.include_seasonality !== false,
+      includeRecommendations: body.include_recommendations !== false,
+    });
+  })
 );
 
 router.post(
