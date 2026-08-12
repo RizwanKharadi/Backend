@@ -63,6 +63,7 @@ export const TallySync = proxy('TallySync');
 export const ProfitLossReport = proxy('ProfitLossReport');
 export const BalanceSheetReport = proxy('BalanceSheetReport');
 export const OutstandingReceivable = proxy('OutstandingReceivable');
+export const BillHistory = proxy('BillHistory');
 export const Budget = proxy('Budget');
 export const GSTReturn = proxy('GSTReturn');
 export const Notification = proxy('Notification');
@@ -91,6 +92,7 @@ export default {
   ProfitLossReport,
   BalanceSheetReport,
   OutstandingReceivable,
+  BillHistory,
   Budget,
   GSTReturn,
   Notification,
