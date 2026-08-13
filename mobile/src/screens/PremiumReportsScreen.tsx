@@ -36,7 +36,7 @@ import { useTranslation } from 'react-i18next';
 
 const SCREEN_PADDING = spacing.md;
 
-type Category = 'all' | 'financial' | 'inventory' | 'customer';
+type Category = 'all' | 'financial' | 'inventory' | 'customer' | 'insights';
 
 // Keys, not text: module scope is out of reach of any hook.
 const CATEGORIES: { key: Category; labelKey: string; icon: string }[] = [
@@ -44,6 +44,7 @@ const CATEGORIES: { key: Category; labelKey: string; icon: string }[] = [
   { key: 'financial', labelKey: 'reports.category.financial', icon: 'chart-line' },
   { key: 'inventory', labelKey: 'reports.category.inventory', icon: 'package-variant-closed' },
   { key: 'customer', labelKey: 'reports.category.customer', icon: 'account-group-outline' },
+  { key: 'insights', labelKey: 'reports.category.insights', icon: 'lightbulb-on-outline' },
 ];
 
 const TAB_ROUTE: Record<Exclude<DashboardTab, 'reports'>, string> = {
@@ -125,6 +126,15 @@ const PremiumReportsScreen: React.FC = () => {
     { icon: 'chart-bar', color: colors.kpiPurple, title: t('reports.item.salesAnalysis.title'), description: t('reports.item.salesAnalysis.description'), route: 'FilteredVouchers', params: { voucherType: 'sales', title: t('reports.sales') } },
   ];
 
+  // Forward-looking reports. These read the same synced Tally data as everything
+  // above, so they belong here rather than buried in Settings.
+  const insights: ReportDef[] = [
+    { icon: 'lightbulb-on-outline', color: colors.warning, title: t('reports.item.insightsOverview.title'), description: t('reports.item.insightsOverview.description'), badge: t('reports.new'), route: 'MLAnalytics' },
+    { icon: 'cash-sync', color: colors.warning, title: t('reports.item.paymentDelay.title'), description: t('reports.item.paymentDelay.description'), route: 'PaymentPrediction' },
+    { icon: 'shield-alert-outline', color: colors.warning, title: t('reports.item.customerRisk.title'), description: t('reports.item.customerRisk.description'), route: 'RiskAssessment' },
+    { icon: 'chart-timeline-variant', color: colors.warning, title: t('reports.item.demandForecast.title'), description: t('reports.item.demandForecast.description'), route: 'InventoryForecast' },
+  ];
+
   const renderGrid = (defs: ReportDef[]) => {
     const rows: ReportDef[][] = [];
     for (let i = 0; i < defs.length; i += 2) rows.push(defs.slice(i, i + 2));
@@ -150,6 +160,7 @@ const PremiumReportsScreen: React.FC = () => {
   const showFinancial = activeCat === 'all' || activeCat === 'financial';
   const showInventory = activeCat === 'all' || activeCat === 'inventory';
   const showCustomer = activeCat === 'all' || activeCat === 'customer';
+  const showInsights = activeCat === 'all' || activeCat === 'insights';
 
   return (
     <View style={styles.root}>
@@ -218,6 +229,14 @@ const PremiumReportsScreen: React.FC = () => {
               <View style={styles.sectionGap} />
               <SectionHeader title={t('reports.section.customer')} icon="account-group-outline" accentColor={colors.kpiPurple} />
               {renderGrid(customer)}
+            </>
+          ) : null}
+
+          {showInsights ? (
+            <>
+              <View style={styles.sectionGap} />
+              <SectionHeader title={t('reports.section.insights')} icon="lightbulb-on-outline" accentColor={colors.warning} />
+              {renderGrid(insights)}
             </>
           ) : null}
         </View>

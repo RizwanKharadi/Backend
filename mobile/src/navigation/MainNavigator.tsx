@@ -16,6 +16,7 @@ import SettingsScreen from '../screens/SettingsScreen';
 import BillingScreen from '../screens/BillingScreen';
 import ProfileScreen from '../screens/ProfileScreen';
 import ChangePasswordScreen from '../screens/ChangePasswordScreen';
+import MLAnalyticsScreen from '../screens/MLAnalyticsScreen';
 import PaymentPredictionScreen from '../screens/PaymentPredictionScreen';
 import RiskAssessmentScreen from '../screens/RiskAssessmentScreen';
 import InventoryForecastScreen from '../screens/InventoryForecastScreen';
@@ -225,6 +226,7 @@ const MainNavigator: React.FC = () => {
       <Stack.Screen name="DayBook" component={DayBookScreen} />
       <Stack.Screen name="PendingSync" component={PendingSyncScreen} />
 
+      <Stack.Screen name="MLAnalytics" component={MLAnalyticsScreen} />
       <Stack.Screen name="PaymentPrediction" component={PaymentPredictionScreen} />
       <Stack.Screen name="RiskAssessment" component={RiskAssessmentScreen} />
       <Stack.Screen name="InventoryForecast" component={InventoryForecastScreen} />

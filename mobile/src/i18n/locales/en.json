@@ -403,12 +403,14 @@
       "all": "All Reports",
       "financial": "Financial",
       "inventory": "Inventory",
-      "customer": "Customer"
+      "customer": "Customer",
+      "insights": "Insights"
     },
     "section": {
       "financial": "Financial Reports",
       "inventory": "Inventory Reports",
-      "customer": "Customer Reports"
+      "customer": "Customer Reports",
+      "insights": "Insights"
     },
     "item": {
       "profitLoss": {
@@ -471,6 +473,22 @@
       "salesAnalysis": {
         "title": "Sales Analysis",
         "description": "Sales by period and party"
+      },
+      "insightsOverview": {
+        "title": "Business insights",
+        "description": "Revenue, payment and stock signals in one place"
+      },
+      "paymentDelay": {
+        "title": "Payment delay",
+        "description": "See which customers are likely to pay late"
+      },
+      "customerRisk": {
+        "title": "Customer risk",
+        "description": "Credit and payment risk with the reasons behind it"
+      },
+      "demandForecast": {
+        "title": "Demand forecast",
+        "description": "Projected demand and reorder suggestions"
       }
     },
     "total": "Total",
@@ -484,7 +502,8 @@
     "noLedgersSynced": "No ledgers synced for this group. Run desktop-agent sync.",
     "noCashBankGroups": "No cash or bank groups found. Run desktop-agent sync with Tally open.",
     "noTopTenData": "No data for this period. Sync sales/purchase vouchers from Tally.",
-    "comingSoonMessage": "This report will be available in a future update."
+    "comingSoonMessage": "This report will be available in a future update.",
+    "new": "New"
   },
   "transactions": {
     "salesFlow": "Sales Flow",
@@ -1056,10 +1075,6 @@
       "title": "Offline Mode",
       "description": "Work offline with local data"
     },
-    "paymentPredictions": {
-      "title": "Payment Predictions",
-      "description": "AI payment delay predictions"
-    },
     "cache": {
       "title": "Clear Cache",
       "description": "Clear all cached data",
@@ -1120,6 +1135,10 @@
       "title": "Language",
       "pickerTitle": "Choose a language",
       "note": "Ledger, item and voucher names come from your Tally company and stay in the language they were entered in."
+    },
+    "insights": {
+      "title": "Insights",
+      "description": "Payment, risk and demand insights from your Tally data"
     }
   },
   "splash": {

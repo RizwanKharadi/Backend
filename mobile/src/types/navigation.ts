@@ -78,6 +78,7 @@ export type MainStackParamList = {
   };
   CreateLedger: undefined;
   AskYourBusiness: undefined;
+  MLAnalytics: undefined;
   PaymentPrediction: undefined;
   RiskAssessment: undefined;
   InventoryForecast: undefined;

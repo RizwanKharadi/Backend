@@ -64,7 +64,6 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
   
   const { user } = useSelector((state: RootState) => state.auth);
   const settings = useSelector((state: RootState) => state.settings);
-  const { isMLServiceAvailable } = useSelector((state: RootState) => state.ml);
   const { selectedCompany } = useSelector((state: RootState) => state.company);
 
   const [biometricSupported, setBiometricSupported] = useState(true);
@@ -434,20 +433,23 @@ const SettingsScreen: React.FC<Props> = ({ navigation }) => {
           />
         </Surface>
 
-        {/* ML Settings */}
-        {isMLServiceAvailable && (
-          <Surface style={styles.section} elevation={2}>
-            <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionAi')}</Text>
-            
-            <List.Item
-              title={t('settings.paymentPredictions.title')}
-              description={t('settings.paymentPredictions.description')}
-              left={(props) => <List.Icon {...props} icon={MDI.mlCrystal} />}
-              onPress={() => navigation.navigate('PaymentPrediction')}
-              right={(props) => <List.Icon {...props} icon="chevron-right" />}
-            />
-          </Surface>
-        )}
+        {/* Insights.
+            This was gated on isMLServiceAvailable, which only ever became true
+            after MLAnalyticsScreen ran its health check — and that screen was not
+            registered in the navigator, so the flag was permanently false and the
+            whole section never rendered. The entry now points at the insights hub
+            and is always shown; the hub itself reports what the data can support. */}
+        <Surface style={styles.section} elevation={2}>
+          <Text variant="titleMedium" style={styles.sectionTitle}>{t('settings.sectionAi')}</Text>
+
+          <List.Item
+            title={t('settings.insights.title')}
+            description={t('settings.insights.description')}
+            left={(props) => <List.Icon {...props} icon={MDI.mlCrystal} />}
+            onPress={() => navigation.navigate('MLAnalytics')}
+            right={(props) => <List.Icon {...props} icon="chevron-right" />}
+          />
+        </Surface>
 
         {/* Data Management */}
         <Surface style={styles.section} elevation={2}>

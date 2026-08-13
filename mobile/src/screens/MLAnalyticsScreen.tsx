@@ -40,7 +40,6 @@ import {
 // Types
 import { MainStackScreenProps, MainStackParamList } from '../types/navigation';
 import { formatCurrency } from '../utils/formatters';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
 import { useTranslation } from 'react-i18next';
 
@@ -83,13 +82,12 @@ const PREDICTION_TOOLS = [
 ];
 
 const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
-  const stackNav = navigation.getParent<NativeStackNavigationProp<MainStackParamList>>();
+  // This screen sits in the main stack alongside the three tools, so it can push
+  // them directly. It previously reached for getParent(), which only made sense
+  // while it was expected to live in the tab navigator — it was never registered
+  // anywhere, so that path had never actually run.
   const openTool = (route: keyof MainStackParamList) => {
-    if (stackNav) {
-      stackNav.navigate(route as never);
-    } else {
-      navigation.navigate(route as never);
-    }
+    navigation.navigate(route as never);
   };
   const theme = useTheme();
   const { t } = useTranslation();
