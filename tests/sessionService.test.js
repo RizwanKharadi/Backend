@@ -50,6 +50,35 @@ const {
   listSessions,
 } = await import('../src/services/sessionService.js');
 
+const jwtLib = (await import('jsonwebtoken')).default;
+const crypto = (await import('crypto')).default;
+
+/**
+ * A refresh token that is genuinely old, and registered as the session's
+ * current one. Rotation is now decided from the token's own `iat`, so a token
+ * minted a second ago is deliberately not rotated — tests that want a real
+ * rotation have to age it.
+ */
+const agedRefreshToken = (sessionId, ageSeconds) => {
+  const token = jwtLib.sign(
+    {
+      id: USER,
+      sid: sessionId,
+      type: 'refresh',
+      jti: 'aged',
+      iat: Math.floor(Date.now() / 1000) - ageSeconds,
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: '30d' }
+  );
+  const row = rows.get(sessionId);
+  rows.set(sessionId, {
+    ...row,
+    refreshTokenHash: crypto.createHash('sha256').update(token).digest('hex'),
+  });
+  return token;
+};
+
 const USER = 'user-1';
 const phone = { deviceId: 'phone-a', deviceName: 'Pixel 8', platform: 'android' };
 const tablet = { deviceId: 'tablet-b', deviceName: 'iPad', platform: 'ios' };
@@ -183,17 +212,25 @@ describe('revocation reaches live requests', () => {
 });
 
 describe('refresh token rotation', () => {
-  test('rotating issues a new pair and invalidates the old refresh token', async () => {
-    const { sessionId, refreshToken } = await createSession({ userId: USER, device: phone });
+  test('an aged token is rotated for a new one', async () => {
+    const { sessionId } = await createSession({ userId: USER, device: phone });
+    const old = agedRefreshToken(sessionId, 600);
 
-    const first = await rotateRefreshToken({
-      userId: USER,
-      sessionId,
-      presentedToken: refreshToken,
-    });
+    const first = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: old });
 
     expect(first.ok).toBe(true);
-    expect(first.refreshToken).not.toBe(refreshToken);
+    expect(first.refreshToken).not.toBe(old);
+  });
+
+  test('a token issued moments ago is reused rather than rotated', async () => {
+    // Bursts of refreshes always follow a token being issued. Not rotating
+    // inside that window is what makes a burst safe.
+    const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
+
+    const result = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
+
+    expect(result.ok).toBe(true);
+    expect(result.refreshToken).toBe(refreshToken);
   });
 
   test('a client racing itself is not punished', async () => {
@@ -207,7 +244,35 @@ describe('refresh token rotation', () => {
     expect(await touchSession(sessionId)).not.toBeNull();
   });
 
-  test('the agent firing five refreshes at once keeps its session', async () => {
+  test('five genuinely simultaneous refreshes all succeed and none is stranded', async () => {
+    // The sequential version of this test passed while production still broke:
+    // with Promise.all every caller reads the row before any writes, so only
+    // the last write survived and the tokens handed to the others were already
+    // forgotten. Rotating at most once a minute removes the race entirely —
+    // one caller rotates, the rest keep the token they already hold.
+    const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
+
+    const results = await Promise.all(
+      Array.from({ length: 5 }, () =>
+        rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken })
+      )
+    );
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(await touchSession(sessionId)).not.toBeNull();
+
+    // Whichever response the client kept must still work.
+    for (const r of results) {
+      const followUp = await rotateRefreshToken({
+        userId: USER,
+        sessionId,
+        presentedToken: r.refreshToken,
+      });
+      expect(followUp.ok).toBe(true);
+    }
+  });
+
+  test('the agent firing five refreshes in sequence keeps its session', async () => {
     // The real failure: WebSocketClient and the main process each refreshed
     // from the config store, and remembering only one retired hash meant the
     // third presentation looked like a replay. The session died one second
@@ -241,7 +306,8 @@ describe('refresh token rotation', () => {
   });
 
   test('a token replayed after the grace window still kills the session', async () => {
-    const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
+    const { sessionId } = await createSession({ userId: USER, device: agent });
+    const refreshToken = agedRefreshToken(sessionId, 600);
     await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
 
     // Age every retired hash past the window.
