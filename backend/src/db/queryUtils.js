@@ -6,6 +6,21 @@ export function newId() {
   return randomUUID().replace(/-/g, '').slice(0, 24);
 }
 
+/**
+ * Make a user's search text safe to use as a pattern.
+ *
+ * $regex reaches MySQL as REGEXP, so whatever the user typed is a pattern, not a
+ * literal. Party names here routinely contain `(`, `)`, `&`, `.` and `+`, and a
+ * search box that fires as you type sends half-finished text like "Acme (" —
+ * an invalid pattern, which fails the whole query rather than matching nothing.
+ *
+ * Only for text a person typed. Patterns the code builds on purpose, such as the
+ * anchored voucher-number prefix, must not be escaped.
+ */
+export function escapeRegex(text) {
+  return String(text ?? '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 export function isValidId(id) {
   if (id == null) return false;
   const s = String(id);

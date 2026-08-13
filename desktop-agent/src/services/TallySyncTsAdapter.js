@@ -253,22 +253,40 @@ class TallySyncTsAdapter {
     const baseOptions = { ...options };
     delete baseOptions.recordsPerPage;
 
+    // Keep going while pages come back full, rather than trusting the page count
+    // Tally reports. `totalPages` starts at 1 and is only corrected from the
+    // response, so a count tag that fails to parse used to end the loop after a
+    // single page — silently importing exactly `recordsPerPage` masters and no
+    // more, with nothing in the logs to say records had been dropped.
+    const MAX_PAGES = 500;
+
     let pageNum = 1;
-    let totalPages = 1;
+    let reportedTotalPages = null;
+    let truncated = false;
     const objects = [];
 
-    while (pageNum <= totalPages) {
+    for (;;) {
       const page = await client.getPaginatedObjects(collectionType, {
         ...baseOptions,
         pageNum,
         recordsPerPage,
         disableCountTag: pageNum > 1
       });
-      if (Array.isArray(page?.objects)) {
-        objects.push(...page.objects);
+
+      const batch = Array.isArray(page?.objects) ? page.objects : [];
+      objects.push(...batch);
+
+      if (pageNum === 1) {
+        const reported = Number(page?.totalPages);
+        reportedTotalPages = Number.isFinite(reported) && reported > 0 ? reported : null;
       }
-      totalPages = Math.max(1, Number(page?.totalPages) || 1);
-      if (!page?.objects?.length || page.objects.length < recordsPerPage) {
+
+      // A short page is the end of the collection. A full one means there is
+      // very likely more, whatever the count said.
+      if (batch.length < recordsPerPage) break;
+
+      if (pageNum >= MAX_PAGES) {
+        truncated = true;
         break;
       }
       pageNum += 1;
@@ -276,10 +294,21 @@ class TallySyncTsAdapter {
 
     this.logger.info('Paginated Tally export complete', {
       collectionType,
-      pages: pageNum,
+      pagesFetched: pageNum,
+      reportedTotalPages,
       count: objects.length,
+      recordsPerPage,
+      truncated,
       company: options.company || ''
     });
+
+    if (truncated) {
+      this.logger.warn('Paginated Tally export hit the page ceiling — records may be missing', {
+        collectionType,
+        count: objects.length,
+        company: options.company || ''
+      });
+    }
 
     return objects;
   }
