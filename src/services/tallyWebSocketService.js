@@ -1564,63 +1564,23 @@ class TallyWebSocketService {
     if (!name) return null;
 
     const recordType = incomingParty.recordType === 'ledger' ? 'ledger' : 'party';
+
+    // `parties` is for the people we trade with — sundry debtors and creditors.
+    // Every other ledger (bank, cash, duty, expense) belongs in `tallyaccounts`,
+    // which already holds the whole chart of accounts, and the endpoints that
+    // want them read it there. The agent still sends the full ledger list, so
+    // this is where it is filtered; rows written before this stay put and are
+    // ignored by the party queries, which have always filtered on recordType.
+    if (recordType === 'ledger') return null;
+
     const displayName = String(incomingParty.displayName || name).trim();
-    const type = incomingParty.type || (recordType === 'ledger' ? 'both' : 'customer');
+    const type = incomingParty.type || 'customer';
     const tallyId =
       incomingParty.guid || incomingParty.tallyId || incomingParty.tallySync?.tallyId || null;
     const tallyParent = String(
       incomingParty.tallyParent || incomingParty.parent || incomingParty.parentGroup || ''
     ).trim();
 
-    if (recordType === 'ledger') {
-      const update = {
-        company: company._id,
-        name,
-        displayName,
-        recordType: 'ledger',
-        type,
-        category: 'business',
-        tallyParent,
-        contact: {
-          phone: '+919999999999',
-          website: '',
-          whatsapp: ''
-        },
-        addresses: [
-          {
-            type: 'billing',
-            line1: name,
-            city: '—',
-            state: '—',
-            pincode: '110001',
-            country: 'India',
-            isDefault: true
-          }
-        ],
-        balances: {
-          opening: { amount: 0, type: 'debit' }
-        },
-        creditLimit: { amount: 0, days: 30 },
-        pricing: { discountPercentage: 0 },
-        tallySync: {
-          synced: true,
-          tallyId: tallyId || name,
-          masterId: '',
-          alterId: '',
-          lastSyncDate: new Date(),
-          syncError: ''
-        },
-        createdBy: company.createdBy,
-        updatedBy: company.createdBy,
-        isActive: true
-      };
-
-      const filter = tallyId
-        ? { company: company._id, 'tallySync.tallyId': tallyId }
-        : { company: company._id, name, recordType: 'ledger' };
-
-      return { updateOne: { filter, update: { $set: update }, upsert: true } };
-    }
 
     const phone = this.normalizePartyPhone(incomingParty.phone);
     const email = this.normalizePartyEmail(incomingParty.email);
