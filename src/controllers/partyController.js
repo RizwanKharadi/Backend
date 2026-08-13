@@ -4,6 +4,7 @@ import { validationResult } from 'express-validator';
 import logger from '../utils/logger.js';
 import { enqueueFailedImport } from '../services/tallyImportQueueService.js';
 import { applySyncState } from '../utils/syncStateFilter.js';
+import { escapeRegex } from '../db/queryUtils.js';
 import tallyWebSocketService from '../services/tallyWebSocketService.js';
 import { buildLedgerImportPayload } from '../utils/tallyMasterImportPayload.js';
 
@@ -32,12 +33,13 @@ export const getParties = async (req, res) => {
     if (category) query.category = category;
     
     if (search) {
+      const term = escapeRegex(search);
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { displayName: { $regex: search, $options: 'i' } },
-        { gstin: { $regex: search, $options: 'i' } },
-        { 'contact.phone': { $regex: search, $options: 'i' } },
-        { 'contact.email': { $regex: search, $options: 'i' } }
+        { name: { $regex: term, $options: 'i' } },
+        { displayName: { $regex: term, $options: 'i' } },
+        { gstin: { $regex: term, $options: 'i' } },
+        { 'contact.phone': { $regex: term, $options: 'i' } },
+        { 'contact.email': { $regex: term, $options: 'i' } }
       ];
     }
 

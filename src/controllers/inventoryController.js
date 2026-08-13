@@ -1,4 +1,4 @@
-import { isValidId } from '../db/queryUtils.js';
+import { isValidId, escapeRegex } from '../db/queryUtils.js';
 import Item from '../models/Item.js';
 import tallyWebSocketService from '../services/tallyWebSocketService.js';
 import { buildStockItemImportPayload } from '../utils/tallyMasterImportPayload.js';
@@ -159,12 +159,13 @@ export const getItems = async (req, res) => {
     if (type) query.type = type;
     
     if (search) {
+      const term = escapeRegex(search);
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { displayName: { $regex: search, $options: 'i' } },
-        { code: { $regex: search, $options: 'i' } },
-        { barcode: { $regex: search, $options: 'i' } },
-        { description: { $regex: search, $options: 'i' } }
+        { name: { $regex: term, $options: 'i' } },
+        { displayName: { $regex: term, $options: 'i' } },
+        { code: { $regex: term, $options: 'i' } },
+        { barcode: { $regex: term, $options: 'i' } },
+        { description: { $regex: term, $options: 'i' } }
       ];
     }
 
