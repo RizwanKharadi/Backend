@@ -43,6 +43,11 @@ class DesktopAgent {
     // Initialize services
     this.tallyService = new TallyService();
     this.webSocketClient = new WebSocketClient();
+    // One refresh path for the whole app. WebSocketClient used to post its own
+    // refresh straight from the config store, so it and refreshStoredSession
+    // raced with the same single-use token — which the server reads as a replay
+    // and answers by killing the session.
+    this.webSocketClient.sharedRefreshSession = () => this.refreshStoredSession();
     this.syncManager = new SyncManager();
     this.configManager = new ConfigManager();
     this.systemMonitor = new SystemMonitor();

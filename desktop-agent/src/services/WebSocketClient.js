@@ -72,7 +72,24 @@ class WebSocketClient extends EventEmitter {
     }
   }
 
+  /**
+   * Renew the access token before connecting.
+   *
+   * Refresh tokens are single-use, so this must never run alongside the main
+   * process's own refresh: two callers reading the same stored token and
+   * posting it separately is indistinguishable from a replay, and the server
+   * answers a replay by destroying the session. That is what signed the agent
+   * out one second after every login. When main.js has handed us its refresh
+   * function we defer to it, so there is exactly one in-flight refresh for the
+   * whole app; the standalone path below is only a fallback.
+   */
   async refreshAccessTokenFromStore() {
+    if (typeof this.sharedRefreshSession === 'function') {
+      const result = await this.sharedRefreshSession();
+      this.reloadAuthFromAgentStore();
+      return Boolean(result?.success);
+    }
+
     const Store = require('electron-store');
     const axios = require('axios');
     const agentStore = new Store({ name: 'finsync360-agent-config' });

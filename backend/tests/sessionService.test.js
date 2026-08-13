@@ -196,28 +196,63 @@ describe('refresh token rotation', () => {
     expect(first.refreshToken).not.toBe(refreshToken);
   });
 
-  test('a client racing itself inside the grace window is not punished', async () => {
-    // The desktop agent refreshes from more than one code path. Two callers
-    // reading the same stored token a moment apart is a race, not an attack,
-    // and it was destroying real sessions — twice, once in the same second the
-    // agent signed in.
+  test('a client racing itself is not punished', async () => {
     const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
     const first = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
 
     const raced = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
 
+    expect(first.ok).toBe(true);
     expect(raced.ok).toBe(true);
     expect(await touchSession(sessionId)).not.toBeNull();
-    expect(first.ok).toBe(true);
   });
 
-  test('the same token replayed after the grace window still kills the session', async () => {
+  test('the agent firing five refreshes at once keeps its session', async () => {
+    // The real failure: WebSocketClient and the main process each refreshed
+    // from the config store, and remembering only one retired hash meant the
+    // third presentation looked like a replay. The session died one second
+    // after login, every morning.
+    const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
+
+    const results = [];
+    for (let i = 0; i < 5; i += 1) {
+      results.push(await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken }));
+    }
+
+    expect(results.every((r) => r.ok)).toBe(true);
+    expect(await touchSession(sessionId)).not.toBeNull();
+  });
+
+  test('a token from an earlier rotation still works, not just the newest', async () => {
+    // Concurrent refreshes each mint their own token and the client keeps
+    // whichever response landed last — which may not be the newest one.
+    const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
+    const a = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
+    await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
+
+    const stragglerWins = await rotateRefreshToken({
+      userId: USER,
+      sessionId,
+      presentedToken: a.refreshToken,
+    });
+
+    expect(stragglerWins.ok).toBe(true);
+    expect(await touchSession(sessionId)).not.toBeNull();
+  });
+
+  test('a token replayed after the grace window still kills the session', async () => {
     const { sessionId, refreshToken } = await createSession({ userId: USER, device: agent });
     await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
 
-    // Age the rotation past the window.
+    // Age every retired hash past the window.
     const row = rows.get(sessionId);
-    rows.set(sessionId, { ...row, prevRotatedAt: new Date(Date.now() - 5 * 60 * 1000) });
+    rows.set(sessionId, {
+      ...row,
+      recentRefreshHashes: (row.recentRefreshHashes || []).map((e) => ({
+        ...e,
+        at: Date.now() - 60 * 60 * 1000,
+      })),
+    });
 
     const replay = await rotateRefreshToken({ userId: USER, sessionId, presentedToken: refreshToken });
 
