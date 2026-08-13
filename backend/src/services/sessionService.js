@@ -38,6 +38,18 @@ const REFRESH_GRACE_MS = 10 * 60 * 1000;
  */
 const RECENT_HASH_LIMIT = 5;
 
+/**
+ * Minimum gap between actual rotations.
+ *
+ * Rotating on every single refresh is what made concurrency dangerous: several
+ * callers read the same row, each minted a token, and only the last write
+ * survived — so the tokens handed to the others were already forgotten. Access
+ * tokens last 30 minutes, so rotating at most once a minute costs nothing and
+ * makes a burst of simultaneous refreshes harmless: the first rotates, the rest
+ * get a fresh access token and keep the refresh token they already hold.
+ */
+const ROTATE_MIN_INTERVAL_MS = 60 * 1000;
+
 const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 
 /**
@@ -175,6 +187,20 @@ export async function createSession({ userId, device = {}, ip }) {
   return { sessionId, token, refreshToken };
 }
 
+/**
+ * Age of a refresh token from its own `iat`. The route has already verified the
+ * signature, so decoding is enough here. Unreadable means "old", which errs
+ * towards rotating rather than towards keeping a token alive.
+ */
+const tokenAgeMs = (rawToken, now) => {
+  try {
+    const decoded = jwt.decode(rawToken);
+    return decoded?.iat ? now - decoded.iat * 1000 : Number.POSITIVE_INFINITY;
+  } catch {
+    return Number.POSITIVE_INFINITY;
+  }
+};
+
 /** Tolerates the column arriving as JSON text, an array, or null. */
 const parseRecentHashes = (value) => {
   if (!value) return [];
@@ -244,15 +270,45 @@ export async function rotateRefreshToken({ userId, sessionId, presentedToken, ip
   }
 
   const token = signAccessToken(String(userId), String(sessionId));
+
+  // Whether to rotate is decided from the presented token's own age, never from
+  // the row. Every caller in a burst holds the same token and therefore reaches
+  // the same answer without reading shared state — which is the only way to be
+  // safe here, since read-then-write on one row cannot be made atomic through
+  // this data layer. A burst always follows a token being issued (login, or a
+  // reconnect just after a refresh), so in practice the burst never rotates.
+  const shouldRotate = tokenAgeMs(presentedToken, now) > ROTATE_MIN_INTERVAL_MS;
+
+  if (!shouldRotate) {
+    // A sibling request rotated a moment ago. Hand back a fresh access token
+    // and let this caller keep the refresh token it already has — re-asserting
+    // it as current, because the client is the authority on which token it
+    // actually kept. Nothing is minted, so nothing can be lost in a race.
+    await Session.findByIdAndUpdate(sessionId, {
+      refreshTokenHash: presented,
+      recentRefreshHashes: [
+        { hash: session.refreshTokenHash, at: now },
+        ...recent.filter((e) => e.hash !== session.refreshTokenHash && e.hash !== presented),
+      ]
+        .filter((e) => e.hash && e.hash !== presented && now - e.at <= REFRESH_GRACE_MS)
+        .slice(0, RECENT_HASH_LIMIT),
+      lastSeenAt: new Date(),
+      lastIp: ip || session.lastIp || null,
+    });
+
+    return { ok: true, token, refreshToken: presentedToken };
+  }
+
   const refreshToken = signRefreshToken(String(userId), String(sessionId));
 
   // The hash being retired goes to the front, so the token this caller was
   // holding keeps working for any sibling request still in flight.
   const nextRecent = [
     { hash: session.refreshTokenHash, at: now },
-    ...recent.filter((e) => e.hash !== session.refreshTokenHash),
+    { hash: presented, at: now },
+    ...recent,
   ]
-    .filter((e) => e.hash && now - e.at <= REFRESH_GRACE_MS)
+    .filter((e, i, all) => e.hash && now - e.at <= REFRESH_GRACE_MS && all.findIndex((x) => x.hash === e.hash) === i)
     .slice(0, RECENT_HASH_LIMIT);
 
   await Session.findByIdAndUpdate(sessionId, {
