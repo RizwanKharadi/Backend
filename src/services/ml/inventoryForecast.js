@@ -255,8 +255,13 @@ export async function forecastInventoryDemand(
   if (itemIds.length) {
     const wanted = new Set(itemIds.map((id) => String(id).trim()));
     const wantedKeys = new Set([...wanted].map(itemKey));
+    // Match the display name too: that is what the app lists and what the item
+    // picker hands back, and it is not always the same as the stored name.
     selected = items.filter(
-      (item) => wanted.has(String(item.id)) || wantedKeys.has(itemKey(item.name))
+      (item) =>
+        wanted.has(String(item.id)) ||
+        wantedKeys.has(itemKey(item.name)) ||
+        (item.displayName && wantedKeys.has(itemKey(item.displayName)))
     );
   } else {
     // Busiest first, so an unfiltered request returns the items worth acting on.
