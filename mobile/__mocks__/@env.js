@@ -1,6 +1,5 @@
 module.exports = {
   API_BASE_URL: 'http://localhost:3001/api',
-  ML_SERVICE_URL: 'http://localhost:8000/api/v1',
   WEBSOCKET_URL: 'ws://localhost:3001',
   TALLY_AGENT_URL: 'ws://localhost:3001/tally-agent',
   NODE_ENV: 'test',
