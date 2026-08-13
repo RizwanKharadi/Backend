@@ -19,8 +19,12 @@ export const num = (v) => {
   return Number.isFinite(n) ? n : 0;
 };
 
-/** Vouchers store value in totals.grandTotal, with an older flat amount as fallback. */
-export const voucherAmount = (v) => Math.abs(num(v?.totals?.grandTotal ?? v?.amount));
+/**
+ * A voucher's value lives in the totals JSON. There is no flat `amount` column on
+ * this table — reading one is what broke every voucher-backed report in
+ * production, since selecting a column MySQL does not have fails the whole query.
+ */
+export const voucherAmount = (v) => Math.abs(num(v?.totals?.grandTotal));
 
 export const monthKey = (d) => {
   const date = d instanceof Date ? d : new Date(d);
@@ -41,10 +45,18 @@ export const leadTimeDays = (item) => {
   return value > 0 ? value : 7;
 };
 
+/**
+ * Columns read for sales reporting. Exported so a test can assert every one of
+ * them actually exists on the model: naming a column that does not exist throws
+ * at query time, not at startup, so it surfaces as a 500 on a live endpoint.
+ */
+export const SALES_VOUCHER_FIELDS = ['date', 'totals', 'party', 'partyName'];
+export const SALES_VOUCHER_ITEM_FIELD = 'items';
+
 export async function loadSalesVouchers(companyId, sinceDays, { withItems = false } = {}) {
   const since = new Date(Date.now() - sinceDays * DAY_MS);
-  const fields = ['date', 'totals', 'amount', 'party', 'partyName'];
-  if (withItems) fields.push('items');
+  const fields = [...SALES_VOUCHER_FIELDS];
+  if (withItems) fields.push(SALES_VOUCHER_ITEM_FIELD);
 
   return Voucher.find({
     company: companyId,
