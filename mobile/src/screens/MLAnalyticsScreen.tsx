@@ -12,7 +12,6 @@ import {
   Title,
   Paragraph,
   Button,
-  Chip,
   Card,
   ProgressBar,
   useTheme,
@@ -277,35 +276,33 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
         <Surface style={styles.card} elevation={2}>
           <Title style={styles.cardTitle}>Risk Overview</Title>
           
+          {/* Chips truncated these to "0 Hig…" and "53874…". A stat tile puts the
+              label on its own line so nothing is cut, and total_overdue is money,
+              not a count — it needs currency formatting or it reads as a quantity. */}
           <View style={styles.riskSummary}>
             <View style={styles.riskItem}>
-              <Chip
-                mode="outlined"
-                style={[styles.riskChip, { borderColor: theme.colors.error }]}
-                textStyle={{ color: theme.colors.error }}
-              >
-                {(riskDashboard.summary?.total_high_risk ?? 0)} High Risk
-              </Chip>
+              <Title style={[styles.riskValue, { color: theme.colors.error }]}>
+                {riskDashboard.summary?.total_high_risk ?? 0}
+              </Title>
+              <Paragraph style={styles.riskLabel}>High risk customers</Paragraph>
             </View>
-            
+
             <View style={styles.riskItem}>
-              <Chip
-                mode="outlined"
-                style={[styles.riskChip, { borderColor: '#f59e0b' }]}
-                textStyle={{ color: '#f59e0b' }}
+              <Title
+                style={[styles.riskValue, { color: '#f59e0b' }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
               >
-                {(riskDashboard.summary?.total_overdue ?? 0)} Overdue
-              </Chip>
+                {formatCurrency(riskDashboard.summary?.total_overdue ?? 0)}
+              </Title>
+              <Paragraph style={styles.riskLabel}>Overdue</Paragraph>
             </View>
-            
+
             <View style={styles.riskItem}>
-              <Chip
-                mode="outlined"
-                style={[styles.riskChip, { borderColor: theme.colors.tertiary }]}
-                textStyle={{ color: theme.colors.tertiary }}
-              >
-                {(riskDashboard.summary?.total_credit_alerts ?? 0)} Credit Alerts
-              </Chip>
+              <Title style={[styles.riskValue, { color: theme.colors.tertiary }]}>
+                {riskDashboard.summary?.total_credit_alerts ?? 0}
+              </Title>
+              <Paragraph style={styles.riskLabel}>Credit alerts</Paragraph>
             </View>
           </View>
         </Surface>
@@ -530,8 +527,15 @@ const styles = StyleSheet.create({
     flex: 1,
     minWidth: 100,
   },
-  riskChip: {
-    width: '100%',
+  riskValue: {
+    fontSize: 18,
+    fontWeight: '700',
+    lineHeight: 24,
+  },
+  riskLabel: {
+    fontSize: 12,
+    opacity: 0.7,
+    lineHeight: 16,
   },
   modelGrid: {
     gap: 12,

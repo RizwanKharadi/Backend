@@ -246,7 +246,7 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
                   {prediction.risk_level} Risk
                 </Title>
                 <Paragraph style={styles.riskSubtitle}>
-                  Customer: {prediction.customer_id}
+                  Customer: {prediction.customer_name || prediction.customer_id}
                 </Paragraph>
               </View>
             </View>

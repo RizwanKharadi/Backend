@@ -174,7 +174,10 @@ const RiskAssessmentScreen: React.FC<Props> = ({ navigation }) => {
                 <Title style={[styles.riskLevel, { color: riskColor }]}>
                   {riskLevel} risk
                 </Title>
-                <Paragraph>{assessment.customer_id}</Paragraph>
+                {/* customer_id falls back to a normalised (lowercased) key when
+                    the party has no record of its own, and is an opaque uuid when
+                    it does. customer_name is the name as Tally spells it. */}
+                <Paragraph>{assessment.customer_name || assessment.customer_id}</Paragraph>
               </View>
             </View>
 
