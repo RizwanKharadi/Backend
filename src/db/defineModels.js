@@ -113,12 +113,17 @@ export function defineAllModels(sequelize) {
        */
       refreshTokenHash: { type: STR, allowNull: true },
       /**
-       * The hash replaced by the most recent rotation. Accepted for a short
-       * grace period so a client that raced itself, or restarted before it
-       * could persist the new token, is not mistaken for a thief.
+       * Hashes retired by recent rotations, newest first: [{ hash, at }].
+       *
+       * A single "previous hash" was not enough. The desktop agent fires
+       * several refreshes at once from independent code paths, and each
+       * rotation pushed the one before it out of reach — so the third
+       * presentation of the same token looked like a replay and killed the
+       * session one second after login. Keeping the last few means every
+       * racing caller is served, and whichever token the client ends up
+       * persisting is still valid.
        */
-      prevRefreshTokenHash: { type: STR, allowNull: true },
-      prevRotatedAt: { type: DATE, allowNull: true },
+      recentRefreshHashes: { type: JSONF, defaultValue: [] },
       lastIp: { type: STR(64), allowNull: true },
       lastSeenAt: { type: DATE, allowNull: true },
       revokedAt: { type: DATE, allowNull: true },

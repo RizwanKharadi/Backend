@@ -24,11 +24,19 @@ export const REFRESH_TOKEN_TTL = process.env.JWT_REFRESH_EXPIRE || '30d';
 const STALE_SESSION_DAYS = 45;
 
 /**
- * How long the previous refresh token stays acceptable after a rotation.
+ * How long a retired refresh token stays acceptable after being rotated out.
  * Long enough to absorb a client racing itself or restarting mid-rotation,
  * short enough that a captured token replayed later is still caught.
  */
-const REFRESH_GRACE_MS = 60 * 1000;
+const REFRESH_GRACE_MS = 10 * 60 * 1000;
+
+/**
+ * How many retired hashes to keep. The desktop agent refreshes from several
+ * independent code paths at once; each of those gets its own new token, and the
+ * client keeps whichever response landed last. Remembering only one would strand
+ * the others.
+ */
+const RECENT_HASH_LIMIT = 5;
 
 const hashToken = (token) => crypto.createHash('sha256').update(String(token)).digest('hex');
 
@@ -167,6 +175,24 @@ export async function createSession({ userId, device = {}, ip }) {
   return { sessionId, token, refreshToken };
 }
 
+/** Tolerates the column arriving as JSON text, an array, or null. */
+const parseRecentHashes = (value) => {
+  if (!value) return [];
+  const list = typeof value === 'string' ? safeJson(value) : value;
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((e) => e && typeof e.hash === 'string')
+    .map((e) => ({ hash: e.hash, at: Number(e.at) || 0 }));
+};
+
+const safeJson = (text) => {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return [];
+  }
+};
+
 /**
  * Rotate a refresh token.
  *
@@ -186,24 +212,21 @@ export async function rotateRefreshToken({ userId, sessionId, presentedToken, ip
   }
 
   const presented = hashToken(presentedToken);
+  const now = Date.now();
+  const recent = parseRecentHashes(session.recentRefreshHashes);
 
   if (session.refreshTokenHash !== presented) {
-    // The token just replaced by a rotation is honoured for a short window.
+    // A recently retired token is still honoured. A client that raced itself,
+    // or restarted before it could persist the new token, is indistinguishable
+    // from a thief if we only ever accept the very latest hash — and the
+    // desktop agent does race itself, from several code paths at once. It was
+    // being signed out one second after login, every morning.
     //
-    // Without this, a client that legitimately raced itself — two request
-    // handlers refreshing at once, or a crash between receiving the new token
-    // and writing it to disk — looks identical to a stolen token and gets its
-    // session destroyed. That is exactly what happened to the desktop agent:
-    // it was killed twice, once in the same second it signed in.
-    //
-    // The security property survives. A token captured and replayed later,
-    // which is the case worth catching, still falls outside the window.
-    const withinGrace =
-      session.prevRefreshTokenHash === presented &&
-      session.prevRotatedAt &&
-      Date.now() - new Date(session.prevRotatedAt).getTime() <= REFRESH_GRACE_MS;
+    // The property that matters survives: a token captured and replayed after
+    // the window, or after enough rotations to fall off the list, is caught.
+    const match = recent.find((e) => e.hash === presented && now - e.at <= REFRESH_GRACE_MS);
 
-    if (!withinGrace) {
+    if (!match) {
       await revokeSession(sessionId, 'refresh_token_reuse');
       logger.warn('Refresh token reuse detected; session revoked', {
         userId: String(userId),
@@ -213,19 +236,28 @@ export async function rotateRefreshToken({ userId, sessionId, presentedToken, ip
       return { ok: false, reason: 'REFRESH_TOKEN_REUSED' };
     }
 
-    logger.info('Refresh token replayed inside the grace window; treating as a race', {
+    logger.info('Retired refresh token accepted inside the grace window', {
       sessionId: String(sessionId),
       deviceId: session.deviceId,
+      ageMs: now - match.at,
     });
   }
 
   const token = signAccessToken(String(userId), String(sessionId));
   const refreshToken = signRefreshToken(String(userId), String(sessionId));
 
+  // The hash being retired goes to the front, so the token this caller was
+  // holding keeps working for any sibling request still in flight.
+  const nextRecent = [
+    { hash: session.refreshTokenHash, at: now },
+    ...recent.filter((e) => e.hash !== session.refreshTokenHash),
+  ]
+    .filter((e) => e.hash && now - e.at <= REFRESH_GRACE_MS)
+    .slice(0, RECENT_HASH_LIMIT);
+
   await Session.findByIdAndUpdate(sessionId, {
     refreshTokenHash: hashToken(refreshToken),
-    prevRefreshTokenHash: session.refreshTokenHash,
-    prevRotatedAt: new Date(),
+    recentRefreshHashes: nextRecent,
     lastSeenAt: new Date(),
     lastIp: ip || session.lastIp || null,
   });
