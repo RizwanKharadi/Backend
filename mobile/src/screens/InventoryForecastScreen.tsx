@@ -88,9 +88,9 @@ const InventoryForecastScreen: React.FC<Props> = ({ navigation }) => {
           <View style={styles.infoText}>
             <Paragraph style={styles.infoTitle}>What is this?</Paragraph>
             <Paragraph style={styles.infoBody}>
-              Uses sales and purchase history from MongoDB to predict how much stock
-              you will need. Suggests when to reorder and how many units — helps avoid
-              stock-outs and overstocking.
+              Works out how fast each item sells from your last year of Tally sales,
+              then projects that forward. Suggests when to reorder and how many units,
+              so you avoid both stock-outs and dead stock.
             </Paragraph>
           </View>
         </Surface>
@@ -103,12 +103,12 @@ const InventoryForecastScreen: React.FC<Props> = ({ navigation }) => {
             name="item_ids"
             render={({ field: { onChange, onBlur, value } }) => (
               <TextInput
-                label="Item IDs (optional)"
+                label="Item names (optional)"
                 value={value}
                 onChangeText={onChange}
                 onBlur={onBlur}
                 mode="outlined"
-                placeholder="Leave empty for all items, or id1, id2"
+                placeholder="Leave empty for your busiest items, or type item names separated by commas"
                 multiline
                 style={styles.input}
               />

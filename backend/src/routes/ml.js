@@ -163,16 +163,20 @@ function toModelStatus(readiness) {
         : `Needs ${MIN_SETTLED_BILLS} settled bills to be reliable — ${readiness.settledBills} so far.`,
     },
     risk_assessment: {
-      status: readiness.openBills > 0 ? 'active' : 'collecting_data',
+      // Keyed off the outstanding report, which is what risk actually reads.
+      // It used to key off open rows in billhistory, so it reported "waiting for
+      // an outstanding report" while scoring parties from a report that was
+      // plainly there — billhistory is only populated by syncs that have run
+      // since the feature was deployed.
+      status: readiness.lastOutstandingSync ? 'active' : 'collecting_data',
       last_trained: null,
       accuracy: null,
       version: 'rules-v1',
-      readiness: readiness.openBills > 0 ? 1 : 0,
+      readiness: readiness.lastOutstandingSync ? 1 : 0,
       sample_size: readiness.openBills,
-      message:
-        readiness.openBills > 0
-          ? `Tracking ${readiness.openBills} open bills.`
-          : 'Waiting for an outstanding report from Tally.',
+      message: readiness.lastOutstandingSync
+        ? `Scoring against outstanding bills as of ${new Date(readiness.lastOutstandingSync).toLocaleDateString('en-IN')}.`
+        : 'Waiting for an outstanding report from Tally.',
     },
     inventory_forecast: {
       status: readiness.salesVouchers > 0 ? 'active' : 'collecting_data',

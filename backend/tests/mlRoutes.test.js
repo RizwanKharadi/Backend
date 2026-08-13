@@ -239,13 +239,26 @@ describe('models/status', () => {
   });
 
   it('summarises overall health across features', async () => {
-    state.billHistory = [{ company: COMPANY_A, status: 'open', billRef: 'INV-1' }];
+    state.outstanding = { company: COMPANY_A, reportName: 'Bills Receivable', asOfDate: new Date() };
 
     const res = await request(app).get('/ml/api/v1/models/status').expect(200);
 
     expect(res.body.models.risk_assessment.status).toBe('active');
     expect(res.body.models.inventory_forecast.status).toBe('collecting_data');
     expect(res.body.overall_health).toBe('partial');
+  });
+
+  it('calls risk ready on the outstanding report, not on payment history', async () => {
+    // The state right after deploy: Tally's outstanding report is there and being
+    // scored, but no sync has run since, so billhistory is still empty. This used
+    // to report "waiting for an outstanding report" while scoring from one.
+    state.billHistory = [];
+    state.outstanding = { company: COMPANY_A, reportName: 'Bills Receivable', asOfDate: new Date() };
+
+    const res = await request(app).get('/ml/api/v1/models/status').expect(200);
+
+    expect(res.body.models.risk_assessment.status).toBe('active');
+    expect(res.body.models.risk_assessment.message).not.toMatch(/waiting/i);
   });
 });
 

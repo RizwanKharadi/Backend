@@ -77,7 +77,7 @@ const PREDICTION_TOOLS = [
     description:
       'Forecast stock demand and get reorder quantity suggestions for the next 30–90 days.',
     howTo:
-      'Leave item IDs empty to forecast all items, or paste Mongo item IDs separated by commas.',
+      'Leave the item field empty to cover your busiest items, or type item names exactly as they appear in Tally, separated by commas.',
   },
 ];
 
@@ -365,11 +365,13 @@ const MLAnalyticsScreen: React.FC<Props> = ({ navigation }) => {
       <Surface style={styles.aboutCard} elevation={1}>
         <Icon name="robot" size={28} color={dashboardColors.accent} />
         <View style={styles.aboutText}>
-          <Title style={styles.aboutTitle}>FinSync360 ML Service</Title>
+          <Title style={styles.aboutTitle}>How these are worked out</Title>
           <Paragraph style={styles.aboutBody}>
-            A separate AI microservice reads your synced MongoDB data (sales,
-            purchases, parties, stock) and runs trained models for predictions.
-            Keep Tally + desktop-agent syncing so forecasts stay accurate.
+            Every figure is calculated from the data your desktop agent syncs
+            across from Tally — sales, parties, stock and outstanding bills — so
+            it reconciles with what Tally shows. Each insight tells you what it
+            is based on, and says so plainly when there is not enough history
+            yet. Keep Tally and the desktop agent syncing to build that history.
           </Paragraph>
         </View>
       </Surface>

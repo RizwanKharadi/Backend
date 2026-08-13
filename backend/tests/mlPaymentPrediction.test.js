@@ -318,6 +318,72 @@ describe('assessCustomerRisk', () => {
     expect(a.assessment_type).toBe('overall');
   });
 
+  it('escalates a bill left unpaid for well over a year, with no history at all', async () => {
+    // The real case that exposed this: TPAC Packaging, 587 days past due, scored
+    // 15% and was reported as "Low risk — no action needed".
+    state.bills = [];
+    state.parties = [party('p1', 'Old Debt Ltd', 0, 50000)];
+    state.outstanding = outstandingFor([
+      { name: 'Old Debt Ltd', total: 50000, overdue: 50000, oldest: 587 },
+    ]);
+
+    const a = await assessCustomerRisk(CO, 'Old Debt Ltd', 'overall');
+
+    expect(a.risk_level).toBe('High');
+    expect(a.risk_factors[0].factor).toBe('Long overdue');
+    expect(a.risk_factors[0].description).toMatch(/year/);
+    // Non-payment that old is an observed fact, so it stands without history.
+    expect(a.meta.settled_bills).toBe(0);
+  });
+
+  it('escalates to medium in the months before that', async () => {
+    state.bills = [];
+    state.outstanding = outstandingFor([
+      { name: 'Late Payer', total: 10000, overdue: 10000, oldest: 100 },
+    ]);
+
+    const a = await assessCustomerRisk(CO, 'Late Payer', 'overall');
+    expect(a.risk_level).toBe('Medium');
+  });
+
+  it('leaves a recently overdue bill alone', async () => {
+    state.bills = [];
+    state.outstanding = outstandingFor([
+      { name: 'Late Payer', total: 10000, overdue: 10000, oldest: 45 },
+    ]);
+
+    const a = await assessCustomerRisk(CO, 'Late Payer', 'overall');
+
+    // Six weeks late is normal in trade credit; escalating here would cry wolf.
+    expect(a.risk_level).toBe('Low');
+    expect(a.risk_factors.some((f) => f.factor === 'Long overdue')).toBe(false);
+  });
+
+  it('never tells the user no action is needed while showing risk factors', async () => {
+    state.bills = [];
+    state.outstanding = outstandingFor([
+      { name: 'Late Payer', total: 10000, overdue: 10000, oldest: 30 },
+    ]);
+
+    const a = await assessCustomerRisk(CO, 'Late Payer', 'overall');
+
+    expect(a.risk_level).toBe('Low');
+    expect(a.risk_factors.length).toBeGreaterThan(0);
+    expect(a.recommendations.some((r) => /no action needed/i.test(r))).toBe(false);
+    expect(a.recommendations.some((r) => /chase the oldest/i.test(r))).toBe(true);
+  });
+
+  it('still says no action needed when genuinely nothing fired', async () => {
+    state.bills = [];
+    state.parties = [party('p9', 'Clean Co', 100000, 1000)];
+    state.outstanding = outstandingFor([{ name: 'Clean Co', total: 1000 }]);
+
+    const a = await assessCustomerRisk(CO, 'Clean Co', 'overall');
+
+    expect(a.risk_factors).toEqual([]);
+    expect(a.recommendations.some((r) => /no action needed/i.test(r))).toBe(true);
+  });
+
   it('does not condemn a party on utilisation alone in overall mode', async () => {
     state.bills = [];
 
