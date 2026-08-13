@@ -1,7 +1,6 @@
 import VoucherType from '../models/VoucherType.js';
 import Godown from '../models/Godown.js';
 import Unit from '../models/Unit.js';
-import Party from '../models/Party.js';
 import TallyAccount from '../models/TallyAccount.js';
 import GstRegistration from '../models/GstRegistration.js';
 import {
@@ -10,6 +9,7 @@ import {
   normalizeTallyParentName
 } from '../utils/tallyLedgerFilter.js';
 import logger from '../utils/logger.js';
+import { escapeRegex } from '../db/queryUtils.js';
 
 export const getVoucherTypes = async (req, res) => {
   try {
@@ -29,7 +29,7 @@ export const getVoucherTypes = async (req, res) => {
     }
 
     if (search) {
-      query.name = { $regex: search, $options: 'i' };
+      query.name = { $regex: escapeRegex(search), $options: 'i' };
     }
 
     const rows = await VoucherType.find(query).sort({ name: 1 }).lean();
@@ -53,7 +53,7 @@ export const getGodowns = async (req, res) => {
   try {
     const { search } = req.query;
     const query = { company: req.company._id, isActive: true };
-    if (search) query.name = { $regex: search, $options: 'i' };
+    if (search) query.name = { $regex: escapeRegex(search), $options: 'i' };
 
     const rows = await Godown.find(query).sort({ name: 1 }).lean();
 
@@ -75,7 +75,7 @@ export const getUnits = async (req, res) => {
   try {
     const { search } = req.query;
     const query = { company: req.company._id, isActive: true };
-    if (search) query.name = { $regex: search, $options: 'i' };
+    if (search) query.name = { $regex: escapeRegex(search), $options: 'i' };
 
     const rows = await Unit.find(query).sort({ name: 1 }).lean();
 
@@ -96,30 +96,33 @@ export const getUnits = async (req, res) => {
 export const getAccountLedgers = async (req, res) => {
   try {
     const { parentGroup, search } = req.query;
+
+    // Reads the chart of accounts, not the party list. `parties` holds the
+    // people we trade with — sundry debtors and creditors — while every other
+    // ledger (bank, cash, duty, expense) lives in `tallyaccounts`. This used to
+    // read non-party rows out of `parties`, which is why the same ledgers sat in
+    // both tables.
     const query = {
       company: req.company._id,
-      isActive: true,
-      recordType: 'ledger'
+      accountType: 'ledger'
     };
 
     if (search) {
-      query.name = { $regex: search, $options: 'i' };
+      query.name = { $regex: escapeRegex(search), $options: 'i' };
     }
 
-    let rows = await Party.find(query).sort({ name: 1 }).lean();
+    let rows = await TallyAccount.find(query).sort({ name: 1 }).lean();
 
     if (parentGroup) {
-      rows = rows.filter((r) =>
-        matchesAccountLedgerParent(r.tallyParent, parentGroup)
-      );
+      rows = rows.filter((r) => matchesAccountLedgerParent(r.parentGroup, parentGroup));
     }
 
     res.status(200).json({
       success: true,
       data: rows.map((r) => ({
-        id: r._id.toString(),
+        id: String(r._id ?? r.id),
         name: r.name,
-        parentGroup: r.tallyParent
+        parentGroup: r.parentGroup
       }))
     });
   } catch (error) {
@@ -137,7 +140,7 @@ export const getLedgers = async (req, res) => {
     };
 
     if (search) {
-      query.name = { $regex: search, $options: 'i' };
+      query.name = { $regex: escapeRegex(search), $options: 'i' };
     }
 
     let rows = await TallyAccount.find(query)
@@ -169,9 +172,9 @@ export const getGstRegistrations = async (req, res) => {
     const query = { company: req.company._id, isActive: true };
     if (search) {
       query.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { gstin: { $regex: search, $options: 'i' } },
-        { stateName: { $regex: search, $options: 'i' } }
+        { name: { $regex: escapeRegex(search), $options: 'i' } },
+        { gstin: { $regex: escapeRegex(search), $options: 'i' } },
+        { stateName: { $regex: escapeRegex(search), $options: 'i' } }
       ];
     }
 
