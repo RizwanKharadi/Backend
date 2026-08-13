@@ -122,17 +122,18 @@ class ComprehensiveTestSuite {
   }
 
   async runMLServiceTests() {
-    console.log('\n🤖 Step 3.1: Running ML Service Integration Tests...');
+    console.log('\n🤖 Step 3.1: Running Insights API Tests...');
     console.log('===================================================');
 
     try {
       const { spawn } = require('child_process');
 
-      // Run ML service specific tests
+      // The insights endpoints used to live in a separate FastAPI service; they
+      // now run in-process, so these cover the router and the payment history
+      // it reads rather than a service on port 8001.
       const mlTestFiles = [
-        'ml-service.test.js',
-        'ml-service-integration.test.js',
-        'ml-service-coverage.test.js'
+        'mlRoutes.test.js',
+        'billHistoryService.test.js'
       ];
 
       for (const testFile of mlTestFiles) {
