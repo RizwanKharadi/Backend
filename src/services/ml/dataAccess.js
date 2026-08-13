@@ -39,6 +39,18 @@ export function itemStock(item) {
 
 export const reorderLevel = (item) => num(item?.inventory?.stockLevels?.reorderLevel);
 
+/**
+ * The parties table holds the whole chart of ledgers, not just trading parties:
+ * the agent uploads every Tally ledger through the party path and tags the
+ * sundry ones `recordType: 'party'`, leaving bank, cash, duty and expense
+ * ledgers as `'ledger'`. Counting customers without this filter counts all of
+ * them — the party list endpoint has always applied it, so a count that skipped
+ * it disagreed with the list on the same screen.
+ *
+ * null is included because rows created before recordType existed have none.
+ */
+export const PARTY_ONLY = { recordType: { $in: ['party', null] } };
+
 /** Days between order and delivery, if the customer has recorded one. */
 export const leadTimeDays = (item) => {
   const value = num(item?.inventory?.leadTimeDays);

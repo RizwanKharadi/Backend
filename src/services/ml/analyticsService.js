@@ -24,6 +24,7 @@ import {
   itemStock,
   reorderLevel,
   loadSalesVouchers,
+  PARTY_ONLY,
 } from './dataAccess.js';
 
 const pct = (part, whole) => (whole > 0 ? Number(((part / whole) * 100).toFixed(1)) : 0);
@@ -144,7 +145,9 @@ export async function getBusinessMetrics(companyId, daysBack = 30) {
     loadSalesVouchers(companyId, 365, { withItems: true }),
     getPartyPaymentBehaviour({ company: companyId }),
     loadOutstanding(companyId),
-    Party.find({ company: companyId, isActive: true }).select('name createdAt').lean(),
+    Party.find({ company: companyId, isActive: true, ...PARTY_ONLY })
+      .select('name createdAt')
+      .lean(),
     Item.find({ company: companyId, isActive: true }).select('name inventory').lean(),
   ]);
 
