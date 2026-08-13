@@ -17,6 +17,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 
 import Header from '../components/common/Header';
 import InsightEvidenceNote from '../components/InsightEvidenceNote';
+import NamePicker from '../components/NamePicker';
+import { loadPartyOptions } from '../components/insightPickerSources';
 import { AppDispatch } from '../store';
 import { assessCustomerRisk } from '../store/slices/mlSlice';
 import { mlService } from '../services/mlService';
@@ -35,6 +37,7 @@ const RiskAssessmentScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [loading, setLoading] = useState(false);
   const [assessment, setAssessment] = useState<any>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const {
     control,
@@ -42,6 +45,7 @@ const RiskAssessmentScreen: React.FC<Props> = ({ navigation }) => {
     formState: { errors },
     reset,
     watch,
+    setValue,
   } = useForm<FormValues>({
     defaultValues: {
       customer_id: '',
@@ -112,10 +116,26 @@ const RiskAssessmentScreen: React.FC<Props> = ({ navigation }) => {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 mode="outlined"
-                placeholder="e.g. Keshav Computer Pvt.Ltd."
+                placeholder="Tap the list icon to pick a party"
                 style={styles.input}
+                right={
+                  <TextInput.Icon
+                    icon="format-list-bulleted"
+                    onPress={() => setPickerOpen(true)}
+                    accessibilityLabel="Choose from your parties"
+                  />
+                }
               />
             )}
+          />
+
+          <NamePicker
+            visible={pickerOpen}
+            title="Choose a party"
+            placeholder="Search parties"
+            load={loadPartyOptions}
+            onDismiss={() => setPickerOpen(false)}
+            onSelect={(name) => setValue('customer_id', name, { shouldValidate: true })}
           />
           {errors.customer_id ? (
             <Paragraph style={{ color: theme.colors.error, fontSize: 12 }}>

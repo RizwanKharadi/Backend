@@ -21,6 +21,8 @@ import { mlService, InventoryForecastResponse } from '../services/mlService';
 import { MainStackScreenProps } from '../types/navigation';
 import { dashboardColors } from '../components/dashboard/dashboardTheme';
 import InsightEvidenceNote from '../components/InsightEvidenceNote';
+import NamePicker from '../components/NamePicker';
+import { loadItemOptions } from '../components/insightPickerSources';
 import { useTranslation } from 'react-i18next';
 
 type Props = MainStackScreenProps<'InventoryForecast'>;
@@ -36,12 +38,15 @@ const InventoryForecastScreen: React.FC<Props> = ({ navigation }) => {
   const dispatch = useDispatch<AppDispatch>();
   const [loading, setLoading] = useState(false);
   const [forecasts, setForecasts] = useState<InventoryForecastResponse[]>([]);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const {
     control,
     handleSubmit,
     reset,
     formState: { errors },
+    getValues,
+    setValue,
   } = useForm<FormValues>({
     defaultValues: { item_ids: '', days_ahead: '90' },
   });
@@ -108,11 +113,38 @@ const InventoryForecastScreen: React.FC<Props> = ({ navigation }) => {
                 onChangeText={onChange}
                 onBlur={onBlur}
                 mode="outlined"
-                placeholder="Leave empty for your busiest items, or type item names separated by commas"
+                placeholder="Leave empty for your busiest items, or tap the list icon to pick"
                 multiline
                 style={styles.input}
+                right={
+                  <TextInput.Icon
+                    icon="format-list-bulleted"
+                    onPress={() => setPickerOpen(true)}
+                    accessibilityLabel="Choose from your stock items"
+                  />
+                }
               />
             )}
+          />
+
+          {/* Appends rather than replaces, so several items can be picked in a
+              row without losing the previous choice. */}
+          <NamePicker
+            visible={pickerOpen}
+            title="Choose a stock item"
+            placeholder="Search stock items"
+            load={loadItemOptions}
+            onDismiss={() => setPickerOpen(false)}
+            onSelect={(name) => {
+              const current = (getValues('item_ids') || '')
+                .split(',')
+                .map((part) => part.trim())
+                .filter(Boolean);
+              if (!current.some((entry) => entry.toLowerCase() === name.toLowerCase())) {
+                current.push(name);
+              }
+              setValue('item_ids', current.join(', '));
+            }}
           />
 
           <Controller

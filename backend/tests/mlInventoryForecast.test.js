@@ -244,6 +244,20 @@ describe('selection and limits', () => {
     expect(byName.item_name).toBe('Widget');
   });
 
+  it('accepts the display name the app and the picker show', async () => {
+    // inventoryService lists items by displayName, so that is what comes back
+    // from the picker — matching only the stored name would find nothing.
+    const widget = item('i1', 'WIDGET-STD-01', 10);
+    widget.displayName = 'Standard Widget';
+    state.items = [widget];
+    state.vouchers = steadySales('WIDGET-STD-01', 5, 20, 100);
+
+    const [found] = await forecastInventoryDemand(CO, { itemIds: ['Standard Widget'] });
+
+    expect(found).toBeDefined();
+    expect(found.item_name).toBe('Standard Widget');
+  });
+
   it('returns the busiest items, capped, when nothing is selected', async () => {
     state.items = Array.from({ length: 80 }, (_, i) => item(`i${i}`, `Item ${i}`, 100));
     state.vouchers = [sale('Item 79', 500, 5), sale('Item 3', 100, 5)];

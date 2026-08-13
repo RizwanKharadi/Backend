@@ -23,6 +23,8 @@ import Icon from 'react-native-vector-icons/MaterialCommunityIcons';
 // Components
 import Header from '../components/common/Header';
 import InsightEvidenceNote from '../components/InsightEvidenceNote';
+import NamePicker from '../components/NamePicker';
+import { loadPartyOptions } from '../components/insightPickerSources';
 
 // Store
 import { RootState, AppDispatch } from '../store';
@@ -54,12 +56,14 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
   
   const [loading, setLoading] = useState(false);
   const [prediction, setPrediction] = useState<any>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const {
     control,
     handleSubmit,
     formState: { errors },
     reset,
+    setValue,
   } = useForm<PredictionForm>({
     defaultValues: {
       customer_id: '',
@@ -146,8 +150,24 @@ const PaymentPredictionScreen: React.FC<Props> = ({ navigation }) => {
                 mode="outlined"
                 error={!!errors.customer_id}
                 style={styles.input}
+                right={
+                  <TextInput.Icon
+                    icon="format-list-bulleted"
+                    onPress={() => setPickerOpen(true)}
+                    accessibilityLabel="Choose from your parties"
+                  />
+                }
               />
             )}
+          />
+
+          <NamePicker
+            visible={pickerOpen}
+            title="Choose a party"
+            placeholder="Search parties"
+            load={loadPartyOptions}
+            onDismiss={() => setPickerOpen(false)}
+            onSelect={(name) => setValue('customer_id', name, { shouldValidate: true })}
           />
           {errors.customer_id && (
             <Paragraph style={[styles.errorText, { color: theme.colors.error }]}>
