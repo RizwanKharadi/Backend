@@ -157,6 +157,24 @@ describe('business metrics', () => {
     expect(m.payment_insights.total_overdue).toBe(60000);
   });
 
+  it('counts only trading parties, not the whole chart of ledgers', async () => {
+    // The agent uploads every Tally ledger through the party path, tagging the
+    // sundry ones as parties. A company with 8,326 ledgers and 6,960 debtors
+    // must not report 8,326 customers.
+    state.parties = [
+      { id: 'p1', company: CO, isActive: true, name: 'Sharma Traders', recordType: 'party' },
+      { id: 'p2', company: CO, isActive: true, name: 'Verma Co', recordType: 'party' },
+      { id: 'l1', company: CO, isActive: true, name: 'HDFC Bank', recordType: 'ledger' },
+      { id: 'l2', company: CO, isActive: true, name: 'Office Rent', recordType: 'ledger' },
+      // Rows synced before recordType existed still count as parties.
+      { id: 'p3', company: CO, isActive: true, name: 'Legacy Party', recordType: null },
+    ];
+
+    const m = await getBusinessMetrics(CO, 30);
+
+    expect(m.customer_analytics.total_customers).toBe(3);
+  });
+
   it('does not count an item as overstocked when it never sells', async () => {
     state.items = [
       {
