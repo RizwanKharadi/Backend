@@ -421,7 +421,18 @@ class WebSocketClient extends EventEmitter {
   }
 
   setupEventHandlers() {
-    this.ws.on('open', () => {
+    // Bind to this specific socket, not to whatever `this.ws` holds later.
+    //
+    // These handlers outlive their socket. A reconnect replaces `this.ws` while
+    // the old socket can still deliver events, and every handler below used to
+    // act on the current socket instead of the one that fired — which crashed
+    // the ping handler and made abandoned sockets schedule extra reconnects of
+    // their own, each logging its own "Disconnected from server".
+    const socket = this.ws;
+    /** True once a different socket has taken over; null means we are closing. */
+    const superseded = () => this.ws && this.ws !== socket;
+
+    socket.on('open', () => {
       this.isConnected = true;
       this.isReconnecting = false;
       this.reconnectAttempts = 0;
@@ -447,7 +458,13 @@ class WebSocketClient extends EventEmitter {
       });
     });
 
-    this.ws.on('close', (code, reason) => {
+    socket.on('close', (code, reason) => {
+      // An abandoned socket closing says nothing about the live one, and must
+      // not drag it offline or start a competing reconnect.
+      if (superseded()) {
+        this.logger.debug('Ignoring close from a superseded socket', { code });
+        return;
+      }
       this.isConnected = false;
       this.stopHeartbeat();
 
@@ -479,7 +496,11 @@ class WebSocketClient extends EventEmitter {
       }
     });
 
-    this.ws.on('error', (error) => {
+    socket.on('error', (error) => {
+      if (superseded()) {
+        this.logger.debug('Ignoring error from a superseded socket', { message: error?.message });
+        return;
+      }
       const is401 = /401|unexpected server response/i.test(String(error?.message || ''));
       if (is401) {
         this.clearDeviceTokenInStore();
@@ -489,7 +510,8 @@ class WebSocketClient extends EventEmitter {
       this.emit('connection-error', new Error(this.lastConnectionError));
     });
 
-    this.ws.on('message', (data) => {
+    socket.on('message', (data) => {
+      if (superseded()) return;
       // Any server traffic means the connection is alive (sync acks can take minutes).
       if (this.heartbeatTimeout) {
         clearTimeout(this.heartbeatTimeout);
@@ -503,11 +525,29 @@ class WebSocketClient extends EventEmitter {
       }
     });
 
-    this.ws.on('ping', () => {
-      this.ws.pong();
+    // Reply on the socket that was actually pinged, not on whichever socket
+    // happens to be current.
+    //
+    // These handlers outlive their socket: during a reconnect `this.ws` already
+    // points at a new, still-CONNECTING socket while the old one can still
+    // deliver a ping. `this.ws.pong()` then threw "WebSocket is not open:
+    // readyState 0 (CONNECTING)" from inside ws's receiver — nowhere near a
+    // try/catch and not an 'error' event, so it surfaced as an uncaught
+    // exception. It happened 281 times in one day of reconnect churn.
+    //
+    // pong() also throws on a socket that closed between the ping arriving and
+    // this running, which is routine during a reconnect storm and not worth
+    // reporting, so it is swallowed at debug level.
+    socket.on('ping', () => {
+      if (socket.readyState !== WebSocket.OPEN) return;
+      try {
+        socket.pong();
+      } catch (error) {
+        this.logger.debug('Ignored pong on a closing socket:', error.message);
+      }
     });
 
-    this.ws.on('pong', () => {
+    socket.on('pong', () => {
       if (this.heartbeatTimeout) {
         clearTimeout(this.heartbeatTimeout);
         this.heartbeatTimeout = null;
