@@ -3371,10 +3371,27 @@ class TallyWebSocketService {
     return `+${digits}`;
   }
 
+  /**
+   * The previous pattern here was `^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$`,
+   * which is catastrophic backtracking waiting to happen: `\w+([.-]?\w+)*` can
+   * split a run of word characters in exponentially many ways, and the engine
+   * tries all of them before giving up on a string that does not match.
+   *
+   * A customer ledger whose email field held a ~40-character value that nearly
+   * matched was enough to pin the event loop at 100% CPU for minutes at a time.
+   * The whole backend stopped answering — agent sync, mobile, logins — and PM2
+   * saw a live process, so nothing restarted it. A CPU profile of the stuck
+   * process attributed 100% of samples to this one function.
+   *
+   * This form has no nested quantifiers, so it is linear in the length of the
+   * input. It is a deliberately loose check: the point is to reject obvious
+   * rubbish before storing, not to adjudicate RFC 5322. The length cap is a
+   * second belt — nothing here should ever see a megabyte of text.
+   */
   normalizePartyEmail(raw) {
     const email = String(raw || '').trim().toLowerCase();
-    if (!email) return '';
-    return /^\w+([.-]?\w+)*@\w+([.-]?\w+)*(\.\w{2,3})+$/.test(email) ? email : '';
+    if (!email || email.length > 254) return '';
+    return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email) ? email : '';
   }
 
   normalizePartyGstin(raw) {
