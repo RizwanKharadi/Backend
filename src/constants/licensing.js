@@ -1,5 +1,5 @@
 /** Commercial licensing defaults (confirmed product decisions). */
-export const TRIAL_DAYS = 7;
+export const TRIAL_DAYS = 180;
 export const TRIAL_SEAT_LIMIT = 1;
 export const GRACE_PERIOD_DAYS = 2;
 
