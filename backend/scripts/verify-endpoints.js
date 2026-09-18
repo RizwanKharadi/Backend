@@ -218,7 +218,7 @@ console.log(`${colors.cyan}Access Swagger Documentation at: ${colors.bright}http
 
 // Generate endpoint summary file
 const summaryPath = path.join(__dirname, '../API_ENDPOINTS_SUMMARY.md');
-let markdown = `# FinSync360 API Endpoints Summary\n\n`;
+let markdown = `# TallyFin API Endpoints Summary\n\n`;
 markdown += `**Generated:** ${new Date().toISOString()}\n\n`;
 markdown += `## Overview\n\n`;
 markdown += `- **Total Endpoints:** ${totalEndpoints}\n`;

@@ -115,9 +115,9 @@ export async function sendOtpEmail({ to, name, code, purpose, expiresInMinutes }
     subject: copy.subject(code),
     html: renderHtml(view),
     text: renderText(view),
-    // Verification codes expire in minutes — they must not sit behind a queue
-    // of invoice reminders.
-    priority: 'high',
+    // Jump the invoice queue without stamping X-Priority: high — that header
+    // from a shared-host domain is a common Gmail spam/drop signal.
+    immediate: true,
     trackDelivery: false,
   });
 

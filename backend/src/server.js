@@ -169,7 +169,7 @@ app.get('/api-docs.json', (req, res) => {
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
   customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'FinSync360 API Documentation',
+  customSiteTitle: 'TallyFin API Documentation',
   customfavIcon: '/favicon.ico'
 }));
 
