@@ -151,23 +151,38 @@ class EmailService {
         text = emailData.text;
       }
 
+      const authUser = process.env.EMAIL_USER || process.env.SMTP_USER;
+      const fromAddress =
+        process.env.EMAIL_FROM ||
+        `"${process.env.SMTP_FROM_NAME || 'TallyFin'}" <${
+          process.env.SMTP_FROM_EMAIL || authUser
+        }>`;
+
+      const recipients = Array.isArray(to) ? to : [to];
+
       const mailOptions = {
         // EMAIL_FROM may be a full "Name <addr>" string or a bare address.
-        from:
-          process.env.EMAIL_FROM ||
-          `"${process.env.SMTP_FROM_NAME || 'TallyFin'}" <${
-            process.env.SMTP_FROM_EMAIL || process.env.EMAIL_USER || process.env.SMTP_USER
-          }>`,
-        to: Array.isArray(to) ? to.join(', ') : to,
+        from: fromAddress.includes('<')
+          ? fromAddress
+          : `"${process.env.SMTP_FROM_NAME || 'TallyFin'}" <${fromAddress}>`,
+        to: recipients.join(', '),
         subject,
         html,
         text,
         attachments,
-        priority: priority === 'high' ? 'high' : 'normal'
+        // Envelope MAIL FROM must match the authenticated mailbox. A bare
+        // From header that disagrees with SMTP auth is a common reason Gmail
+        // drops mail while same-server company inboxes still accept it.
+        envelope: authUser
+          ? { from: authUser, to: recipients }
+          : undefined,
+        // Skip X-Priority: high unless the caller asked for it. "Urgent"
+        // mail from a new shared-host domain looks like phishing to Gmail.
+        ...(priority === 'high' ? { priority: 'high' } : {})
       };
 
-      // Add to queue or send immediately based on priority
-      if (priority === 'high') {
+      // `immediate` sends now without the spammy high-priority header.
+      if (emailData.immediate || priority === 'high') {
         return await this.sendImmediately(mailOptions, trackDelivery);
       } else {
         return await this.addToQueue(mailOptions, trackDelivery);
@@ -195,7 +210,25 @@ class EmailService {
         return { success: false, message: 'Email is not configured on this server' };
       }
       const result = await this.transporter.sendMail(mailOptions);
-      
+      const rejected = Array.isArray(result.rejected) ? result.rejected.filter(Boolean) : [];
+
+      if (rejected.length) {
+        logger.error('SMTP rejected recipient(s):', {
+          to: mailOptions.to,
+          rejected,
+          response: result.response
+        });
+        return {
+          success: false,
+          message: `SMTP rejected: ${rejected.join(', ')}`,
+          data: {
+            messageId: result.messageId,
+            accepted: result.accepted,
+            rejected
+          }
+        };
+      }
+
       if (trackDelivery) {
         this.deliveryStatus.set(result.messageId, {
           status: 'sent',
@@ -208,7 +241,9 @@ class EmailService {
       logger.info('Email sent immediately:', {
         to: mailOptions.to,
         subject: redactSubject(mailOptions.subject),
-        messageId: result.messageId
+        messageId: result.messageId,
+        accepted: result.accepted,
+        response: result.response
       });
 
       return {

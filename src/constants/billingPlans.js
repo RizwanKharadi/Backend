@@ -5,7 +5,7 @@
 export const BILLING_PLANS = {
   monthly: {
     id: 'monthly',
-    name: 'FinSync360 — Monthly (per device)',
+    name: 'TallyFin — Monthly (per device)',
     billingCycle: 'monthly',
     period: 'monthly',
     interval: 1,
@@ -15,7 +15,7 @@ export const BILLING_PLANS = {
   },
   yearly: {
     id: 'yearly',
-    name: 'FinSync360 — Yearly (per device)',
+    name: 'TallyFin — Yearly (per device)',
     billingCycle: 'yearly',
     period: 'yearly',
     interval: 1,
