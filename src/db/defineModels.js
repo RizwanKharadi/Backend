@@ -735,14 +735,18 @@ export function defineAllModels(sequelize) {
     'TallySerialRegistration',
     {
       id: ID,
-      serialNumber: { type: STR, allowNull: false, unique: true },
+      // NOT unique on its own: one Tally serial can be used by many users.
+      serialNumber: { type: STR, allowNull: false },
       user: { type: STR(36), allowNull: false },
       organization: { type: STR(36), allowNull: false },
       registeredEmail: STR,
       licenseDetails: { type: JSONF, defaultValue: {} },
       lastSeenAt: DATE,
     },
-    { tableName: 'tallyserialregistrations' }
+    {
+      tableName: 'tallyserialregistrations',
+      indexes: [{ unique: true, fields: ['serialNumber', 'user'], name: 'tallyserial_serial_user_unique' }]
+    }
   );
 
   // --- Compat wrappers ---

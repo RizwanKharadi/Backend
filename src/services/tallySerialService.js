@@ -1,5 +1,4 @@
 import TallySerialRegistration from '../models/TallySerialRegistration.js';
-import User from '../models/User.js';
 import logger from '../utils/logger.js';
 
 export function normalizeTallySerial(serialNumber) {
@@ -22,7 +21,9 @@ export function maskEmail(email) {
 }
 
 /**
- * @returns {{ inUse: boolean, ownedByCurrentUser?: boolean, registeredEmail?: string, registeredName?: string }}
+ * A Tally serial may be shared by any number of users, so it is never "in use".
+ * Kept (with the same response shape) so the desktop agent's /check call keeps working.
+ * @returns {{ inUse: false, ownedByCurrentUser?: boolean, sharedUserCount?: number }}
  */
 export async function checkTallySerialInUse(serialNumber, currentUserId) {
   const normalized = normalizeTallySerial(serialNumber);
@@ -30,74 +31,32 @@ export async function checkTallySerialInUse(serialNumber, currentUserId) {
     return { inUse: false, reason: 'missing_serial' };
   }
 
-  const existing = await TallySerialRegistration.findOne({ serialNumber: normalized }).populate(
-    'user',
-    'email name'
+  const all = await TallySerialRegistration.find({ serialNumber: normalized });
+  const ownedByCurrentUser = Boolean(
+    currentUserId && all.some((r) => r.user?.toString?.() === currentUserId.toString())
   );
 
-  if (!existing) {
-    return { inUse: false };
-  }
-
-  if (currentUserId && existing.user?._id?.toString() === currentUserId.toString()) {
-    return {
-      inUse: false,
-      ownedByCurrentUser: true,
-      registeredEmail: existing.registeredEmail
-    };
-  }
-
-  return {
-    inUse: true,
-    registeredEmail: maskEmail(existing.registeredEmail || existing.user?.email),
-    registeredName: existing.user?.name || ''
-  };
+  return { inUse: false, ownedByCurrentUser, sharedUserCount: all.length };
 }
 
 /**
- * Register or refresh serial for the current user. Throws 409 if bound to another account.
+ * Register or refresh a serial for the given user. One row per (serial, user),
+ * so many users can share the same Tally serial. Never throws for "already registered".
  */
 export async function registerTallySerial({
   serialNumber,
   userId,
   organizationId,
   email,
-  licenseDetails = {},
-  allowSameOrganizationRebind = true
+  licenseDetails = {}
 }) {
   const normalized = normalizeTallySerial(serialNumber);
   if (!normalized) {
     return null;
   }
 
-  const existing = await TallySerialRegistration.findOne({ serialNumber: normalized });
-
-  if (existing) {
-    const existingUserId = existing.user?.toString?.();
-    const existingOrgId = existing.organization?.toString?.();
-    const incomingUserId = userId?.toString?.();
-    const incomingOrgId = organizationId?.toString?.();
-
-    const changedOwner = Boolean(existingUserId && incomingUserId && existingUserId !== incomingUserId);
-    const changedOrg = Boolean(existingOrgId && incomingOrgId && existingOrgId !== incomingOrgId);
-
-    if (changedOwner || changedOrg) {
-      const owner = await User.findById(existing.user).select('email name');
-      logger.warn('Tally serial re-registered by different account/org (validation disabled)', {
-        serialNumber: normalized,
-        previousUserEmail: maskEmail(owner?.email || existing.registeredEmail),
-        previousUserName: owner?.name || '',
-        previousUserId: existingUserId,
-        previousOrganizationId: existingOrgId,
-        newUserId: incomingUserId,
-        newOrganizationId: incomingOrgId,
-        allowSameOrganizationRebind
-      });
-    }
-  }
-
   const doc = await TallySerialRegistration.findOneAndUpdate(
-    { serialNumber: normalized },
+    { serialNumber: normalized, user: userId },
     {
       serialNumber: normalized,
       user: userId,
