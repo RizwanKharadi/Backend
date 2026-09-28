@@ -390,9 +390,16 @@ class DesktopAgent {
         electronLog.warn('WebSocket service unavailable during startup, continuing in offline mode:', error.message);
       }
       
-      // Initialize sync manager
-      await this.syncManager.initialize();
+      // Wire the sync manager to Tally and the server before anything else can
+      // fail. It used to happen after initialize(), so one bad scheduled-sync
+      // setup left it with no services: the header showed Server and Tally
+      // online while every sync failed with "Could not reach the server".
       this.syncManager.setServices(this.tallyService, this.webSocketClient, null);
+      try {
+        await this.syncManager.initialize();
+      } catch (error) {
+        electronLog.error('Sync manager did not fully initialize; manual sync still works:', error);
+      }
       
       // Start system monitoring
       this.systemMonitor.start();

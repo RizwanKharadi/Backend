@@ -104,7 +104,11 @@ class SyncManager extends EventEmitter {
 
       // Load per-company sync state/cursors
       await this.loadSyncState();
-      
+
+      // Services are wired before initialize(); re-apply now that the saved
+      // pipeline settings have loaded.
+      this.applyTallySyncTsToTallyService();
+
       // Setup scheduled sync
       if (this.config.autoSync) {
         this.setupScheduledSync();
@@ -1578,7 +1582,9 @@ class SyncManager extends EventEmitter {
 
   setupScheduledSync() {
     if (this.syncJobs.has('scheduled')) {
-      this.syncJobs.get('scheduled').destroy();
+      // node-cron 3 tasks have stop(); destroy() only exists in v4, and calling
+      // it crashed startup for anyone with auto-sync on.
+      this.syncJobs.get('scheduled').stop();
     }
 
     const job = cron.schedule(this.config.syncInterval, () => {
@@ -3933,7 +3939,7 @@ class SyncManager extends EventEmitter {
     
     // Stop all scheduled jobs
     for (const [name, job] of this.syncJobs) {
-      job.destroy();
+      job.stop();
       this.logger.info(`Stopped sync job: ${name}`);
     }
     
