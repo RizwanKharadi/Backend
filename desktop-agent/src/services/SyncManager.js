@@ -3593,6 +3593,40 @@ class SyncManager extends EventEmitter {
   /**
    * Import a voucher from mobile/backend into TallyPrime (item or accounting).
    */
+  /**
+   * The name of the open Tally company an import should go into.
+   *
+   * The server sends the company's GUID along with the name it last knew.
+   * Tally switches companies by name, and that name can differ from the one
+   * in the cloud ("Prem Supermarket" vs "Prem Supermarket 1"), which failed
+   * with "Could not set 'SVCurrentCompany'" although the company was open.
+   * The GUID does not change, so prefer the open company that carries it.
+   */
+  async resolveImportCompanyName(companyGuid, requestedName) {
+    const guid = String(companyGuid || '').trim().toLowerCase();
+    if (!guid || !this.tallyService?.getCompanies) {
+      return requestedName;
+    }
+    try {
+      const open = (await this.tallyService.getCompanies()) || [];
+      const match = open.find((c) => String(c?.guid || '').trim().toLowerCase() === guid);
+      if (match?.name) {
+        if (match.name !== requestedName) {
+          this.logger.info('Import company resolved by GUID', {
+            requested: requestedName || '',
+            resolved: match.name
+          });
+        }
+        return match.name;
+      }
+    } catch (error) {
+      this.logger.warn('Could not list open Tally companies for import', {
+        message: error.message
+      });
+    }
+    return requestedName;
+  }
+
   async handleImportVoucher(payload = {}) {
     const { requestId, voucher, companyName, companyId, voucherId } = payload;
 
@@ -3608,8 +3642,10 @@ class SyncManager extends EventEmitter {
 
     try {
       const importPayload = voucher || payload;
-      const tallyCompany =
-        companyName || importPayload.companyName || this.config?.tally?.companyName;
+      const tallyCompany = await this.resolveImportCompanyName(
+        payload.companyGuid,
+        companyName || importPayload.companyName || this.config?.tally?.companyName
+      );
       if (!tallyCompany) {
         throw new Error('Missing Tally company name for import');
       }
@@ -3709,8 +3745,10 @@ class SyncManager extends EventEmitter {
 
     try {
       const importPayload = ledger || payload;
-      const tallyCompany =
-        companyName || importPayload.companyName || this.config?.tally?.companyName;
+      const tallyCompany = await this.resolveImportCompanyName(
+        payload.companyGuid,
+        companyName || importPayload.companyName || this.config?.tally?.companyName
+      );
       if (!tallyCompany) throw new Error('Missing Tally company name for import');
       if (!importPayload.name) throw new Error('Ledger name is required');
       if (!importPayload.parent) throw new Error('Ledger parent group is required');
@@ -3753,8 +3791,10 @@ class SyncManager extends EventEmitter {
 
     try {
       const importPayload = stockItem || payload;
-      const tallyCompany =
-        companyName || importPayload.companyName || this.config?.tally?.companyName;
+      const tallyCompany = await this.resolveImportCompanyName(
+        payload.companyGuid,
+        companyName || importPayload.companyName || this.config?.tally?.companyName
+      );
       if (!tallyCompany) throw new Error('Missing Tally company name for import');
       if (!importPayload.name) throw new Error('Stock item name is required');
 
