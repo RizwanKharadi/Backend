@@ -22,7 +22,7 @@ const BRAND = {
 
 const COPY = {
   [OTP_PURPOSES.EMAIL_VERIFICATION]: {
-    subject: (code) => `${code} is your ${BRAND.name} verification code`,
+    subject: () => `Verify your TallyFin account`,
     heading: 'Verify your email',
     intro: 'Use this code to finish setting up your TallyFin account.',
   },
