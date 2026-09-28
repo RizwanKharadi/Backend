@@ -11,6 +11,16 @@ import logger from '../utils/logger.js';
 
 const router = express.Router();
 
+// These routes name the company as `:id`, but checkCompanyAccess reads
+// `companyId`. Without this it looked for companyId in the query or body
+// instead: calls that sent none failed with "Company ID is required" (the
+// desktop agent's company delete), and a call could pass one company it
+// belongs to in the query while `:id` named someone else's.
+const accessToCompanyInPath = (req, res, next) => {
+  req.params.companyId = req.params.id;
+  return checkCompanyAccess(req, res, next);
+};
+
 // All routes are protected and require active org subscription
 router.use(protect, requireActiveSubscription);
 
@@ -58,7 +68,7 @@ router.get('/', async (req, res) => {
 // @desc    Get single company
 // @route   GET /api/companies/:id
 // @access  Private
-router.get('/:id', checkCompanyAccess, async (req, res) => {
+router.get('/:id', accessToCompanyInPath, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id)
       .populate('createdBy', 'name email')
@@ -237,7 +247,7 @@ router.post('/', [
 // @desc    Update company
 // @route   PUT /api/companies/:id
 // @access  Private
-router.put('/:id', checkCompanyAccess, [
+router.put('/:id', accessToCompanyInPath, [
   body('name').optional().trim().isLength({ min: 2, max: 100 }),
   body('contact.phone').optional().isMobilePhone(),
   body('contact.email').optional().isEmail().normalizeEmail()
@@ -295,7 +305,7 @@ router.put('/:id', checkCompanyAccess, [
 // @desc    Add user to company
 // @route   POST /api/companies/:id/users
 // @access  Private (Admin only)
-router.post('/:id/users', checkCompanyAccess, [
+router.post('/:id/users', accessToCompanyInPath, [
   body('email').isEmail().normalizeEmail().withMessage('Please provide a valid email'),
   body('role').isIn(['admin', 'accountant', 'sales', 'viewer']).withMessage('Please select a valid role')
 ], async (req, res) => {
@@ -373,7 +383,7 @@ router.post('/:id/users', checkCompanyAccess, [
 // @desc    Remove user from company
 // @route   DELETE /api/companies/:id/users/:userId
 // @access  Private (Admin only)
-router.delete('/:id/users/:userId', checkCompanyAccess, async (req, res) => {
+router.delete('/:id/users/:userId', accessToCompanyInPath, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id);
 
@@ -427,7 +437,7 @@ router.delete('/:id/users/:userId', checkCompanyAccess, async (req, res) => {
 // @desc    Delete company
 // @route   DELETE /api/companies/:id
 // @access  Private (Admin only)
-router.delete('/:id', checkCompanyAccess, async (req, res) => {
+router.delete('/:id', accessToCompanyInPath, async (req, res) => {
   try {
     const company = await Company.findById(req.params.id);
 
