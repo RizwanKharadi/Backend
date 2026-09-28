@@ -654,11 +654,15 @@ class TallyWebSocketService {
       const licensePayload = mapTallyLicensePayload(tallyLicense);
       if (licensePayload?.serialNumber && company.organizationId) {
         try {
-          const owner = await User.findById(company.createdBy).select('email organizationId');
+          // Use the id we looked up by: a `.select()` field list leaves `_id`
+          // off the row, so `owner._id` was undefined and every register
+          // failed with a bogus "serial already registered" conflict.
+          const ownerId = company.createdBy ? String(company.createdBy._id || company.createdBy) : null;
+          const owner = ownerId ? await User.findById(ownerId).select('email organizationId') : null;
           if (owner) {
             await registerTallySerial({
               serialNumber: licensePayload.serialNumber,
-              userId: owner._id,
+              userId: ownerId,
               organizationId: company.organizationId,
               email: owner.email,
               licenseDetails: licensePayload
