@@ -8,6 +8,15 @@ const http = require('http');
 const axios = require('axios');
 const isDev = !app.isPackaged;
 const { configureAgentLogging, getAgentLogPaths } = require('./src/utils/agentLogger');
+const { tokenExpiresWithin } = require('./src/utils/tokenExpiry');
+
+/**
+ * Credentials only the main process may write. The renderer saves whole config
+ * objects it read earlier, so letting these through wrote stale tokens back
+ * over fresh ones — an old device token forced a new device activation, and an
+ * old refresh token reads to the server as a replay.
+ */
+const MAIN_OWNED_SERVER_FIELDS = ['token', 'refreshToken', 'deviceToken'];
 
 // Import services
 const TallyService = require('./src/services/TallyService');
@@ -489,7 +498,7 @@ class DesktopAgent {
       if (!config.server?.token || this.webSocketClient.isConnected) {
         return;
       }
-      await this.refreshStoredSession();
+      await this.refreshStoredSessionIfExpiring();
       const access = await this.fetchSubscriptionAccess();
       if (!access.allowed) {
         this.webSocketClient.lastConnectionError = access.displayMessage || access.reason;
@@ -552,6 +561,19 @@ class DesktopAgent {
     return this.refreshInFlight;
   }
 
+  /**
+   * Renew only when the access token is missing or about to lapse. Each renewal
+   * hands back a new token, so renewing "just in case" before every connect or
+   * sync churned the connection for nothing.
+   */
+  async refreshStoredSessionIfExpiring() {
+    const token = this.configManager.getConfig().server?.token;
+    if (token && !tokenExpiresWithin(token)) {
+      return { success: true, skipped: true };
+    }
+    return this.refreshStoredSession();
+  }
+
   async doRefreshStoredSession() {
     const config = this.configManager.getConfig();
     const apiUrl = this.resolveApiUrl(config);
@@ -576,17 +598,21 @@ class DesktopAgent {
         return { success: false, reason: 'no_token_in_response' };
       }
 
+      // Re-read after the request: the device token may have been issued while
+      // it was in flight, and writing back the snapshot from before would wipe
+      // it and force another device activation.
+      const latest = this.configManager.getConfig();
+      const serverPatch = {
+        token,
+        refreshToken: newRefreshToken || refreshToken,
+        userEmail
+      };
       const newConfig = {
-        ...config,
-        server: {
-          ...config.server,
-          token,
-          refreshToken: newRefreshToken || refreshToken,
-          userEmail
-        }
+        ...latest,
+        server: { ...latest.server, ...serverPatch }
       };
 
-      this.configManager.setConfig(newConfig);
+      this.configManager.setConfig({ server: serverPatch });
       await this.applyServerRuntimeConfig(newConfig);
       electronLog.info('Session renewed automatically via refresh token');
       return { success: true, userEmail };
@@ -668,25 +694,33 @@ class DesktopAgent {
         };
       }).filter((entry) => entry.cloudCompanyId);
 
-      const companyId = config.server?.companyId || linkedCompanies[0]?.cloudCompanyId || '';
+      // Re-read after the request so tokens renewed meanwhile are not
+      // overwritten with the ones this call started with.
+      const latest = this.configManager.getConfig();
+      const companyId = latest.server?.companyId || linkedCompanies[0]?.cloudCompanyId || '';
       const selectedKeys = linkedCompanies
         .map((entry) => entry.tallyGuid)
         .filter(Boolean);
+      const selectedCompanies =
+        selectedKeys.length > 0 ? selectedKeys : latest.tally?.selectedCompanies;
 
       const newConfig = {
-        ...config,
+        ...latest,
         server: {
-          ...config.server,
+          ...latest.server,
           companyId,
           linkedCompanies
         },
         tally: {
-          ...config.tally,
-          selectedCompanies: selectedKeys.length > 0 ? selectedKeys : config.tally?.selectedCompanies
+          ...latest.tally,
+          selectedCompanies
         }
       };
 
-      this.configManager.setConfig(newConfig);
+      this.configManager.setConfig({
+        server: { companyId, linkedCompanies },
+        tally: { selectedCompanies }
+      });
       await this.applyServerRuntimeConfig(newConfig);
 
       electronLog.info(`Hydrated ${linkedCompanies.length} linked companies from backend`);
@@ -813,6 +847,13 @@ class DesktopAgent {
     // Configuration handlers
     ipcMain.handle('get-config', () => this.configManager.getConfig());
     ipcMain.handle('set-config', async (event, config) => {
+      if (config && typeof config === 'object' && config.server && typeof config.server === 'object') {
+        const server = { ...config.server };
+        for (const field of MAIN_OWNED_SERVER_FIELDS) {
+          delete server[field];
+        }
+        config = { ...config, server };
+      }
       this.configManager.setConfig(config);
       const mergedConfig = this.configManager.getConfig();
       await this.applyServerRuntimeConfig(mergedConfig);
@@ -1442,17 +1483,58 @@ ipcMain.handle('server-verify-otp', async (event, { email, otp, purpose }) => {
         }
       }
 
-      await this.refreshStoredSession();
+      await this.refreshStoredSessionIfExpiring();
+
+      // Re-activating the device clears its token, which forces a reconnect and
+      // uses another seat. Do it only when the server actually rejected the
+      // device, not merely because the socket was between attempts.
       if (!this.webSocketClient.isConnected) {
-        await this.resetDeviceLicenseForReconnect();
+        const lastErr = String(this.webSocketClient.lastConnectionError || '');
+        if (/401|license|device|unauthorized/i.test(lastErr)) {
+          await this.resetDeviceLicenseForReconnect();
+        }
       }
-      await this.webSocketClient.ensureConnected();
+
+      const connected = await this.webSocketClient.waitUntilConnected(20000);
+      if (!connected) {
+        return {
+          started: false,
+          reason:
+            this.webSocketClient.lastConnectionError ||
+            'Could not reach the TallyFin server. Check your internet connection and try again.'
+        };
+      }
       if (this.syncManager.isSyncing) {
         return { started: false, reason: 'Sync already in progress' };
       }
-      this.syncManager.startSync(options).catch((err) => {
-        electronLog.error('Sync session failed:', err);
+
+      // startSync runs for the whole session, so it cannot be awaited here.
+      // Answer as soon as it either announces the session or declines — the UI
+      // used to be told "started" even when it declined, and sat at 0%.
+      const started = await new Promise((resolve) => {
+        const onStarted = () => {
+          this.syncManager.off('sync-started', onStarted);
+          resolve(true);
+        };
+        this.syncManager.on('sync-started', onStarted);
+        this.syncManager.startSync(options)
+          .then((result) => {
+            this.syncManager.off('sync-started', onStarted);
+            if (result === false) resolve(false);
+          })
+          .catch((err) => {
+            this.syncManager.off('sync-started', onStarted);
+            electronLog.error('Sync session failed:', err);
+            resolve(false);
+          });
       });
+
+      if (!started) {
+        return {
+          started: false,
+          reason: this.syncManager.lastStartRefusal || 'Sync could not be started. Please try again.'
+        };
+      }
       return { started: true };
     });
     ipcMain.handle('sync-stop', () => this.syncManager.stopSync());

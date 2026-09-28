@@ -4,6 +4,7 @@ const electronLog = require('electron-log');
 const crypto = require('crypto-js');
 const nodeCrypto = require('crypto');
 const { machineId } = require('node-machine-id');
+const { tokenExpiresWithin } = require('../utils/tokenExpiry');
 
 class WebSocketClient extends EventEmitter {
   constructor() {
@@ -49,6 +50,8 @@ class WebSocketClient extends EventEmitter {
     this.lastConnectionError = null;
     /** After 401, force device re-activation on next connect attempt */
     this.forceDeviceReactivate = false;
+    /** The connect attempt in flight, shared by every caller until it settles. */
+    this.connectPromise = null;
   }
 
   reloadAuthFromAgentStore() {
@@ -303,11 +306,26 @@ class WebSocketClient extends EventEmitter {
     return deviceToken;
   }
 
-  async connect() {
+  /**
+   * One connect at a time. Login, token refresh, company hydration, the retry
+   * timer and the Sync button all ask for a connection within the same second
+   * after sign-in. Each used to open its own socket and replace `this.ws`,
+   * closing the previous one mid-handshake ("closed before the connection was
+   * established"), so the agent looked offline exactly when Sync was pressed.
+   */
+  connect() {
     if (this.isConnected) {
-      return;
+      return Promise.resolve();
     }
+    if (!this.connectPromise) {
+      this.connectPromise = this.connectOnce().finally(() => {
+        this.connectPromise = null;
+      });
+    }
+    return this.connectPromise;
+  }
 
+  async connectOnce() {
     this.reloadAuthFromAgentStore();
 
     if (!this.hasAuth()) {
@@ -315,8 +333,16 @@ class WebSocketClient extends EventEmitter {
       return;
     }
 
-    await this.refreshAccessTokenFromStore();
-    this.reloadAuthFromAgentStore();
+    // The handshake authenticates with the device token when there is one, and
+    // the access token is only needed to obtain it. Refresh just when that
+    // token is actually needed and about to lapse — every refresh hands back a
+    // new token, and refreshing on every connect fed a reconnect loop.
+    const usesDeviceToken =
+      !this.forceDeviceReactivate && Boolean(String(this.config.deviceToken || '').trim());
+    if (!usesDeviceToken && this.config.token && tokenExpiresWithin(this.config.token)) {
+      await this.refreshAccessTokenFromStore();
+      this.reloadAuthFromAgentStore();
+    }
 
     const needsDeviceActivation =
       this.forceDeviceReactivate ||
@@ -361,30 +387,44 @@ class WebSocketClient extends EventEmitter {
         url.searchParams.set('companyId', this.config.companyId);
       }
       
-      this.ws = new WebSocket(url.toString(), {
+      const socket = new WebSocket(url.toString(), {
         headers: {
           'User-Agent': 'TallyFin-Desktop-Agent/1.0.0'
         }
       });
+      this.ws = socket;
 
       this.setupEventHandlers();
-      
+
       return new Promise((resolve, reject) => {
         const timeout = setTimeout(() => {
+          // Abandon the socket too; a stalled handshake left behind would
+          // otherwise open later and compete with the next attempt.
+          try {
+            socket.terminate();
+          } catch (_) {
+            /* already closed */
+          }
           reject(new Error('Connection timeout'));
         }, 10000);
 
-      this.ws.once('open', () => {
-        clearTimeout(timeout);
-        this.logger.info('WebSocket connect params ready', {
-          serverUrl: this.config.serverUrl,
-          companyId: this.config.companyId || '(empty)'
-        });
-        resolve();
-      });
-
-        this.ws.once('error', (error) => {
+        socket.once('open', () => {
           clearTimeout(timeout);
+          this.logger.info('WebSocket connect params ready', {
+            serverUrl: this.config.serverUrl,
+            companyId: this.config.companyId || '(empty)'
+          });
+          resolve();
+        });
+
+        socket.once('error', (error) => {
+          clearTimeout(timeout);
+          if (socket.closedByAgent) {
+            // We aborted this handshake ourselves to reconnect with new
+            // settings; that is not a connection failure.
+            resolve();
+            return;
+          }
           const is401 = /401|unexpected server response/i.test(String(error?.message || ''));
           if (is401) {
             this.logger.warn('WebSocket 401 — clearing device token for re-activation on retry');
@@ -433,6 +473,17 @@ class WebSocketClient extends EventEmitter {
     const superseded = () => this.ws && this.ws !== socket;
 
     socket.on('open', () => {
+      // Opened after being replaced or deliberately disconnected: close it
+      // rather than register on it, since sends go to `this.ws`, not here.
+      if (this.ws !== socket) {
+        this.logger.debug('Closing a socket that opened after being superseded');
+        try {
+          socket.close(1000, 'Superseded');
+        } catch (_) {
+          /* already closing */
+        }
+        return;
+      }
       this.isConnected = true;
       this.isReconnecting = false;
       this.reconnectAttempts = 0;
@@ -490,14 +541,18 @@ class WebSocketClient extends EventEmitter {
       this.logger.info(`Disconnected from server: ${code} - ${reason}`);
       this.emit('disconnected', { code, reason });
       
-      // Attempt reconnection
+      // Attempt reconnection — unless we closed it ourselves, in which case the
+      // caller that disconnected decides whether and when to connect again.
+      if (socket.closedByAgent) {
+        return;
+      }
       if (!this.isReconnecting && this.reconnectAttempts < this.maxReconnectAttempts) {
         this.scheduleReconnect();
       }
     });
 
     socket.on('error', (error) => {
-      if (superseded()) {
+      if (superseded() || socket.closedByAgent) {
         this.logger.debug('Ignoring error from a superseded socket', { message: error?.message });
         return;
       }
@@ -946,8 +1001,10 @@ class WebSocketClient extends EventEmitter {
     this.stopHeartbeat();
     
     if (this.ws) {
-      this.ws.close(1000, 'Agent shutdown');
+      const socket = this.ws;
       this.ws = null;
+      socket.closedByAgent = true;
+      socket.close(1000, 'Agent shutdown');
     }
     
     this.isConnected = false;
@@ -967,6 +1024,35 @@ class WebSocketClient extends EventEmitter {
       agentId: this.config.agentId,
       lastError: this.lastConnectionError
     };
+  }
+
+  /**
+   * Resolve true once the socket is open, starting a connect if needed and
+   * riding out a reconnect already under way. Starting a sync the instant the
+   * socket happened to be between attempts used to fail silently and leave the
+   * UI at 0%.
+   */
+  waitUntilConnected(timeoutMs = 20000) {
+    if (this.isConnected) {
+      return Promise.resolve(true);
+    }
+    if (!this.hasAuth()) {
+      return Promise.resolve(false);
+    }
+    return new Promise((resolve) => {
+      let timer = null;
+      const finish = (value) => {
+        clearTimeout(timer);
+        this.off('connected', onConnected);
+        resolve(value);
+      };
+      const onConnected = () => finish(true);
+      timer = setTimeout(() => finish(this.isConnected), timeoutMs);
+      this.on('connected', onConnected);
+      this.ensureConnected().then((ok) => {
+        if (ok) finish(true);
+      });
+    });
   }
 
   async ensureConnected() {
@@ -994,12 +1080,19 @@ class WebSocketClient extends EventEmitter {
     }
     this.config = { ...this.config, ...newConfig };
 
-    const mustReconnect =
+    const handshakeChanged =
       prev.serverUrl !== this.config.serverUrl ||
-      prev.token !== this.config.token ||
       prev.deviceToken !== this.config.deviceToken ||
       prev.apiKey !== this.config.apiKey ||
       String(prev.companyId || '') !== String(this.config.companyId || '');
+
+    // A renewed access token is not a reason to drop a working socket: the
+    // server checks credentials once, at the handshake. Reconnecting on every
+    // renewal is what kept new sign-ins cycling instead of syncing. The token
+    // only matters here when there is no socket yet to keep.
+    const tokenChanged = prev.token !== this.config.token;
+    const socketAlive = this.isConnected || Boolean(this.connectPromise);
+    const mustReconnect = handshakeChanged || (tokenChanged && !socketAlive);
 
     const authBecameAvailable = !prev.token && !prev.apiKey && this.hasAuth();
 

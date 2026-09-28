@@ -1608,16 +1608,33 @@ class SyncManager extends EventEmitter {
       ? this.config.linkedCompanies.filter((entry) => entry?.cloudCompanyId)
       : [];
 
+    this.lastStartRefusal = null;
+
     if (!wsCompanyId && linkedCompanies.length === 0) {
-      this.logger.warn(
-        'Cannot start sync: no company linked yet. Add a Tally company from the Add Company page.'
-      );
+      this.lastStartRefusal =
+        'No company linked yet. Add a Tally company from the Add Company page.';
+      this.logger.warn(`Cannot start sync: ${this.lastStartRefusal}`);
       return false;
     }
 
     if (!this.webSocketClient?.isConnected) {
-      this.logger.warn('Cannot start sync because server connection is not active');
-      return false;
+      // Right after sign-in the socket is often mid-reconnect; wait for it
+      // rather than refusing and leaving the UI stuck at 0%.
+      this.logger.info('Waiting for server connection before starting sync…');
+      const ready = await this.webSocketClient?.waitUntilConnected?.(20000);
+      if (!ready) {
+        this.lastStartRefusal =
+          this.webSocketClient?.lastConnectionError ||
+          'Could not reach the TallyFin server. Check your internet connection and try again.';
+        this.logger.warn('Cannot start sync because server connection is not active', {
+          reason: this.lastStartRefusal
+        });
+        return false;
+      }
+      if (this.isSyncing) {
+        this.logger.warn('Sync already in progress');
+        return false;
+      }
     }
 
     this.isSyncing = true;
