@@ -265,6 +265,9 @@ class TallyWebSocketService {
         agentId,
         user,
         companyId: req.companyId || '',
+        // Filled in below, after the listeners are attached: awaiting here
+        // would drop messages the agent sends the moment the socket opens.
+        organizationId: user?.organizationId ? String(user.organizationId) : '',
         lastHeartbeat: new Date(),
         isAlive: true
       });
@@ -278,14 +281,23 @@ class TallyWebSocketService {
         this.enqueueAgentMessage(agentId, () => this.handleMessage(agentId, data));
       });
       ws.agentId = agentId;
-      ws.on('close', (code, reason) => this.handleDisconnection(agentId, code, reason));
-      ws.on('error', (error) => this.handleConnectionError(agentId, error));
+      ws.on('close', (code, reason) => this.handleDisconnection(agentId, code, reason, ws));
+      ws.on('error', (error) => {
+        // Same as close: a replaced socket's error says nothing about the live one.
+        if (this.connections.get(agentId)?.ws !== ws) return;
+        this.handleConnectionError(agentId, error);
+      });
       ws.on('pong', () => this.handlePong(agentId));
       // The agent pings US every 30s of its own accord (desktop-agent
       // WebSocketClient.startHeartbeat). An inbound ping proves the socket is
       // alive just as well as a pong does, and counting only pongs meant an
       // agent that was actively signalling still looked dead at the 60s check.
       ws.on('ping', () => this.handlePong(agentId));
+
+      const entry = this.connections.get(agentId);
+      if (entry && entry.ws === ws && !entry.organizationId) {
+        entry.organizationId = await this.resolveAgentOrganizationId(user);
+      }
 
       // Send welcome message
       this.sendMessage(agentId, {
@@ -304,6 +316,88 @@ class TallyWebSocketService {
       });
       ws.close(1011, 'Internal server error');
     }
+  }
+
+  /**
+   * Keep `tallyIntegration.companyName` equal to what Tally calls the company,
+   * so imports switch Tally to a company that exists. Only trusted when the
+   * agent tagged the upload with this company's own cloud id — the agent maps
+   * each open Tally company to its cloud id — so a name from a loosely
+   * resolved payload can never relabel a different company.
+   */
+  async rememberTallyCompanyName(company, taggedCompanyId, tallyName) {
+    const name = String(tallyName || '').trim();
+    if (!name || !company?._id || String(company._id) !== String(taggedCompanyId || '')) {
+      return;
+    }
+    if (company.tallyIntegration?.companyName === name) {
+      return;
+    }
+    try {
+      this.logger.info('Recording Tally company name', {
+        companyId: String(company._id),
+        from: company.tallyIntegration?.companyName || '',
+        to: name
+      });
+      company.tallyIntegration = { ...(company.tallyIntegration || {}), companyName: name };
+      await company.save();
+    } catch (error) {
+      this.logger.warn('Could not record Tally company name', {
+        companyId: String(company._id),
+        error: error.message
+      });
+    }
+  }
+
+  /**
+   * Replay queued imports for the agent's registered company and then for the
+   * rest of its organization's companies, one after another (parallel pushes
+   * are what cause the 1006 drops the queue exists to survive).
+   */
+  async flushPendingImportsForAgent(agentId, registeredCompany) {
+    const organizationId =
+      this.connections.get(agentId)?.organizationId ||
+      (registeredCompany?.organizationId ? String(registeredCompany.organizationId) : '');
+
+    const companies = [registeredCompany];
+    if (organizationId) {
+      const siblings = await Company.find({ organizationId, isActive: true });
+      for (const sibling of siblings) {
+        if (String(sibling._id) !== String(registeredCompany._id)) {
+          companies.push(sibling);
+        }
+      }
+    }
+
+    for (const company of companies) {
+      // The agent may have gone again while earlier companies were flushing.
+      if (this.connections.get(agentId)?.ws?.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      await flushPendingImports(company, this);
+    }
+  }
+
+  /**
+   * Which organization an agent works for. Device tokens carry it; a plain
+   * login token only names the user, so look it up. Used to route imports to
+   * an agent of the right customer — never to whichever agent happens to be
+   * online.
+   * @returns {Promise<string>} organization id, or '' when unknown
+   */
+  async resolveAgentOrganizationId(user) {
+    if (user?.organizationId) {
+      return String(user.organizationId);
+    }
+    if (isValidId(user?.id)) {
+      try {
+        const owner = await User.findById(user.id).select('organizationId');
+        return owner?.organizationId ? String(owner.organizationId) : '';
+      } catch (error) {
+        this.logger.warn('Could not resolve agent organization', { error: error.message });
+      }
+    }
+    return '';
   }
 
   /**
@@ -425,8 +519,22 @@ class TallyWebSocketService {
    * @param {number} code - Close code
    * @param {string} reason - Close reason
    */
-  async handleDisconnection(agentId, code, reason) {
+  async handleDisconnection(agentId, code, reason, ws = null) {
     try {
+      // Connections are keyed by agentId, so when an agent reconnects its new
+      // socket replaces the old one here. The old socket's close arrives later
+      // and used to delete the NEW entry and mark the agent disconnected — the
+      // agent showed "Connected" while every push from the app found no agent
+      // and was queued "until the desktop agent connects".
+      const current = this.connections.get(agentId);
+      if (ws && current && current.ws !== ws) {
+        this.logger.info('Ignoring close of a replaced agent socket', {
+          agentId,
+          code
+        });
+        return;
+      }
+
       this.logger.info('Tally agent disconnected', {
         agentId,
         code,
@@ -640,8 +748,12 @@ class TallyWebSocketService {
         // Replay imports that failed while no agent was connected. Deferred so
         // registration finishes first, and deliberately not awaited — a queue
         // problem must never block the agent coming online.
+        //
+        // Every company of the organization, not just the one this agent
+        // registered with: it imports into whichever linked company is open,
+        // and flushing only one left the others' records waiting forever.
         setTimeout(() => {
-          flushPendingImports(company, this).catch((e) =>
+          this.flushPendingImportsForAgent(agentId, company).catch((e) =>
             this.logger.warn('Tally import queue flush failed', {
               companyId: company._id.toString(),
               error: e.message
@@ -774,6 +886,9 @@ class TallyWebSocketService {
           connection.companyResolveCache = new Map();
         }
         connection.companyResolveCache.set(companyCacheKey, company);
+      }
+      if (company) {
+        await this.rememberTallyCompanyName(company, companyId, payload.companyName);
       }
     }
 
@@ -997,6 +1112,7 @@ class TallyWebSocketService {
           sendErr('Unknown company for sync payload — link the Tally company in the app.', { type });
           return;
         }
+        await this.rememberTallyCompanyName(company, companyId, data?.companyName);
       }
 
       switch (type) {
@@ -1196,7 +1312,11 @@ class TallyWebSocketService {
       ...company.tallyIntegration,
       enabled: true,
       lastSyncDate: new Date(),
-      companyPath: incomingCompany.guid || company.tallyIntegration?.companyPath
+      companyPath: incomingCompany.guid || company.tallyIntegration?.companyPath,
+      // Tally's own name for the company, which imports must use. The cloud
+      // name is left alone — the user may have named it differently.
+      companyName:
+        String(incomingCompany.name || '').trim() || company.tallyIntegration?.companyName
     };
     company.tallyCompanyPath = company.tallyIntegration.companyPath;
 
@@ -1259,6 +1379,7 @@ class TallyWebSocketService {
         tallyIntegration: {
           enabled: true,
           companyPath: incomingCompany.guid,
+          companyName: String(incomingCompany.name || '').trim() || undefined,
           lastSyncDate: new Date(),
           syncSettings: {
             autoSync: false,
@@ -2517,15 +2638,37 @@ class TallyWebSocketService {
     }
   }
 
-  async findConnectedAgentForCompany(companyId) {
-    const companyKey = companyId?.toString?.() ?? String(companyId);
-    const liveAgents = [];
+  /**
+   * Pick the live agent that should import into this company's Tally.
+   *
+   * An agent connects with a single companyId, but it syncs every linked
+   * company that is open in Tally and imports by company name. Matching on
+   * that one companyId alone missed the agent for all of a user's other
+   * companies, so their pushes were queued "until the agent connects" while
+   * it sat there connected.
+   *
+   * Match order: the agent bound to this company, then any agent this company
+   * was last connected through, then any live agent of the same organization.
+   * Never an agent of another organization — the old "only one agent online,
+   * use it" fallback sent one customer's vouchers to another customer's Tally.
+   *
+   * @param {object|string} companyOrId company doc, or its id
+   */
+  async findConnectedAgentForCompany(companyOrId) {
+    const company =
+      companyOrId && typeof companyOrId === 'object'
+        ? companyOrId
+        : await Company.findById(companyOrId);
+    const companyKey = String(company?._id || companyOrId || '');
+    const organizationKey = company?.organizationId ? String(company.organizationId) : '';
 
+    const liveAgents = [];
     for (const [agentId, live] of this.connections) {
       if (live?.ws?.readyState === WebSocket.OPEN) {
         liveAgents.push({
           agentId,
-          companyId: String(live.companyId || '')
+          companyId: String(live.companyId || ''),
+          organizationId: String(live.organizationId || '')
         });
       }
     }
@@ -2536,30 +2679,30 @@ class TallyWebSocketService {
     }
 
     const dbConnections = await TallyConnection.find({
-      company: companyId,
+      company: companyKey,
       status: 'connected'
     })
       .sort({ lastConnected: -1 })
       .lean();
 
     for (const row of dbConnections) {
-      const live = this.connections.get(row.agentId);
-      if (live?.ws?.readyState === WebSocket.OPEN) {
-        if (live.companyId !== companyKey) {
-          live.companyId = companyKey;
-        }
+      const live = liveAgents.find((a) => a.agentId === row.agentId);
+      if (live && (!organizationKey || !live.organizationId || live.organizationId === organizationKey)) {
         return row.agentId;
       }
     }
 
-    if (liveAgents.length === 1) {
-      return liveAgents[0].agentId;
+    if (organizationKey) {
+      const orgMatch = liveAgents.find((a) => a.organizationId === organizationKey);
+      if (orgMatch) {
+        return orgMatch.agentId;
+      }
     }
 
     this.logger.warn('No live desktop agent for Tally import', {
       companyId: companyKey,
+      organizationId: organizationKey,
       liveAgentCount: liveAgents.length,
-      liveAgents: liveAgents.map((a) => a.agentId),
       dbConnectedRows: dbConnections.length
     });
 
@@ -2601,7 +2744,7 @@ class TallyWebSocketService {
       (Array.isArray(tallyMeta.lineErrors) && tallyMeta.lineErrors[0]) ||
       (Array.isArray(tallyMeta.errors) && tallyMeta.errors[0]) ||
       '';
-    const errMsg =
+    const rawError =
       data.error ||
       data.message ||
       lineError ||
@@ -2610,10 +2753,24 @@ class TallyWebSocketService {
     this.logger.warn('import-voucher rejected by agent', {
       agentId,
       requestId,
-      error: errMsg,
+      error: rawError,
       tallyImport: tallyMeta
     });
-    pending.reject(new Error(errMsg));
+
+    // Tally's wording for "no open company by that name" means nothing to a
+    // shop owner, and the record is fine — only the target company is missing.
+    const companyNotOpen = String(rawError).match(/Could not set 'SVCurrentCompany' to '([^']*)'/i);
+    if (companyNotOpen) {
+      const err = new Error(
+        `TallyPrime has no open company named "${companyNotOpen[1]}". Open it in ` +
+          'TallyPrime on the desktop and tap Retry. If it is already open, run a ' +
+          'sync from the desktop agent once so TallyFin learns its current name.'
+      );
+      err.code = 'TALLY_COMPANY_NOT_OPEN';
+      pending.reject(err);
+      return;
+    }
+    pending.reject(new Error(rawError));
   }
 
   handleImportLedgerResponse(agentId, message) {
@@ -2626,7 +2783,7 @@ class TallyWebSocketService {
 
   _pushToAgent(company, messageType, data, options = {}) {
     return new Promise(async (resolve, reject) => {
-      const agentId = await this.findConnectedAgentForCompany(company._id);
+      const agentId = await this.findConnectedAgentForCompany(company);
       if (!agentId) {
         return reject(
           new Error(
@@ -2668,41 +2825,65 @@ class TallyWebSocketService {
    * @param {object} [options]
    * @returns {Promise<object>}
    */
-  pushVoucherToTally(company, importPayload, options = {}) {
+  /**
+   * The name Tally knows this company by, and its GUID.
+   *
+   * The cloud name is what the user typed or what Tally was called when first
+   * linked; Tally's own name can differ ("Prem Supermarket" in the app,
+   * "Prem Supermarket 1" in Tally). Importing under the cloud name fails with
+   * "Could not set 'SVCurrentCompany'" although the company is open. The name
+   * the agent last reported wins over anything the client sent — including
+   * names baked into queued payloads — and the GUID lets the agent find the
+   * open company even if the name has changed again since.
+   */
+  tallyTargetOf(company, importPayload = {}) {
     const companyName =
-      importPayload.companyName || company.displayName || company.name || '';
+      company?.tallyIntegration?.companyName ||
+      importPayload.companyName ||
+      company?.displayName ||
+      company?.name ||
+      '';
+    const companyGuid = String(
+      company?.tallyCompanyPath || company?.tallyIntegration?.companyPath || ''
+    ).trim();
+    return { companyName, companyGuid };
+  }
+
+  pushVoucherToTally(company, importPayload, options = {}) {
+    const { companyName, companyGuid } = this.tallyTargetOf(company, importPayload);
     return this._pushToAgent(
       company,
       'import-voucher',
       {
         companyId: company._id.toString(),
         companyName,
+        companyGuid,
         voucherId: options.voucherId || importPayload.remoteId,
-        voucher: importPayload
+        voucher: { ...importPayload, companyName }
       },
       options
     );
   }
 
   pushLedgerToTally(company, importPayload, options = {}) {
-    const companyName =
-      importPayload.companyName || company.displayName || company.name || '';
+    const { companyName, companyGuid } = this.tallyTargetOf(company, importPayload);
     return this._pushToAgent(company, 'import-ledger', {
       companyId: company._id.toString(),
       companyName,
+      companyGuid,
       partyId: options.partyId || importPayload.remoteId,
-      ledger: importPayload
+      ledger: { ...importPayload, companyName }
     });
   }
 
   pushStockItemToTally(company, importPayload, options = {}) {
-    const companyName =
-      importPayload.companyName || company.displayName || company.name || '';
+    const { companyName, companyGuid } = this.tallyTargetOf(company, importPayload);
     return this._pushToAgent(company, 'import-stock-item', {
       companyId: company._id.toString(),
       companyName,
+      companyGuid,
       itemId: options.itemId || importPayload.remoteId,
-      stockItem: importPayload
+      stockItem: { ...importPayload, companyName }
     });
   }
 
@@ -2715,7 +2896,7 @@ class TallyWebSocketService {
 
   requestVoucherHydration(company, voucher) {
     return new Promise(async (resolve, reject) => {
-      const agentId = await this.findConnectedAgentForCompany(company._id);
+      const agentId = await this.findConnectedAgentForCompany(company);
       if (!agentId) {
         return reject(new Error('Desktop agent is not connected'));
       }

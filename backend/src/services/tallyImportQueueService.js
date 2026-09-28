@@ -183,6 +183,23 @@ export async function flushPendingImports(company, wsService) {
       });
       succeeded += 1;
     } catch (e) {
+      // The company is not open in this agent's Tally. Nothing is wrong with
+      // the record, so do not spend its retry budget, and stop: every other
+      // row for this company would fail the same way.
+      if (e.code === 'TALLY_COMPANY_NOT_OPEN') {
+        await TallyImportQueue.findByIdAndUpdate(row._id, {
+          lastError: String(e.message).slice(0, 1000),
+          lastAttemptAt: new Date(),
+        });
+        failed += 1;
+        logger.warn('Queued Tally import waiting for company to be opened', {
+          companyId,
+          entityType: row.entityType,
+          entityId: row.entityId,
+        });
+        break;
+      }
+
       const attempts = (row.attempts || 0) + 1;
       // Give up eventually so a permanently broken payload (bad ledger name,
       // missing item) does not retry forever on every reconnect.
